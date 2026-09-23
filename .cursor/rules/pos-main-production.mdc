@@ -1,0 +1,12 @@
+---
+description: Production-grade POS UI and implementation standards for pos-main
+alwaysApply: true
+---
+
+# pos-main production standards
+
+- Follow existing **pos-main** UI (PosTheme, PosDialogShell, existing buttons/chips). Do not copy Selfx colors, Riverpod, or layout chrome.
+- Prefer Material rounded industry-standard icons (`Icons.*_rounded` / `_outlined`).
+- Analyze real Selfx/pos-main code before changing behavior. Do not invent APIs, screens, or hardware SDKs.
+- Ship complete, production-grade behavior: wire buttons, status, empty/error states, and hot-reload-safe widget shapes (do not remove fields from existing `const` widgets).
+- Keep architecture (Provider, Navigator, SQLite, http). Small, focused diffs.

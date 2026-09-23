@@ -1,0 +1,219 @@
+import '../config/pos_app_info.dart';
+
+class PosAppUpdate {
+  const PosAppUpdate({
+    required this.status,
+    required this.currentVersion,
+    this.latestVersion,
+    this.minVersion,
+    this.latestBuild,
+    this.releaseNotes,
+    this.downloadUrl,
+    this.downloadLabel,
+    this.sha256,
+    this.signature,
+    this.platform,
+  });
+
+  final String status;
+  final String currentVersion;
+  final String? latestVersion;
+  final String? minVersion;
+  final int? latestBuild;
+  final String? releaseNotes;
+  final String? downloadUrl;
+  final String? downloadLabel;
+  final String? sha256;
+  final String? signature;
+  final String? platform;
+
+  bool get isNone => status == 'none' || status.isEmpty;
+  bool get isOptional => status == 'optional';
+  bool get isRequired => status == 'required';
+  bool get hasDownload => downloadUrl != null && downloadUrl!.isNotEmpty;
+  bool get hasChecksum =>
+      sha256 != null && RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(sha256!);
+
+  factory PosAppUpdate.none() => const PosAppUpdate(
+        status: 'none',
+        currentVersion: '',
+      );
+
+  factory PosAppUpdate.fromJson(Map<String, dynamic>? json) {
+    if (json == null || json.isEmpty) {
+      return PosAppUpdate.none();
+    }
+
+    String value(List<String> keys) {
+      for (final key in keys) {
+        final text = json[key]?.toString().trim() ?? '';
+        if (text.isNotEmpty) return text;
+      }
+      return '';
+    }
+
+    int? integer(List<String> keys) {
+      final text = value(keys);
+      return text.isEmpty ? null : int.tryParse(text);
+    }
+
+    final parsed = PosAppUpdate(
+      status: value(const ['status', 'update_status']).toLowerCase().isEmpty
+          ? 'none'
+          : value(const ['status', 'update_status']).toLowerCase(),
+      currentVersion: value(const ['current_version']),
+      latestVersion: _nullable(value(const ['latest_version', 'version'])),
+      minVersion: _nullable(
+        value(const ['min_version', 'minimum_version', 'required_version']),
+      ),
+      latestBuild: integer(const ['latest_build', 'build_number', 'build']),
+      releaseNotes: _nullable(
+        value(const ['release_notes', 'notes', 'changelog']),
+      ),
+      downloadUrl: _nullable(
+        value(const [
+          'download_url',
+          'installer_url',
+          'apk_url',
+          'url',
+        ]),
+      ),
+      downloadLabel: _nullable(value(const ['download_label'])),
+      sha256: _checksum(json),
+      signature: _nullable(
+        value(const ['signature', 'signature_base64', 'rsa_signature']),
+      ),
+      platform: _nullable(value(const ['platform', 'target_platform']))
+          ?.toLowerCase(),
+    );
+    return parsed.resolvedAgainstInstalled();
+  }
+
+  /// Compare this manifest to the running binary. Stale `required` flags for
+  /// the already-installed version become `none`.
+  PosAppUpdate resolvedAgainstInstalled({
+    String? installedVersion,
+    int? installedBuild,
+  }) {
+    final current = (installedVersion ?? PosAppInfo.version).trim();
+    final build = installedBuild ?? int.tryParse(PosAppInfo.buildNumber) ?? 0;
+    final latest = latestVersion?.trim() ?? '';
+    final minimum = minVersion?.trim() ?? '';
+    final newer = latest.isNotEmpty &&
+        compareAppVersions(
+              current,
+              latest,
+              currentBuild: build,
+              candidateBuild: latestBuild,
+            ) <
+            0;
+    final belowMinimum = minimum.isNotEmpty &&
+        compareAppVersions(current, minimum) < 0;
+    final available = newer || belowMinimum;
+    final nextStatus = !available
+        ? 'none'
+        : (status == 'required' || belowMinimum)
+            ? 'required'
+            : (status == 'optional' || newer)
+                ? 'optional'
+                : 'none';
+    return PosAppUpdate(
+      status: nextStatus,
+      currentVersion: current,
+      latestVersion: latestVersion,
+      minVersion: minVersion,
+      latestBuild: latestBuild,
+      releaseNotes: releaseNotes,
+      downloadUrl: downloadUrl,
+      downloadLabel: downloadLabel,
+      sha256: sha256,
+      signature: signature,
+      platform: platform,
+    );
+  }
+
+  static String? _nullable(String value) {
+    final text = value.trim();
+    return text.isEmpty ? null : text;
+  }
+
+  static String? _checksum(Map<String, dynamic> json) {
+    const keys = {
+      'sha256',
+      'sha_256',
+      'checksum_sha256',
+      'sha256_checksum',
+      'checksumsha256',
+      'filesha256',
+      'file_hash',
+      'filehash',
+      'checksum',
+    };
+    String from(Object? raw) {
+      if (raw is Map) {
+        for (final value in raw.values) {
+          final found = from(value);
+          if (found.isNotEmpty) return found;
+        }
+        return '';
+      }
+      final candidate = raw?.toString() ?? '';
+      final match = RegExp(
+        r'[a-fA-F0-9]{64}',
+      ).firstMatch(candidate.replaceAll(RegExp(r'\s+'), ''));
+      return match?.group(0)?.toLowerCase() ?? '';
+    }
+
+    for (final entry in json.entries) {
+      final key = entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      if (keys.contains(key) || keys.contains(entry.key.toLowerCase())) {
+        final found = from(entry.value);
+        if (found.isNotEmpty) return found;
+      }
+    }
+    return null;
+  }
+}
+
+int compareAppVersions(
+  String current,
+  String candidate, {
+  int? currentBuild,
+  int? candidateBuild,
+}) {
+  if (candidate.trim().isEmpty) return 0;
+  List<int> parts(String source) {
+    final normalized = source.trim().split('+').first.split('-').first;
+    return normalized
+        .split('.')
+        .map(
+          (part) => int.tryParse(RegExp(r'\d+').stringMatch(part) ?? '') ?? 0,
+        )
+        .toList(growable: false);
+  }
+
+  final left = parts(current);
+  final right = parts(candidate);
+  final count = left.length > right.length ? left.length : right.length;
+  for (var index = 0; index < count; index++) {
+    final a = index < left.length ? left[index] : 0;
+    final b = index < right.length ? right[index] : 0;
+    if (a != b) return a.compareTo(b);
+  }
+  if (currentBuild != null && candidateBuild != null) {
+    return currentBuild.compareTo(candidateBuild);
+  }
+  return 0;
+}
+
+Map<String, dynamic>? mergedPosAppUpdateJson(Map<String, dynamic> json) {
+  final raw = json['app_update'];
+  if (raw is! Map) {
+    return raw is Map<String, dynamic> ? raw : null;
+  }
+  return <String, dynamic>{
+    ...json,
+    ...Map<String, dynamic>.from(raw),
+  };
+}
+

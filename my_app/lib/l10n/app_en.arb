@@ -1,0 +1,1776 @@
+{
+  "@@locale": "en",
+  "languageName": "English",
+  "languagePickerTitle": "Language",
+  "languagePickerHint": "Choose a language for this register",
+  "appearancePickerTitle": "Appearance",
+  "appearancePickerHint": "Choose how this app looks",
+  "themeModeSystem": "System",
+  "themeModeSystemHint": "Match the device light or dark setting",
+  "themeModeLight": "Light",
+  "themeModeLightHint": "Always use the light theme",
+  "themeModeDark": "Dark",
+  "themeModeDarkHint": "Always use the dark theme",
+  "shellAppearance": "Appearance",
+  "shellAutoLock": "Auto-lock",
+  "autoLockPickerTitle": "Auto-lock",
+  "autoLockPickerHint": "Choose whether this register locks itself when idle",
+  "autoLockEnabled": "On",
+  "autoLockEnabledHint": "Lock after 2 minutes of inactivity",
+  "autoLockDisabled": "Off",
+  "autoLockDisabledHint": "Stay unlocked until you lock manually",
+  "adminManage": "Manage",
+  "adminManageSubtitle": "Menu, tables, orders, and reports",
+  "adminMenu": "Menu",
+  "adminTables": "Tables",
+  "adminOrders": "Orders",
+  "adminOrdersPeriodToday": "Today",
+  "adminOrdersPeriodYesterday": "Yesterday",
+  "adminOrdersPeriodLast7Days": "Last 7 days",
+  "adminOrdersPeriodAll": "All time",
+  "adminOrdersPaymentAll": "All payments",
+  "adminOrdersPaymentUnpaid": "Unpaid",
+  "adminOrdersPaymentPaid": "Paid",
+  "adminOrdersChannelCaptain": "POS - Captain",
+  "adminOrdersChannelPos": "POS",
+  "adminOrdersChannelRegister": "POS",
+  "adminOrdersChannelKiosk": "Kiosk",
+  "adminOrdersChannelOnline": "Online",
+  "adminOrdersChannelApp": "Mobile app",
+  "adminOrdersChannelApi": "API",
+  "adminOrdersChannelUnknown": "Order",
+  "adminOrdersTableMeta": "Table {name}",
+  "@adminOrdersTableMeta": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "adminTokenShort": "Token",
+  "adminOrdersAutoRefresh": "Auto-refresh · {time}",
+  "@adminOrdersAutoRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "adminModifiers": "Modifiers",
+  "adminTimeSlots": "Time slots",
+  "adminHours": "Hours & availability",
+  "adminHoursSubtitle": "Store open/close and weekly schedule",
+  "storeOpen": "Open",
+  "storeClosed": "Closed",
+  "storeOutsideHours": "Outside hours",
+  "storePaused": "Paused",
+  "storeCloseTitle": "Close store to guests?",
+  "storeCloseMessage": "Storefront and kiosk will stop taking new orders. POS stays available.",
+  "storeCloseConfirm": "Close to guests",
+  "storeOpenTitle": "Open store to guests?",
+  "storeOpenMessage": "Storefront and kiosk can accept new orders again (subject to weekly hours).",
+  "storeOpenConfirm": "Open to guests",
+  "storeGuestStatusOpen": "Guest ordering is open",
+  "storeGuestStatusPaused": "Guest ordering is paused",
+  "storeGuestStatusOutsideHours": "Outside weekly hours",
+  "storeGuestStatusOther": "Guest ordering is unavailable",
+  "storeAcceptOnlineOrders": "Restaurant is open",
+  "storeAcceptOnlineOrdersHelp": "When off, storefront and kiosk pause. POS keeps working.",
+  "storeScheduleEnabled": "Use weekly hours",
+  "storeScheduleEnabledHelp": "When on, guest channels close outside the schedule below.",
+  "storeTimezone": "Timezone",
+  "storeClosedMessage": "Closed message",
+  "storeClosedMessageHint": "Shown when guests cannot order",
+  "storeScheduleTitle": "Weekly hours",
+  "storeAddShift": "Add shift",
+  "storeCopyWeekdays": "Copy Mon to weekdays",
+  "storeDayClosed": "Closed",
+  "storePosNote": "POS register keeps working when guest orders are closed.",
+  "storeHoursSaved": "Hours saved",
+  "storeOpensAt": "Opens {when}",
+  "@storeOpensAt": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "commonRetry": "Retry",
+  "commonCancel": "Cancel",
+  "commonClose": "Close",
+  "commonContinue": "Continue",
+  "commonClear": "Clear",
+  "commonSave": "Save",
+  "commonDone": "Done",
+  "commonLoading": "Loading…",
+  "commonPleaseWait": "Please wait",
+  "commonSomethingWentWrong": "Something went wrong",
+  "commonChangeServer": "Change server",
+  "commonSearch": "Search",
+  "commonRefresh": "Refresh",
+  "commonPrint": "Print",
+  "commonSignOut": "Sign out",
+  "commonTotal": "Total",
+  "commonSubtotal": "Subtotal",
+  "commonPaid": "Paid",
+  "commonUnpaid": "Unpaid",
+  "commonTryAgain": "Try again",
+  "authStaffSignIn": "Staff sign in",
+  "authSignInOnce": "Sign in once, then unlock with your POS PIN",
+  "authUseStaffEmail": "Use your staff email and password",
+  "authEmail": "Email",
+  "authPassword": "Password",
+  "authSignIn": "Sign in",
+  "authPairDeviceFirst": "Optional: bind this register",
+  "authChangePairedRegister": "Change paired register",
+  "authRegisterPaired": "Register paired",
+  "authStaffPos": "Staff POS",
+  "authReadyForCashier": "Ready for staff sign-in",
+  "authPairThenSignIn": "Sign in with your staff account",
+  "authThisRegisterPaired": "Register is set — staff still sign in with email & password",
+  "setupServerTitle": "Server setup",
+  "setupConnectRegister": "Connect this register to your {app} server, then sign in and start taking orders.",
+  "@setupConnectRegister": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "setupServerUrl": "Server URL",
+  "pairDeviceTitle": "Optional register bind",
+  "pairBindTerminal": "Remember which register this tablet is",
+  "pairFooterNote": "Pairing does not sign you in. It only remembers this register so staff skip picking a terminal after login.",
+  "pairNewCode": "New code",
+  "pairSkipToSignIn": "Skip — just sign in",
+  "lockRegisterLocked": "Register locked",
+  "lockWelcomeBack": "Welcome back",
+  "lockWelcomeBackNamed": "Welcome back, {name}",
+  "@lockWelcomeBackNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "lockSignedInAs": "Signed in as {name}",
+  "@lockSignedInAs": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "lockEnterPin": "Enter your 6-digit POS PIN",
+  "lockUnlock": "Unlock",
+  "lockUnlocking": "Unlocking…",
+  "lockUnlockWithPin": "Unlock with your POS PIN to continue",
+  "shellOrders": "Orders",
+  "shellReports": "Reports",
+  "shellHeld": "Held",
+  "shellLanguage": "Language",
+  "shellCheckForUpdates": "Check for updates",
+  "shellKeyboardShortcuts": "Keyboard shortcuts",
+  "shellLockRegister": "Lock register",
+  "opsOpenShift": "Open shift",
+  "opsCloseShift": "Close shift",
+  "cartHold": "Hold",
+  "cartPay": "Pay",
+  "cartClear": "Clear cart",
+  "cartEmptyTitle": "Cart is empty",
+  "cartEmptySubtitle": "Tap menu items to start a ticket",
+  "cartHeldTicket": "Held ticket {label}",
+  "@cartHeldTicket": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "cartReplaceTitle": "Replace current ticket?",
+  "cartReplaceMessage": "Resuming this held order will overwrite the items currently on the cart.",
+  "cartResume": "Resume",
+  "ordersTitle": "Orders",
+  "ordersHeldTab": "Held",
+  "ordersOrdersTab": "Orders",
+  "ordersHeldSubtitle": "Parked drafts waiting to be resumed",
+  "ordersHeldCountSubtitle": "{count} parked ticket ready to resume",
+  "@ordersHeldCountSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ordersHeldCountSubtitlePlural": "{count} parked tickets ready to resume",
+  "@ordersHeldCountSubtitlePlural": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ordersBranchActivity": "Branch activity on this register",
+  "ordersHeldHint": "Hold parks the current cart. Resume loads it back so you can keep editing or pay.",
+  "ordersSearchHint": "Search order #, customer, table…",
+  "ordersFilterToday": "Today",
+  "ordersFilterUnpaid": "Unpaid",
+  "ordersFilterSevenDays": "7 days",
+  "ordersNoHeldTitle": "No held tickets",
+  "ordersNoHeldSubtitle": "Tap Hold on the cart to park a draft, then resume it here.",
+  "ordersNoOrdersTitle": "No orders found",
+  "ordersNoOrdersSubtitle": "Try another filter or search term.",
+  "ordersCouldNotLoad": "Couldn’t load orders",
+  "ordersResumeTicket": "Resume ticket",
+  "ordersAlreadyOnCart": "Already on cart",
+  "ordersOnCart": "On cart",
+  "ordersHeldTicket": "Held ticket",
+  "ordersCollect": "Collect {amount}",
+  "@ordersCollect": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "ordersPrintReceipt": "Print receipt",
+  "ordersPrintKot": "Print KOT",
+  "ordersDetailTitle": "Order details",
+  "ordersDetailLoading": "Loading order…",
+  "ordersDetailItems": "Items",
+  "ordersDetailNoItems": "No line items",
+  "ordersDetailPaid": "Paid",
+  "ordersDetailDue": "Amount due",
+  "printKotPrinted": "KOT printed for {label}",
+  "@printKotPrinted": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "ordersPaymentRecorded": "Payment recorded for {label}",
+  "@ordersPaymentRecorded": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "ordersPaymentReceived": "Payment received for {label}",
+  "@ordersPaymentReceived": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "ordersPaymentNotCompleted": "Payment not completed for {label}",
+  "@ordersPaymentNotCompleted": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "ordersLoaded": "Loaded {label}",
+  "@ordersLoaded": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "ordersUpdated": "Order updated",
+  "ordersCancelTitle": "Cancel this order?",
+  "ordersCancelMessage": "This removes the order from the kitchen flow. You can’t undo this.",
+  "ordersCancelPaidMessage": "This order is marked paid ({amount}). Cancel only keeps the payment on record, or cancel and refund to mark it refunded (return cash/card manually).",
+  "@ordersCancelPaidMessage": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "ordersCancelConfirm": "Cancel order",
+  "ordersCancelAndRefund": "Cancel & refund",
+  "ordersCancelKeep": "Keep order",
+  "ordersCancelled": "Order cancelled",
+  "ordersCancelledRefunded": "Order cancelled and marked refunded",
+  "ordersCancelAction": "Cancel order",
+  "payTakePayment": "Take payment",
+  "payCollectPayment": "Collect payment",
+  "payAmountDue": "AMOUNT DUE",
+  "payCash": "Cash",
+  "payCashSubtitle": "Tender & change",
+  "payCard": "Card",
+  "payCardSubtitle": "Terminal",
+  "payWallet": "Wallet",
+  "payWalletSubtitle": "Digital pay",
+  "payOther": "Other",
+  "payOtherSubtitle": "Voucher, etc.",
+  "payLater": "Pay later",
+  "payLaterSubtitle": "Open tab",
+  "payUpiQr": "UPI QR",
+  "payConfirm": "Confirm payment",
+  "shiftOpenTitle": "Open shift",
+  "shiftCloseTitle": "Close shift",
+  "authAccountLoadFailed": "Could not load account data from server. Try again.",
+  "authLoginNoToken": "Login did not return a token.",
+  "authNoRestaurantBranch": "No restaurant or branch assigned to this account.",
+  "authNotSignedIn": "Not signed in",
+  "authSessionExpired": "Session expired. Please sign in again.",
+  "authSignOutFromLock": "You will need email and password to sign in again. Cancel to stay on PIN unlock.",
+  "authSignOutMessageNoPin": "You will need your email and password to sign in again.",
+  "authSignOutMessageWithPin": "You will need your email and password, or POS PIN, to sign in again.",
+  "authSignOutTitle": "Sign out?",
+  "brandTagline": "Fast staff ordering — sign in, open a shift, and take payments.",
+  "cartAddCustomer": "Add customer",
+  "cartClearCustomer": "Clear customer",
+  "cartClearMessage": "Remove all items and reset customer, table, notes, and discount.",
+  "cartClearTitle": "Clear ticket?",
+  "cartClearTooltip": "Clear ticket",
+  "cartCurrentTicket": "Current ticket",
+  "cartCustomerFallback": "Customer",
+  "cartCustomerNameHint": "Or type a name",
+  "cartCustomerSearchHint": "Search name, phone, email",
+  "cartEmptyPanelSubtitle": "Tap menu items to build this order.",
+  "cartEmptyPanelTitle": "Empty ticket",
+  "cartHeldSnack": "Ticket {label} held — open Orders → Held to resume",
+  "@cartHeldSnack": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "cartIsEmptyError": "Cart is empty.",
+  "cartItemCount": "{count} item",
+  "@cartItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "cartItemCountPlural": "{count} items",
+  "@cartItemCountPlural": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "cartNoItemsYet": "No items yet",
+  "cartNoTable": "No table",
+  "cartNoTablesSubtitle": "Ask your manager to add tables in Admin.",
+  "cartNoTablesTitle": "No tables configured",
+  "cartPayable": "Payable",
+  "cartRemoveLine": "Remove",
+  "cartSaveName": "Save name",
+  "cartSelectTable": "Select table",
+  "cartServiceCharge": "Service charge",
+  "cartTable": "Table",
+  "cartTableNamed": "Table {name}",
+  "@cartTableNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "cartTableOccupied": "Occupied",
+  "cartTablesLegend": "Available tables are green · occupied are red",
+  "cartTablesOther": "OTHER",
+  "cartTax": "Tax",
+  "cartTicketNotes": "Ticket notes",
+  "cartTicketNotesHint": "Ticket notes",
+  "commonConfirm": "Confirm",
+  "commonDismiss": "Dismiss",
+  "confirmDestructiveSubtitle": "This cannot be undone easily",
+  "connIssueFooter": "Check the server URL and try again.",
+  "connIssueTitle": "Connection issue",
+  "connUnableToReach": "Unable to reach the server.",
+  "subscriptionEndedTitle": "Subscription ended",
+  "subscriptionTrialEndedTitle": "Trial ended",
+  "subscriptionEndedBody": "This restaurant's subscription is inactive. Ask an owner to renew billing to keep using POS.",
+  "subscriptionTrialEndedBody": "This restaurant's free trial has ended. Ask an owner to choose a plan to continue.",
+  "subscriptionEndedFooter": "POS stays locked until billing is active again.",
+  "billingTitle": "Billing",
+  "billingManageSubtitle": "Plans, trial, and subscription",
+  "billingUpgradePlan": "Upgrade plan",
+  "billingUpgradeBody": "Choose a plan to restore POS access for this restaurant.",
+  "billingRenewBody": "Your subscription is inactive. Choose a plan to restore POS access.",
+  "billingUpgradeFooter": "POS unlocks as soon as a plan is active.",
+  "billingChoosePlan": "Pick a plan for this restaurant.",
+  "billingMonthly": "Monthly",
+  "billingYearly": "Yearly",
+  "billingSubscribe": "Subscribe",
+  "billingActivateFree": "Activate free plan",
+  "billingCurrentPlan": "Current plan",
+  "billingPayWith": "Pay with {provider}",
+  "@billingPayWith": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "billingPaymentOff": "Online checkout is not enabled. Activate a free plan, or ask support to enable payments.",
+  "billingPaymentProvider": "the payment provider",
+  "billingCoveredBody": "Billing for this restaurant is managed by {org}. Ask that organization to renew the plan.",
+  "@billingCoveredBody": {
+    "placeholders": {
+      "org": {
+        "type": "String"
+      }
+    }
+  },
+  "billingOrganization": "the organization",
+  "billingIvePaid": "I've paid — continue",
+  "billingReturnFromCheckout": "Finish payment in the browser, then tap below to unlock POS.",
+  "billingNoPlans": "No plans are available right now.",
+  "billingFree": "Free",
+  "billingPerMonth": "month",
+  "billingPerYear": "year",
+  "billingActivated": "Plan activated",
+  "billingPaymentPending": "Payment is not confirmed yet. Finish checkout, then try again.",
+  "contextBranch": "Branch",
+  "contextChooseLocation": "Choose location",
+  "contextCurrentRestaurant": "Current restaurant",
+  "contextDefaultBranch": "Default branch",
+  "contextFooterNote": "Pick where this register will take orders today.",
+  "contextNoOtherLocation": "No other restaurant or branch is available for this account.",
+  "contextRestaurant": "Restaurant",
+  "contextSubtitle": "Select the restaurant and branch for this register session.",
+  "dietNonVeg": "Non-veg",
+  "dietVeg": "Veg",
+  "dietVegan": "Vegan",
+  "dietEgg": "Egg",
+  "dietDrink": "Drink",
+  "discountAmount": "Amount",
+  "discountApply": "Apply",
+  "discountApplyTitle": "Apply discount",
+  "discountEditTitle": "Edit discount",
+  "discountLabel": "Discount",
+  "discountNewTaxableBase": "New taxable base",
+  "discountOffSubtotal": "Off cart subtotal · {amount}",
+  "@discountOffSubtotal": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "discountPercent": "Percent",
+  "discountReason": "Reason",
+  "discountReasonHint": "Optional — staff note for the ticket",
+  "discountRemove": "Remove discount",
+  "discountTypeLabel": "Discount type",
+  "discountUpdate": "Update",
+  "menuAllItems": "All items",
+  "menuBarcodeTooltip": "USB barcode scanners work here automatically",
+  "menuBrowseFull": "Browse the full menu",
+  "menuCategoryFallback": "Category",
+  "menuCategoryItems": "Items in this category",
+  "menuChoose": "Choose",
+  "menuFrom": "FROM",
+  "menuNavLabel": "Menu",
+  "menuNoItemsSubtitle": "Try another category or search term.",
+  "menuNoItemsTitle": "No items found",
+  "menuOptions": "Options",
+  "menuNotAvailableBadge": "Not available",
+  "menuNotAvailableTitle": "Not available?",
+  "menuNotAvailableMessage": "{name} is marked not available. Add it to this ticket anyway?",
+  "@menuNotAvailableMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "menuNotAvailableConfirm": "Add anyway",
+  "menuOutsideScheduleBadge": "Outside schedule",
+  "menuOutsideScheduleTitle": "Outside schedule?",
+  "menuOutsideScheduleMessage": "{name} is outside its menu time slot. Add it to this ticket anyway?",
+  "@menuOutsideScheduleMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "menuOutsideScheduleConfirm": "Add anyway",
+  "menuPopularSubtitle": "Fast picks for this register",
+  "menuPopularTitle": "Popular items",
+  "menuScan": "Scan",
+  "menuSearchHint": "Search menu or scan barcode…",
+  "menuSearchResults": "Results for \"{query}\"",
+  "@menuSearchResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "modifierAddToTicket": "Add to ticket",
+  "modifierChooseUpTo": "Choose up to {max} for {name}",
+  "@modifierChooseUpTo": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modifierChooseVariant": "Choose Variant",
+  "modifierNotesHint": "Add a note or special request…",
+  "modifierOptional": "Optional",
+  "modifierPleaseChoose": "Please choose {name}",
+  "@modifierPleaseChoose": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modifierQuantity": "Quantity",
+  "modifierRequired": "Required",
+  "modifierSpecialInstructions": "Special Instructions",
+  "netBlocked": "Network access blocked. Check permissions and try again.",
+  "netCannotConnect": "Could not connect to the server. Is it running?",
+  "@netCannotConnect": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "netCannotReach": "Could not reach the server. Check your connection and try again.",
+  "@netCannotReach": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "errorGeneric": "Something went wrong. Please try again.",
+  "errorNetwork": "Could not reach the server. Check your connection and try again.",
+  "offlineBanner": "Offline — cash & external payments still work; orders sync when connected",
+  "offlineLabel": "Offline",
+  "offlineNotAvailable": "Offline mode not available",
+  "offlinePending": "Offline ({count} pending)",
+  "@offlinePending": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineSyncing": "Syncing…",
+  "offlineSyncFailed": "{count} need sync",
+  "@offlineSyncFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineSyncFailedBanner": "{count} offline order(s) failed to sync — open Sync from the menu or check shift status",
+  "@offlineSyncFailedBanner": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "offlinePaymentBlocked": "This payment method needs a network connection. Use cash or another offline method.",
+  "offlineHeldPayBlocked": "Server held tickets need a network connection to settle. Local offline holds can be paid with cash or another offline method.",
+  "offlineHeldNotFound": "That held ticket is no longer on this device.",
+  "offlinePinNeedsNetwork": "Unlock once while online to enable offline PIN unlock on this device.",
+  "offlineSyncNothingPending": "No pending offline orders",
+  "offlineSyncPartial": "Synced with {count} still pending",
+  "@offlineSyncPartial": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "opsNoShift": "No shift",
+  "opsOpenOptional": "Optional — open when ready",
+  "opsOpenToTakeOrders": "Open a shift to take orders",
+  "opsRegShort": "Reg",
+  "opsRegisterReady": "Register is ready",
+  "opsShiftOpen": "Shift open",
+  "opsShiftRequired": "Shift required",
+  "opsSince": "since {time}",
+  "@opsSince": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "orderPlaced": "Order {label} placed",
+  "@orderPlaced": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "orderSavedOffline": "Order {label} saved (offline)",
+  "@orderSavedOffline": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "orderTypeDelivery": "Delivery",
+  "orderTypeDineIn": "Dine in",
+  "orderTypeTakeaway": "Takeaway",
+  "ordersAdvanceAccept": "Accept",
+  "ordersAdvanceDone": "Done",
+  "ordersAdvanceKitchen": "Kitchen",
+  "ordersAdvanceReady": "Ready",
+  "ordersItemCount": "{count} item",
+  "@ordersItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ordersItemCountPlural": "{count} items",
+  "@ordersItemCountPlural": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ordersMoreItems": "+{count} more",
+  "@ordersMoreItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ordersNumberMissing": "Order number missing",
+  "ordersPagination": "{from}–{to} of {total}",
+  "@ordersPagination": {
+    "placeholders": {
+      "from": {
+        "type": "int"
+      },
+      "to": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "ordersTokenLabel": "Token {token}",
+  "@ordersTokenLabel": {
+    "placeholders": {
+      "token": {
+        "type": "String"
+      }
+    }
+  },
+  "pairAdminHint": "Optional. In Admin → POS terminals, tap Pair tablet on this register, then enter the code shown there. You will still sign in afterward.",
+  "pairCodeExpired": "Pairing code expired. Tap New code to try again.",
+  "pairThisTablet": "Bind this tablet to a register",
+  "pairWaitingManager": "Waiting for manager to confirm…",
+  "payCashTendered": "Cash tendered",
+  "payChangeDue": "Change due",
+  "payCharge": "Charge {amount}",
+  "@payCharge": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "payConfirmMethod": "Confirm {method}",
+  "@payConfirmMethod": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "payExact": "Exact",
+  "payLaterHelp": "Order is saved as an open tab — charge when ready.",
+  "payMethodLabel": "Payment method",
+  "payNotCompleted": "Payment not completed",
+  "payPlaceOrder": "Place order",
+  "payPlaceWithout": "Place without payment",
+  "payQrHelp": "Customer scans and pays with UPI on their phone.",
+  "payReceived": "Received",
+  "payShort": "Short of total",
+  "payShortHelp": "Amount received is less than total due.",
+  "payShowQr": "Show QR for customer",
+  "payTerminalHelp": "Complete on the terminal or record the payment.",
+  "payTip": "Tip",
+  "payTipCustom": "Custom tip",
+  "payTipNone": "None",
+  "payUpi": "UPI",
+  "pinAccountPassword": "Account password",
+  "pinBannerBody": "Set a 6-digit PIN to unlock this register after relaunch. Prefer Lock between shifts.",
+  "pinBannerTitle": "Unlock with a POS PIN",
+  "pinChangeTitle": "Change POS PIN",
+  "pinConfirm": "Confirm PIN",
+  "pinCreateSubtitle": "Create a 6-digit PIN to unlock this register",
+  "pinIncorrect": "Incorrect PIN",
+  "pinMismatch": "PINs do not match.",
+  "pinMustBeSix": "PIN must be exactly 6 digits.",
+  "pinNeedPassword": "Enter your account password.",
+  "pinNew": "New PIN",
+  "pinPasswordHelper": "Required to save your PIN",
+  "pinPromptMessage": "Unlock this register with a short PIN instead of email and password. Recommended after pairing.",
+  "pinPromptNotNow": "Not now",
+  "pinPromptSet": "Set PIN",
+  "pinPromptSetNow": "Set PIN now",
+  "pinPromptTitle": "Set a POS PIN?",
+  "pinSave": "Save PIN",
+  "pinSaveFailed": "Could not save PIN",
+  "pinSaved": "POS PIN saved.",
+  "pinSetTitle": "Set POS PIN",
+  "pinUpdate": "Update PIN",
+  "poweredBy": "Powered by",
+  "printCouldNot": "Could not print: {error}",
+  "@printCouldNot": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "printOrderNotFound": "Order {label} not found",
+  "@printOrderNotFound": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "printPrinted": "Printed {label}",
+  "@printPrinted": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "printReceiptConfirmMessage": "Print a duplicate receipt for {label}?",
+  "@printReceiptConfirmMessage": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "printReceiptConfirmTitle": "Print receipt?",
+  "printerActive": "Active",
+  "printerAutoPrintKot": "Auto-print KOT on new orders",
+  "printerAutoPrintKotHelp": "When a guest, kiosk, online, or partner order arrives, print kitchen tickets on this device’s printer.",
+  "printerAutoPrintKotOnSnack": "New orders will auto-print KOT",
+  "printerAutoPrintKotOffSnack": "New orders will not auto-print KOT",
+  "printerTestPrint": "Test print",
+  "printerTestSent": "Test print sent",
+  "printerTestFailed": "Test print failed",
+  "printerTesting": "Printing test…",
+  "printerBluetoothHint": "Put the printer in pairing mode, then scan",
+  "printerBluetoothTitle": "Bluetooth printers",
+  "printerConfirmBefore": "Confirm before scan-to-print",
+  "printerConnectBt": "Could not connect to Bluetooth printer \"{name}\". Keep the printer powered on and nearby, then try again.",
+  "@printerConnectBt": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "printerConnectMac": "Could not print to \"{name}\". Confirm the printer is online in System Settings and supports raw ESC/POS via CUPS.",
+  "@printerConnectMac": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "printerConnectUsb": "Could not connect to USB printer \"{name}\". Unplug and replug the printer, then try again.",
+  "@printerConnectUsb": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "printerConnectWeb": "Could not print to \"{name}\" in the browser. Run the native POS app with a USB or Bluetooth thermal printer.",
+  "@printerConnectWeb": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "printerCountFound": "{count} found",
+  "@printerCountFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "printerEmptyBt": "No Bluetooth printers found nearby.",
+  "printerEmptyUsb": "No USB / system printers found.",
+  "printerEmptyWeb": "Printing is not supported in the browser.",
+  "printerHelpAndroid": "Use USB, LAN (IP:9100 on the same network), or Bluetooth for an ESC/POS printer. Allow USB / nearby devices when Android prompts.",
+  "printerHelpIos": "iOS supports Bluetooth or LAN (same Wi‑Fi) ESC/POS printers. For LAN, enter the printer IP and port 9100.",
+  "printerHelpMac": "Choose USB / system, LAN (IP:9100), or Bluetooth ESC/POS. macOS CUPS printers appear under USB — use a raw/ESC-POS queue when available.",
+  "printerHelpWin": "Connect USB, enter a LAN printer IP (port 9100), or pair Bluetooth in Windows Settings, then select it below.",
+  "printerConnectLan": "Could not reach LAN printer \"{name}\" at {endpoint}. Check power, Wi‑Fi/Ethernet, and that raw TCP port 9100 is open.",
+  "@printerConnectLan": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "endpoint": {
+        "type": "String"
+      }
+    }
+  },
+  "printerLanTitle": "Network printer",
+  "printerLanHint": "Same Wi‑Fi/Ethernet as this device. Most ESC/POS printers use port 9100.",
+  "printerLanHost": "IP address or hostname",
+  "printerLanPort": "Port",
+  "printerLanNameOptional": "Name (optional)",
+  "printerLanNameHint": "Front counter",
+  "printerLanSave": "Save LAN printer",
+  "printerLanHostRequired": "Enter the printer IP address or hostname.",
+  "printerLanPortInvalid": "Port must be between 1 and 65535.",
+  "printerLoadFailed": "Could not load printers",
+  "printerLooking": "Looking for printers…",
+  "printerMissing": "No receipt printer selected.",
+  "printerMissingWeb": "Receipt printing requires the native POS app.",
+  "printerNoBluetooth": "No Bluetooth printers",
+  "printerNoneFound": "No printers found",
+  "printerReceiptTitle": "Receipt printer",
+  "printerScan": "Scan",
+  "printerScanAgain": "Scan again",
+  "printerScanAskHelp": "Ask before printing when an order QR is scanned",
+  "printerScanAskSnack": "Scan-to-print will ask before printing",
+  "printerScanAutoHelp": "Print automatically when an order QR is scanned",
+  "printerScanAutoSnack": "Scan-to-print will print automatically",
+  "printerScanBluetooth": "Scan for Bluetooth printers",
+  "printerScanToPrint": "Scan to print",
+  "statusPrinterReady": "Printer ready",
+  "statusPrinterNone": "No printer",
+  "statusPrinterMissing": "Printer disconnected",
+  "statusPrinterMissingHelp": "The receipt printer is disconnected or not responding. Check USB, Bluetooth, or the LAN cable, then tap Recheck.",
+  "statusPrinterNeedsSetup": "Printer needs setup",
+  "statusPrinterNeedsSetupHelp": "This device isn’t ready for raw ESC/POS yet. Open Printer setup and choose a printable queue.",
+  "statusPrinterAttentionHelp": "The printer reported a problem (paper, cover, or pause). Fix it, then recheck.",
+  "statusPrinterError": "Printer error",
+  "statusPrinterErrorHelp": "The last check failed. Confirm the printer is online, then open Printer setup if it persists.",
+  "statusPrinterUnsupported": "No printing",
+  "statusPrinterTapSetup": "Tap to open Printer setup",
+  "statusPrinterRecheck": "Recheck",
+  "printerScanning": "Scanning…",
+  "printerSelected": "Selected",
+  "printerSelectedSnack": "{connection} printer \"{name}\" selected",
+  "@printerSelectedSnack": {
+    "placeholders": {
+      "connection": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "printerSetupTitle": "Printer setup",
+  "printerTabBluetooth": "Bluetooth",
+  "printerTabLan": "LAN",
+  "printerTabUsb": "USB / System",
+  "printerUnsupportedWeb": "ESC/POS receipt printing is not available in the browser. Run the native POS app on Android, iOS, macOS, or Windows.",
+  "printerUsbHint": "Plug in or add the printer, then refresh",
+  "printerUsbTitle": "USB / system printers",
+  "qrAskCustomer": "Ask the customer to scan with their UPI app",
+  "qrCancelConfirm": "Cancel payment",
+  "qrCancelMessage": "Stop waiting for this {gateway} payment? The order stays unpaid.",
+  "@qrCancelMessage": {
+    "placeholders": {
+      "gateway": {
+        "type": "String"
+      }
+    }
+  },
+  "qrCancelTitle": "Cancel payment?",
+  "qrGenerateFailed": "Could not generate QR. Check PhonePe/Paytm settings.",
+  "qrGenerating": "Generating secure QR…",
+  "qrHurry": "Hurry",
+  "qrKeepWaiting": "Keep waiting",
+  "qrOrderLabel": "Order {label}",
+  "@qrOrderLabel": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "qrPrintSlip": "Print slip",
+  "qrPrinting": "Printing…",
+  "qrScanToPay": "Scan to pay",
+  "qrSlipPrintFailed": "Could not print QR slip",
+  "qrSlipPrinted": "QR slip sent to printer",
+  "qrTimeLeft": "Left",
+  "qrTimedOut": "Payment timed out or failed",
+  "qrUnavailable": "QR unavailable",
+  "qrWaiting": "Waiting for payment confirmation…",
+  "reportsCategoryWise": "Category wise",
+  "reportsCategoryWiseDesc": "Quantity and sales total by menu category.",
+  "reportsItemWise": "Item wise report",
+  "reportsItemWiseDesc": "Item codes, quantities sold, and sales amount.",
+  "reportsOrderType": "Order type",
+  "reportsOrderTypeDesc": "Dine-in, takeaway, and delivery sales with order counts.",
+  "reportsPrintFailed": "Could not print report: {error}",
+  "@reportsPrintFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "reportsSalesChannel": "Sales channel",
+  "reportsSalesChannelDesc": "POS, kiosk, online, and other channel totals.",
+  "reportsSalesSummary": "Sales summary",
+  "reportsSalesSummaryDesc": "Orders, items sold, average ticket, tax, tips, and discounts.",
+  "reportsSentToPrinter": "Report sent to printer",
+  "reportsSubtitle": "Print today’s sales for this branch to the thermal printer.",
+  "reportsTaxSummary": "Tax summary",
+  "reportsTaxSummaryDesc": "Collected tax by rate/name with period totals.",
+  "reportsTerminalConsolidated": "Terminal bill consolidated",
+  "reportsTerminalConsolidatedDesc": "Payment method totals with grand total for today.",
+  "reportsTitle": "Day-end reports",
+  "setupEnterUrl": "Enter your {app} server URL to continue.",
+  "@setupEnterUrl": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "setupStep1": "STEP 1 OF SETUP",
+  "shellChangeRegister": "Change register",
+  "shellChangeLocation": "Change location",
+  "shellClearPairing": "Clear device pairing",
+  "shellLockShort": "Lock",
+  "shellMenuDevice": "Device",
+  "shellMenuRefreshed": "Menu refreshed",
+  "shellMenuSession": "Session",
+  "shellMore": "More",
+  "shellMoreCustomize": "Customize",
+  "shellMoreCustomizeHint": "Uncheck options to hide them from the menu.",
+  "shellPairingCleared": "Device pairing cleared",
+  "shellRefreshMenu": "Refresh menu",
+  "shellSyncCompleted": "Sync completed",
+  "shellSyncOrders": "Sync orders",
+  "shellViewCart": "View cart",
+  "shiftBalanced": "Balanced",
+  "shiftByMethodSection": "BY PAYMENT METHOD",
+  "shiftCashCounted": "Cash counted",
+  "shiftCashDrawerSection": "CASH DRAWER",
+  "shiftCashSales": "Cash sales",
+  "shiftChangeGiven": "Change given",
+  "shiftCloseNotesHint": "Optional — e.g. variance explained",
+  "shiftCloseSubtitle": "Count the drawer and confirm against expected cash",
+  "shiftClosedSnack": "Shift closed",
+  "shiftClosing": "Closing…",
+  "shiftCounted": "Counted",
+  "shiftExpectedDrawer": "Expected in drawer",
+  "shiftNoPaidSales": "No paid sales yet",
+  "shiftNotes": "Notes",
+  "shiftOpenNotesHint": "Optional — e.g. counted with manager",
+  "shiftOpenRequiredTitle": "Open shift to continue",
+  "shiftOpenSubtitle": "Count the drawer, then start selling",
+  "shiftOpenedSnack": "Shift opened",
+  "shiftOpening": "Opening…",
+  "shiftOpeningFloat": "Opening float",
+  "shiftOpeningFloatFor": "Opening float for {branch}",
+  "@shiftOpeningFloatFor": {
+    "placeholders": {
+      "branch": {
+        "type": "String"
+      }
+    }
+  },
+  "shiftOpeningFloatHelp": "Cash in the drawer before the first sale",
+  "shiftOver": "Over",
+  "shiftPaidOrderOne": "1 paid order",
+  "shiftPaidOrders": "{count} paid orders",
+  "@shiftPaidOrders": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shiftRequiredSubtitle": "A shift is required before taking orders",
+  "shiftSalesSection": "SALES THIS SHIFT",
+  "shiftShort": "Short",
+  "shiftSummaryLoadFailed": "Could not load shift summary.",
+  "shiftSummaryLoading": "Loading shift summary…",
+  "shiftThisBranch": "this branch",
+  "shiftTipsOnOrders": "Tips on orders: {amount}",
+  "@shiftTipsOnOrders": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "shiftVariance": "Variance",
+  "shortcutsAll": "All shortcuts",
+  "shortcutsBarcodeNote": "/ search  ·  F2 hold  ·  F3 pay  ·  F4 orders  ·  F6 lock",
+  "shortcutsClearCart": "Clear cart",
+  "shortcutsClearCartDesc": "Asks for confirmation",
+  "shortcutsClearCartKeys": "⇧ Delete / ⇧ ⌫",
+  "shortcutsFocusSearch": "Focus search",
+  "shortcutsFocusSearchDesc": "Type to filter the menu",
+  "shortcutsGotIt": "Got it",
+  "shortcutsHeldOrders": "Held orders",
+  "shortcutsHeldOrdersDesc": "Open parked tickets",
+  "shortcutsHoldTicket": "Hold ticket",
+  "shortcutsHoldTicketDesc": "Park the current cart",
+  "shortcutsLockRegister": "Lock register",
+  "shortcutsLockRegisterDesc": "Requires a POS PIN",
+  "shortcutsLockAlt": "⌘ L / Ctrl L",
+  "shortcutsLockAltDesc": "Same as F6",
+  "shortcutsPay": "Pay",
+  "shortcutsPayAlt": "⇧ Enter",
+  "shortcutsPayAltDesc": "Same as F3",
+  "shortcutsPayDesc": "Open the payment flow",
+  "shortcutsSubtitle": "Faster register workflow with a keyboard",
+  "shortcutsTitle": "Keyboard shortcuts",
+  "terminalCode": "Code {code}",
+  "@terminalCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "terminalContinueWithout": "Continue without terminal",
+  "terminalEmptySubtitle": "Ask your manager to add POS terminals in Admin, then try again.",
+  "terminalEmptyTitle": "No terminals yet",
+  "terminalFooterNote": "This device will stay bound to the register you pick.",
+  "terminalSelectSubtitle": "Which POS terminal is this device?",
+  "terminalSelectSubtitleNamed": "Which POS terminal is this device? ({branch})",
+  "@terminalSelectSubtitleNamed": {
+    "placeholders": {
+      "branch": {
+        "type": "String"
+      }
+    }
+  },
+  "terminalSelectTitle": "Select register",
+  "timeDaysAgo": "{count}d ago",
+  "@timeDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeHoursAgo": "{count}h ago",
+  "@timeHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeJustNow": "Just now",
+  "timeMinutesAgo": "{count}m ago",
+  "@timeMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "updateAction": "Update",
+  "updateAvailableBody": "Running {version}. Tap Update to download and install.",
+  "@updateAvailableBody": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateAvailableSnack": "Update available · v{version}",
+  "@updateAvailableSnack": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateAvailableTitle": "Update available · v{version}",
+  "@updateAvailableTitle": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateCancelled": "Cancelled",
+  "updateCheckFailed": "Could not check for updates",
+  "updateChecking": "Checking for updates…",
+  "updateDoneAndroid": "Complete the system install prompt, then reopen this POS app.",
+  "updateDoneGeneric": "Finish installing, then reopen this POS app.",
+  "updateDoneMac": "Install from the opened package (DMG/app), then reopen this POS app.",
+  "updateDoneWin": "Finish the installer wizard, then reopen this POS app.",
+  "updateDownload": "Download update",
+  "updateDownloadCancelled": "Download cancelled.",
+  "updateDownloadFailed": "Download failed ({code}).",
+  "@updateDownloadFailed": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloading": "Downloading update",
+  "updateDownloadingPct": "Downloading… {pct}%",
+  "@updateDownloadingPct": {
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
+  "updateFailed": "Update failed",
+  "updateInAppUnavailable": "In-app install is not available on this platform.",
+  "updateInstallerOpened": "Installer opened",
+  "updateInstalling": "Installing the latest POS build",
+  "updateLater": "Later",
+  "updateNoLink": "No download link is published yet. Contact your platform administrator.",
+  "updateNoLinkDevice": "No download link is available for this device.",
+  "updateOpenBrowser": "Open in browser",
+  "updateOpeningAndroid": "Opening the Android installer…",
+  "updateOpeningGeneric": "Opening the installer…",
+  "updateOpeningMac": "Opening the macOS installer…",
+  "updateOpeningWin": "Opening the Windows installer…",
+  "updatePreparing": "Preparing download…",
+  "updateRequiredBody": "This POS is on {current}. Install {latest} to continue.",
+  "@updateRequiredBody": {
+    "placeholders": {
+      "current": {
+        "type": "String"
+      },
+      "latest": {
+        "type": "String"
+      }
+    }
+  },
+  "updateRequiredSnack": "A required update is available",
+  "updateRequiredTitle": "Update required",
+  "updateUpToDate": "You are up to date ({version})",
+  "@updateUpToDate": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateVersion": "Version {version}",
+  "@updateVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateWorking": "Working…",
+  "upsellAdd": "Add",
+  "upsellSubtitle": "Popular extras for this ticket. Optional — continue when ready.",
+  "upsellTitle": "Add anything else?",
+  "shiftUnpaidSuffix": " · {count} unpaid ({amount})",
+  "@shiftUnpaidSuffix": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "payAmountWithTip": "{total} + {tip} tip",
+  "@payAmountWithTip": {
+    "placeholders": {
+      "tip": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "payStatusPartial": "Partially paid",
+  "payStatusRefunded": "Refunded",
+  "payStatusPending": "Payment pending",
+  "authStaffOrderingFooter": "{app} · staff ordering",
+  "@authStaffOrderingFooter": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "modePickerTitle": "How are you working?",
+  "modePickerSubtitle": "Choose register POS for the counter, or Waiter for phone floor service.",
+  "modePickerRegisterTitle": "Register POS",
+  "modePickerRegisterSubtitle": "Full cashier: payments, shifts, printers",
+  "modePickerWaiterTitle": "Waiter / Captain",
+  "modePickerWaiterSubtitle": "Tables, KOT, and bill requests on the floor",
+  "modePickerFooter": "You can switch modes later from Profile",
+  "waiterNavTables": "Tables",
+  "waiterNavOrders": "Orders",
+  "waiterNavAlerts": "Notifications",
+  "waiterNavProfile": "Profile",
+  "waiterConnectionLive": "Live · floor updating",
+  "waiterConnectionOffline": "Offline · showing last floor",
+  "waiterZoneAll": "All tables",
+  "waiterZoneOther": "Other",
+  "waiterStatusAvailable": "Available",
+  "waiterStatusOccupied": "Occupied",
+  "waiterStatusBilling": "Billing",
+  "waiterStatusReserved": "Reserved",
+  "waiterStatusCleaning": "Needs cleaning",
+  "waiterTableCleaningHint": "This table needs cleaning before seating.",
+  "waiterOpenTableTitle": "Open {table}",
+  "@waiterOpenTableTitle": {
+    "placeholders": {
+      "table": {
+        "type": "String"
+      }
+    }
+  },
+  "waiterOpenTableSubtitle": "Set guest count, then start taking the order.",
+  "waiterGuestsLabel": "Number of guests",
+  "waiterOpenTableConfirm": "Open table",
+  "waiterTableSeatsCount": "{count} seats",
+  "@waiterTableSeatsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterGuestsCount": "{count} guests",
+  "@waiterGuestsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterOrderTitle": "Order",
+  "waiterCategoryAll": "All",
+  "waiterSendToKitchen": "Send to Kitchen",
+  "waiterAlreadySent": "Already sent · {count}",
+  "@waiterAlreadySent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterNewItemsHint": "Add new items below, then send to kitchen.",
+  "waiterChannelInHouse": "In-house",
+  "waiterCaptainNamed": "Captain · {name}",
+  "@waiterCaptainNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "waiterBillRequestedBadge": "Bill requested",
+  "waiterKotRound": "KOT {round}",
+  "@waiterKotRound": {
+    "placeholders": {
+      "round": {
+        "type": "int"
+      }
+    }
+  },
+  "ordersFilterFloor": "Floor",
+  "ordersFilterPartners": "Delivery partners",
+  "ordersFilterZomato": "Zomato",
+  "ordersFilterSwiggy": "Swiggy",
+  "ordersEmptyZomato": "No Zomato orders today.",
+  "ordersEmptySwiggy": "No Swiggy orders today.",
+  "ordersSourceZomato": "Zomato",
+  "ordersSourceSwiggy": "Swiggy",
+  "waiterCartBanner": "{count} items · {subtotal}",
+  "@waiterCartBanner": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "subtotal": {
+        "type": "String"
+      }
+    }
+  },
+  "waiterKotSentTitle": "Order Sent to Kitchen!",
+  "waiterKotSentSubtitle": "Kitchen has the ticket — keep serving this table or open another.",
+  "waiterKotSent": "KOT sent · {number}",
+  "@waiterKotSent": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "waiterOrdersEmptyTitle": "No active orders",
+  "waiterOrdersEmptySubtitle": "Open a table and send items to the kitchen.",
+  "waiterOrdersSubtitle": "Live floor tickets and KOT progress",
+  "waiterOrdersSummary": "{count} active",
+  "@waiterOrdersSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterOrdersFilterAll": "All",
+  "waiterOrdersFilterPreparing": "Preparing",
+  "waiterOrdersFilterReady": "Ready to serve",
+  "waiterOrdersFilterBilling": "Bill ready",
+  "waiterOrdersFilterMine": "Mine",
+  "waiterOrdersSearchHint": "Search table or ticket…",
+  "waiterOrdersNoFilterMatchesTitle": "No orders match",
+  "waiterOrdersNoFilterMatchesSubtitle": "Try another filter or clear search.",
+  "waiterOrdersSummaryReady": "{count} ready",
+  "@waiterOrdersSummaryReady": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterOrdersSummaryBilling": "{count} bill ready",
+  "@waiterOrdersSummaryBilling": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterOrdersSummaryMine": "{count} mine",
+  "@waiterOrdersSummaryMine": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterOrdersMoreItems": "+{count} more",
+  "@waiterOrdersMoreItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterOrdersTapToExpand": "Tap for full ticket",
+  "waiterOrdersTapToCollapse": "Tap to collapse",
+  "waiterOrdersReadyCount": "{count} ready",
+  "@waiterOrdersReadyCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterOrdersPrepCount": "{count} prep",
+  "@waiterOrdersPrepCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterOrdersSentCount": "{count} sent",
+  "@waiterOrdersSentCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterOrdersShowItems": "Show items",
+  "waiterOrdersHideItems": "Hide items",
+  "waiterOrdersToken": "T{token}",
+  "@waiterOrdersToken": {
+    "placeholders": {
+      "token": {
+        "type": "String"
+      }
+    }
+  },
+  "waiterItemsCount": "{count} items",
+  "@waiterItemsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterPipelineSent": "Sent",
+  "waiterPipelinePreparing": "Prep",
+  "waiterPipelineReady": "Ready",
+  "waiterPipelineServed": "Served",
+  "waiterMarkServed": "Mark served",
+  "waiterMarkServedAll": "Mark all ready served",
+  "waiterMarkServedDone": "Marked served",
+  "waiterMarkServedDoneCount": "Marked {count} ready as served",
+  "@waiterMarkServedDoneCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterMarkServedNeedsOnline": "Connect to the server to mark food served.",
+  "waiterRunFoodTitle": "Run food now",
+  "waiterRunFoodSubtitle": "{count} ready at the pass",
+  "@waiterRunFoodSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterRunFoodAction": "Mark served",
+  "waiterKitchenWorkingTitle": "Kitchen cooking",
+  "waiterKitchenWorkingSubtitle": "{prep} cooking · {sent} in queue",
+  "@waiterKitchenWorkingSubtitle": {
+    "placeholders": {
+      "prep": {
+        "type": "int"
+      },
+      "sent": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterAllServedTitle": "Food delivered",
+  "waiterAllServedSubtitle": "Ready when guests want the bill",
+  "waiterCardNeedsYou": "Needs you",
+  "waiterCardWaitingKitchen": "In kitchen",
+  "waiterCardBillPending": "Bill out",
+  "waiterCardDelivered": "Delivered",
+  "waiterCardItemsHeading": "Items",
+  "waiterCardShowTicket": "Show full ticket",
+  "waiterCardHideTicket": "Hide ticket",
+  "waiterCardMoreReady": "+{count} more ready",
+  "@waiterCardMoreReady": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterCardAge": "Open {age}",
+  "@waiterCardAge": {
+    "placeholders": {
+      "age": {
+        "type": "String"
+      }
+    }
+  },
+  "waiterAddMore": "Add more",
+  "waiterRequestBill": "Request bill",
+  "waiterBillTitle": "Bill · {table}",
+  "@waiterBillTitle": {
+    "placeholders": {
+      "table": {
+        "type": "String"
+      }
+    }
+  },
+  "waiterBillNoTicket": "No open ticket on this table yet",
+  "waiterBillEmptyHint": "Totals appear when a ticket is linked to this table.",
+  "waiterBillDiscount": "Discount",
+  "waiterBillTax": "Tax",
+  "waiterBillRequestedToast": "Checkout requested for this table",
+  "waiterBillAlreadyRequestedHint": "Register already has this bill — waiting for payment.",
+  "waiterBillRequestedAlert": "Bill requested for table",
+  "waiterOrderReadyAlert": "Order {number} is ready{table}",
+  "@waiterOrderReadyAlert": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      },
+      "table": {
+        "type": "String"
+      }
+    }
+  },
+  "waiterAlertsEmptyTitle": "You're all caught up",
+  "waiterAlertsEmptySubtitle": "Kitchen ready alerts and bill requests will show up here.",
+  "waiterNotificationsMarkAllRead": "Mark all read",
+  "waiterNotificationsAllCaughtUp": "No unread notifications",
+  "waiterNotificationsUnread": "{count} unread",
+  "@waiterNotificationsUnread": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterNotificationsToday": "Today",
+  "waiterNotificationsEarlier": "Earlier",
+  "waiterNotificationReadyTitle": "Order ready",
+  "waiterNotificationReadyBody": "{number} is ready for pickup{table}",
+  "@waiterNotificationReadyBody": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      },
+      "table": {
+        "type": "String"
+      }
+    }
+  },
+  "waiterNotificationBillTitle": "Bill requested",
+  "waiterNotificationSplitBillTitle": "Split bill requested",
+  "waiterNotificationBillBody": "{table} is waiting for checkout",
+  "@waiterNotificationBillBody": {
+    "placeholders": {
+      "table": {
+        "type": "String"
+      }
+    }
+  },
+  "registerNotificationBillBody": "Captain requested checkout for {table}",
+  "@registerNotificationBillBody": {
+    "placeholders": {
+      "table": {
+        "type": "String"
+      }
+    }
+  },
+  "registerNotificationNewOrderTitle": "New order",
+  "registerNotificationNewOrderBody": "Order {number} received",
+  "@registerNotificationNewOrderBody": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "marketplacePriorityTitle": "Priority · {partner}",
+  "@marketplacePriorityTitle": {
+    "placeholders": {
+      "partner": {
+        "type": "String"
+      }
+    }
+  },
+  "marketplacePriorityBody": "Partner order {number} needs attention",
+  "@marketplacePriorityBody": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "marketplacePriorityBodyWithExternal": "Partner order {number} · {externalId}",
+  "@marketplacePriorityBodyWithExternal": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      },
+      "externalId": {
+        "type": "String"
+      }
+    }
+  },
+  "marketplacePriorityChip": "Priority",
+  "newOrderAlertDescription": "A fresh order just landed — here are the details.",
+  "marketplacePriorityDescription": "Partner delivery order needs quick attention.",
+  "newOrderAlertTotal": "Total",
+  "newOrderAlertPlaced": "Placed",
+  "newOrderAlertTitleOne": "New order {number}",
+  "@newOrderAlertTitleOne": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "newOrderAlertView": "View order",
+  "newOrderAlertOpen": "Open order",
+  "newOrderAlertDismiss": "Dismiss",
+  "newOrderAlertMore": "+{count} more",
+  "@newOrderAlertMore": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "newOrderAlertToken": "Token",
+  "registerNotificationsEmptySubtitle": "New guest orders and captain bill requests show up here.",
+  "waiterSwitchToRegister": "Switch to Register POS",
+  "waiterSwitchToRegisterSubtitle": "Open the full cashier experience",
+  "waiterSwitchToRegisterConfirm": "Switch this device to Register POS mode?",
+  "waiterSwitchToWaiter": "Switch to Waiter / Captain",
+  "waiterSwitchToWaiterSubtitle": "Phone floor: tables, KOT, and bill requests",
+  "waiterSwitchToWaiterConfirm": "Switch this device to Waiter / Captain mode?",
+  "waiterChangeMode": "Change work mode",
+  "waiterChangeModeSubtitle": "Pick Register or Waiter again",
+  "waiterFilterAll": "All",
+  "waiterFilterMyTables": "My tables",
+  "waiterFilterZones": "Zones",
+  "waiterSearchTables": "Search tables…",
+  "waiterBillModeFull": "Full bill",
+  "waiterBillModeSplitItems": "Split items",
+  "waiterBillModeSplitEqual": "Equal split",
+  "waiterBillSplitParts": "Ways to split",
+  "waiterBillSplitNote": "Note for register (optional)",
+  "waiterBillSplitNoteHint": "e.g. Guest A pays drinks",
+  "waiterBillRequestSplit": "Request split bill",
+  "waiterBillSplitSelectItemsRequired": "Select at least one item to split",
+  "waiterBillSplitSelected": "{count} items selected · {amount}",
+  "@waiterBillSplitSelected": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "amount": { "type": "String" }
+    }
+  },
+  "waiterBillSplitEqualPreview": "{parts} ways · ~{amount} each",
+  "@waiterBillSplitEqualPreview": {
+    "placeholders": {
+      "parts": { "type": "int" },
+      "amount": { "type": "String" }
+    }
+  },
+  "registerSplitBillBadge": "Split",
+  "registerSplitBillEqualHint": "Split equally · {parts} ways",
+  "@registerSplitBillEqualHint": {
+    "placeholders": {
+      "parts": { "type": "int" }
+    }
+  },
+  "registerSplitBillItemsHint": "Split selected items",
+  "collectModeFull": "Full amount",
+  "collectModeSplit": "Split payments",
+  "splitBillQrFullOnly": "QR only for full remaining",
+  "splitBillTitle": "Split / multi-pay",
+  "splitBillCollectHint": "Charge the full remaining balance at once, or record multiple payments toward this bill.",
+  "splitBillPayFullRemaining": "Pay remaining in full",
+  "splitBillOrderTotal": "Order total",
+  "splitBillPaidSoFar": "Paid so far",
+  "splitBillRemaining": "Remaining",
+  "splitBillPaidCheck": "Paid ✓",
+  "splitBillPayments": "Payments",
+  "splitBillAddPayment": "Add payment",
+  "splitBillAmount": "Amount",
+  "splitBillFillRemaining": "Full remaining",
+  "splitBillQuickHalf": "½",
+  "splitBillQuickThird": "⅓",
+  "splitBillNoteOptional": "Note (optional)",
+  "splitBillNoteHint": "e.g. Guest 2 · Card",
+  "splitBillRecordPayment": "Record {method} payment",
+  "@splitBillRecordPayment": {
+    "placeholders": {
+      "method": { "type": "String" }
+    }
+  },
+  "splitBillRecording": "Recording…",
+  "splitBillPaymentRecorded": "Recorded {amount}",
+  "@splitBillPaymentRecorded": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "splitBillFullyPaid": "Order fully paid",
+  "splitBillInvalidAmount": "Enter a valid amount",
+  "splitBillAmountExceeds": "Amount exceeds remaining balance",
+  "splitBillLoadFailed": "Couldn’t load payments",
+  "waiterTablesSummary": "{total} tables",
+  "@waiterTablesSummary": {
+    "placeholders": {
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterTablesShowing": "Showing {count}",
+  "@waiterTablesShowing": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waiterClearFilters": "Clear filters",
+  "waiterNoFilterMatchesTitle": "No tables match",
+  "waiterNoFilterMatchesSubtitle": "Try another status, zone, or search.",
+  "waiterActionSeat": "Tap to seat",
+  "waiterActionOrder": "Tap to order",
+  "waiterActionBill": "Tap for bill",
+  "waiterActionClean": "Needs clean",
+  "waiterOpenTicketBadge": "Ticket",
+  "waiterNoOrderBadge": "No order",
+  "waiterTableActionStartOrder": "Start order",
+  "waiterTableActionStartOrderHint": "Open the menu and send items to kitchen.",
+  "waiterTableActionAddMoreHint": "Add new items to this table’s ticket.",
+  "waiterTableActionViewBill": "View bill",
+  "waiterTableActionViewBillHint": "See totals and hand off to register.",
+  "waiterTableActionRequestBillHint": "Ask register to collect payment.",
+  "waiterTableActionClearBill": "Cancel bill request",
+  "waiterTableActionClearBillHint": "Guests want to keep ordering.",
+  "waiterTableActionClearBillDone": "Bill request cleared",
+  "waiterTableActionMarkCleaning": "Needs cleaning",
+  "waiterTableActionMarkCleaningHint": "Guests have left — clear the table before the next party.",
+  "waiterTableActionMarkAvailable": "Mark as available",
+  "waiterTableActionMarkAvailableHint": "Ready for the next guests.",
+  "waiterTableActionFreeTable": "Free table",
+  "waiterTableActionFreeTableHint": "Guests left without an order — open this table again.",
+  "waiterTableActionCancelReservation": "Cancel reservation",
+  "waiterTableActionCancelReservationHint": "Release this hold so others can be seated.",
+  "waiterTableActionReserve": "Reserve table",
+  "waiterTableActionReserveHint": "Hold this table for an upcoming party.",
+  "waiterTableActionMarkedReserved": "Table reserved",
+  "waiterTableActionSeatGuests": "Seat guests",
+  "waiterTableActionSeatGuestsHint": "Set party size and start their visit.",
+  "waiterTableActionReadyToSeat": "Ready to seat",
+  "waiterTableActionReadyToSeatHint": "Cleaning done — open for the next party.",
+  "waiterTableActionMarkedCleaning": "Table marked as cleaning",
+  "waiterTableActionMarkedAvailable": "Table is available",
+  "waiterTableActionsMore": "More actions",
+  "waiterTableStatusHintAvailable": "Open — start an order, reserve, or mark cleaning.",
+  "waiterTableStatusHintOccupied": "Guests are dining — add items or request the bill.",
+  "waiterTableStatusHintOccupiedEmpty": "Seated with no ticket yet — start an order or free the table.",
+  "waiterTableStatusHintBilling": "Bill requested — show totals or clear the request if they keep ordering.",
+  "waiterTableStatusHintBillingDone": "Ticket closed — mark cleaning or free the table.",
+  "waiterTableStatusHintReserved": "Held for a reservation — start an order or cancel the hold.",
+  "waiterTableStatusHintCleaning": "Being reset — mark available when the table is ready."
+}

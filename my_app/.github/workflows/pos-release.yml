@@ -1,0 +1,184 @@
+name: POS build and publish
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      requirement:
+        description: 'API update status for notify step (optional never bricks terminals)'
+        required: false
+        default: optional
+        type: choice
+        options:
+          - optional
+          - required
+
+concurrency:
+  group: pos-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    name: Read version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      build: ${{ steps.meta.outputs.build }}
+      app_dir: ${{ steps.meta.outputs.app_dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: |
+          set -euo pipefail
+          if [ -f pubspec.yaml ]; then DIR="."
+          elif [ -f my_app/pubspec.yaml ]; then DIR="my_app"
+          elif [ -f pos-main/my_app/pubspec.yaml ]; then DIR="pos-main/my_app"
+          else echo "Flutter project not found" && exit 1
+          fi
+          VERSION_LINE=$(grep -E '^version:' "$DIR/pubspec.yaml" | head -n1 | awk '{print $2}')
+          VERSION="${VERSION_LINE%%+*}"
+          BUILD="${VERSION_LINE##*+}"
+          echo "app_dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Using $DIR → $VERSION+$BUILD"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            TAG="${GITHUB_REF_NAME#v}"
+            if [[ "$TAG" != "$VERSION" ]]; then
+              echo "Tag $GITHUB_REF_NAME does not match pubspec version $VERSION"
+              exit 1
+            fi
+          fi
+
+  build-android:
+    name: Android APK
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Build release APK
+        working-directory: ${{ needs.version.outputs.app_dir }}
+        run: |
+          flutter pub get
+          flutter build apk --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }}
+          cp build/app/outputs/flutter-apk/app-release.apk "SELFX-POS-${{ needs.version.outputs.version }}.apk"
+          sha256sum "SELFX-POS-${{ needs.version.outputs.version }}.apk" | tee apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pos-android-apk
+          path: |
+            ${{ needs.version.outputs.app_dir }}/SELFX-POS-${{ needs.version.outputs.version }}.apk
+            ${{ needs.version.outputs.app_dir }}/apk.sha256
+          retention-days: 14
+
+  build-windows:
+    name: Windows
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Build Windows
+        working-directory: ${{ needs.version.outputs.app_dir }}
+        run: |
+          flutter pub get
+          flutter build windows --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }}
+      - name: Zip Windows build
+        working-directory: ${{ needs.version.outputs.app_dir }}
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath SELFX-POS-${{ needs.version.outputs.version }}-windows.zip
+          Get-FileHash SELFX-POS-${{ needs.version.outputs.version }}-windows.zip -Algorithm SHA256 | Out-File windows.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pos-windows
+          path: |
+            ${{ needs.version.outputs.app_dir }}/SELFX-POS-${{ needs.version.outputs.version }}-windows.zip
+            ${{ needs.version.outputs.app_dir }}/windows.sha256
+          retention-days: 14
+
+  publish-release:
+    name: GitHub Release (tags only)
+    needs: [version, build-android, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Pack latest.json
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          BUILD: ${{ needs.version.outputs.build }}
+        run: |
+          set -euo pipefail
+          APK=$(find dist -name 'SELFX-POS-*.apk' | head -n1)
+          WIN=$(find dist -name 'SELFX-POS-*-windows.zip' | head -n1)
+          APK_SHA=$(sha256sum "$APK" | awk '{print $1}')
+          WIN_SHA=$(sha256sum "$WIN" | awk '{print $1}')
+          cat > latest.json <<EOF
+          {
+            "status": "optional",
+            "latest_version": "$VERSION",
+            "latest_build": $BUILD,
+            "android": {
+              "download_url": "https://github.com/${{ github.repository }}/releases/download/v$VERSION/$(basename "$APK")",
+              "sha256": "$APK_SHA"
+            },
+            "windows": {
+              "download_url": "https://github.com/${{ github.repository }}/releases/download/v$VERSION/$(basename "$WIN")",
+              "sha256": "$WIN_SHA"
+            }
+          }
+          EOF
+          cat latest.json
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/**/*.apk
+            dist/**/*.zip
+            latest.json
+
+  notify-api:
+    name: Notify POS API (optional)
+    needs: [version, publish-release]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pos-android-apk
+          path: apk
+      - name: POST release record
+        env:
+          TOKEN: ${{ secrets.POS_UPDATE_API_TOKEN }}
+          URL: ${{ secrets.POS_UPDATE_NOTIFY_URL }}
+          REQUIREMENT: ${{ github.event.inputs.requirement || 'optional' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${URL:-}" ]; then
+            echo "POS_UPDATE_NOTIFY_URL not set — skip API notify."
+            exit 0
+          fi
+          APK=$(find apk -name '*.apk' | head -n1)
+          SHA=$(sha256sum "$APK" | awk '{print $1}')
+          curl -fsS -X POST "$URL" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"$REQUIREMENT\",\"latest_version\":\"${{ needs.version.outputs.version }}\",\"latest_build\":${{ needs.version.outputs.build }},\"platform\":\"android\",\"sha256\":\"$SHA\"}"
