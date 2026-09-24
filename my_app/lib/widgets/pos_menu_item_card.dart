@@ -40,26 +40,8 @@ class PosMenuItemCard extends StatefulWidget {
   State<PosMenuItemCard> createState() => _PosMenuItemCardState();
 }
 
-class _PosMenuItemCardState extends State<PosMenuItemCard>
-    with SingleTickerProviderStateMixin {
+class _PosMenuItemCardState extends State<PosMenuItemCard> {
   bool _imageFailed = false;
-  late AnimationController _flashController;
-  late Animation<double> _flashScale;
-
-  @override
-  void initState() {
-    super.initState();
-    _flashController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 320),
-    );
-    _flashScale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.1), weight: 40),
-      TweenSequenceItem(tween: Tween(begin: 1.1, end: 1.0), weight: 60),
-    ]).animate(
-      CurvedAnimation(parent: _flashController, curve: Curves.easeOutCubic),
-    );
-  }
 
   @override
   void didUpdateWidget(covariant PosMenuItemCard oldWidget) {
@@ -70,19 +52,8 @@ class _PosMenuItemCardState extends State<PosMenuItemCard>
     }
   }
 
-  @override
-  void dispose() {
-    _flashController.dispose();
-    super.dispose();
-  }
-
-  void _triggerFlash() {
-    _flashController.forward(from: 0);
-  }
-
   void _handleTap() {
     HapticFeedback.selectionClick();
-    _triggerFlash();
     widget.onTap();
   }
 
@@ -236,7 +207,8 @@ class _PosMenuItemCardState extends State<PosMenuItemCard>
                         left: widget.compact ? 6 : 8,
                         child: PosItemTypeBadge(
                           type: widget.item.itemType!,
-                          compact: widget.compact,
+                          compact: false,
+                          enlarged: true,
                         ),
                       ),
                     if (widget.item.isManuallyUnavailable ||
@@ -349,7 +321,6 @@ class _PosMenuItemCardState extends State<PosMenuItemCard>
               // Grid cells are height-bounded; popular/list cards use 4:3.
               final footer = _buildFooter(
                 primary: primary,
-                soft: soft,
                 showFromPrice: showFromPrice,
                 showStepper: showStepper,
                 showDescription: showDescription,
@@ -379,7 +350,6 @@ class _PosMenuItemCardState extends State<PosMenuItemCard>
 
   Widget _buildFooter({
     required Color primary,
-    required ({Color bg, Color fg}) soft,
     required bool showFromPrice,
     required bool showStepper,
     required bool showDescription,
@@ -418,16 +388,6 @@ class _PosMenuItemCardState extends State<PosMenuItemCard>
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (normalizePosItemType(widget.item.itemType) != null) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: PosItemTypeMark(
-                    type: widget.item.itemType!,
-                    size: widget.compact ? 12 : 14,
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
               Expanded(
                 child: Text(
                   itemName,
@@ -435,7 +395,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard>
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: widget.compact ? 12.5 : 13.5,
+                    fontSize: widget.compact ? 12.75 : 13.77,
                     height: 1.25,
                     letterSpacing: -0.15,
                     color: PosTheme.ink,
@@ -517,105 +477,13 @@ class _PosMenuItemCardState extends State<PosMenuItemCard>
                         widget.onDecrementSimple?.call(widget.simpleCartLine!),
                     onIncrement: () {
                       HapticFeedback.selectionClick();
-                      _triggerFlash();
                       widget.onIncrementSimple?.call(widget.simpleCartLine!);
                     },
-                  )
-                else
-                  ScaleTransition(
-                    scale: _flashScale,
-                    child: _AddButton(
-                      accent: primary,
-                      soft: soft,
-                      compact: widget.compact,
-                      hasOptions: widget.item.hasOptions,
-                      height: actionHeight,
-                      onPressed: () {
-                        HapticFeedback.selectionClick();
-                        _triggerFlash();
-                        widget.onTap();
-                      },
-                    ),
                   ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AddButton extends StatelessWidget {
-  const _AddButton({
-    required this.accent,
-    required this.soft,
-    required this.compact,
-    required this.hasOptions,
-    required this.height,
-    required this.onPressed,
-  });
-
-  final Color accent;
-  final ({Color bg, Color fg}) soft;
-  final bool compact;
-  final bool hasOptions;
-  final double height;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final showLabel = hasOptions && !compact;
-
-    // Avoid AnimatedContainer width: null ↔ finite — Flutter cannot lerp those
-    // constraints and it cascades into broken card/image layout in GridView.
-    return Material(
-      color: hasOptions ? soft.bg : accent,
-      borderRadius: BorderRadius.circular(12),
-      elevation: hasOptions ? 0 : 2,
-      shadowColor: accent.withValues(alpha: 0.35),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: height,
-          width: showLabel ? null : height,
-          padding: EdgeInsets.symmetric(horizontal: showLabel ? 10 : 0),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: hasOptions
-                ? Border.all(color: accent.withValues(alpha: 0.28))
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                hasOptions ? Icons.tune_rounded : Icons.add_rounded,
-                color: hasOptions ? soft.fg : Colors.white,
-                size: compact ? 16 : 18,
-              ),
-              if (showLabel) ...[
-                const SizedBox(width: 4),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 72),
-                  child: Text(
-                    context.l10n.menuChoose,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: soft.fg,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
       ),
     );
   }

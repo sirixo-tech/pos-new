@@ -342,11 +342,9 @@ class _KitchenOrderCardState extends State<KitchenOrderCard> {
                     const SizedBox(height: 6),
                     OutlinedButton(
                       onPressed: widget.onSecondaryAction,
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(
-                          vertical: compact ? 8 : 10,
-                        ),
-                        visualDensity: VisualDensity.compact,
+                      style: _kitchenActionButtonStyle(
+                        foreground: Theme.of(context).colorScheme.primary,
+                        compact: compact,
                       ),
                       child: Text(widget.secondaryActionLabel!),
                     ),
@@ -1361,17 +1359,10 @@ class _KotActionBar extends StatelessWidget {
               Expanded(
                 child: FilledButton(
                   onPressed: onPrimary,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: laneColor,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: compact ? 10 : 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    textStyle: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: compact ? 12 : 13,
-                    ),
+                  style: _kitchenActionButtonStyle(
+                    foreground: Colors.white,
+                    background: laneColor,
+                    compact: compact,
                   ),
                   child: Text(primaryLabel),
                 ),
@@ -1386,7 +1377,11 @@ class _KotActionBar extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: onMoveToReady,
-                      style: kitchenReadyOutlineStyle(compact: compact),
+                      style: _kitchenActionButtonStyle(
+                        foreground: posStatusColors('ready').fg,
+                        background: posStatusColors('ready').bg,
+                        compact: compact,
+                      ),
                       child: Text(
                         moveToReadyLabel!,
                         maxLines: 1,
@@ -1399,18 +1394,10 @@ class _KotActionBar extends StatelessWidget {
                   Expanded(
                     child: FilledButton(
                       onPressed: onMarkDone,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.lightBlue.shade700,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: compact ? 8 : 10),
-                        visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        textStyle: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: compact ? 11 : 12,
-                        ),
+                      style: _kitchenActionButtonStyle(
+                        foreground: Colors.white,
+                        background: Colors.lightBlue.shade700,
+                        compact: compact,
                       ),
                       child: Text(
                         markDoneLabel!,
@@ -1426,6 +1413,34 @@ class _KotActionBar extends StatelessWidget {
       ),
     );
   }
+}
+
+ButtonStyle _kitchenActionButtonStyle({
+  required Color foreground,
+  required bool compact,
+  Color? background,
+}) {
+  return ButtonStyle(
+    foregroundColor: WidgetStatePropertyAll(foreground),
+    backgroundColor: WidgetStatePropertyAll(background ?? Colors.transparent),
+    elevation: const WidgetStatePropertyAll(0),
+    minimumSize: WidgetStatePropertyAll(Size(0, compact ? 44 : 46)),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 12, vertical: compact ? 10 : 12),
+    ),
+    textStyle: WidgetStatePropertyAll(
+      TextStyle(
+        fontWeight: FontWeight.w800,
+        fontSize: compact ? 13 : 14,
+      ),
+    ),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: PosTheme.border, width: 1),
+      ),
+    ),
+  );
 }
 
 class _DockIconAction extends StatelessWidget {
@@ -1449,17 +1464,17 @@ class _DockIconAction extends StatelessWidget {
       message: tooltip,
       child: Material(
         color: PosTheme.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: loading ? null : onTap,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
-            width: 38,
-            height: 38,
+            width: 44,
+            height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: PosTheme.border),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: PosTheme.border, width: 1),
             ),
             child: loading
                 ? SizedBox(

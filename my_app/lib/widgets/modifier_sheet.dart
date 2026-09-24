@@ -179,7 +179,7 @@ class _ModifierSheetState extends State<ModifierSheet> {
         ? math.max(220.0, size.height * 0.92)
         : posMobileSheetHeight(context);
     final maxWidth = asDialog
-        ? math.min(size.width - 40, 640.0)
+        ? math.min(size.width - 32, 920.0)
         : math.min(size.width, 720.0);
 
     var sectionNumber = 1;
@@ -347,14 +347,11 @@ class _ModifierSheetState extends State<ModifierSheet> {
         : const BorderRadius.vertical(top: Radius.circular(PosTheme.radiusXl));
 
     if (asDialog) {
-      // Hug content height; only scroll when sections exceed the max.
-      final scrollMax = maxHeight - 200;
-
       return ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: maxHeight,
           maxWidth: maxWidth,
-          minWidth: math.min(maxWidth, 560),
+          minWidth: math.min(maxWidth, 760),
         ),
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -375,10 +372,7 @@ class _ModifierSheetState extends State<ModifierSheet> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 header,
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: math.max(160, scrollMax),
-                  ),
+                Flexible(
                   child: ListView(
                     shrinkWrap: true,
                     keyboardDismissBehavior:

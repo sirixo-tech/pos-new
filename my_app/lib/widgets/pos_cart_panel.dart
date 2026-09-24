@@ -66,6 +66,76 @@ class _PosCartPanelState extends State<PosCartPanel> {
   List<Map<String, dynamic>> _tablesWithoutArea = const [];
   bool _tablesLoaded = false;
   bool _tablesLoading = false;
+  bool _customerOpen = false;
+  bool _customerSearching = false;
+  final TextEditingController _customerQuery = TextEditingController();
+  Timer? _customerDebounce;
+  List<Map<String, dynamic>> _customerResults = const [];
+
+  @override
+  void dispose() {
+    _customerDebounce?.cancel();
+    _customerQuery.dispose();
+    super.dispose();
+  }
+
+  void _toggleCustomerSearch() {
+    setState(() {
+      _customerOpen = !_customerOpen;
+      if (!_customerOpen) {
+        _customerQuery.clear();
+        _customerResults = const [];
+        _customerSearching = false;
+      }
+    });
+  }
+
+  void _onCustomerQuery(String query, PosController pos) {
+    _customerDebounce?.cancel();
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _customerResults = const [];
+        _customerSearching = false;
+      });
+      return;
+    }
+    _customerDebounce = Timer(const Duration(milliseconds: 280), () async {
+      if (!mounted) return;
+      setState(() => _customerSearching = true);
+      try {
+        final results = await pos.searchCustomers(trimmed);
+        if (!mounted || _customerQuery.text.trim() != trimmed) return;
+        setState(() {
+          _customerResults = results;
+          _customerSearching = false;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _customerResults = const [];
+          _customerSearching = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _createCustomerFromQuery(PosController pos) async {
+    final name = _customerQuery.text.trim();
+    if (name.isEmpty) return;
+    try {
+      final customer = await pos.createCustomer(name: name);
+      if (!mounted) return;
+      final id = customer['id'];
+      final intId = id is int ? id : int.tryParse('$id');
+      final customerName = customer['name']?.toString().trim();
+      pos.setCustomer(
+        id: intId,
+        name: (customerName == null || customerName.isEmpty) ? name : customerName,
+      );
+      _toggleCustomerSearch();
+    } catch (_) {}
+  }
 
   void _scheduleTablesLoad(PosController pos) {
     if (_tablesLoaded || _tablesLoading || pos.orderType != 'dine_in') return;
@@ -109,33 +179,6 @@ class _PosCartPanelState extends State<PosCartPanel> {
       final areaId = t['table_area_id'];
       return areaId == null || '$areaId'.isEmpty;
     }).toList();
-  }
-
-  Future<void> _openCustomerPicker(PosController pos, Color accent) async {
-    await showDialog<void>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (ctx) => _CustomerPickerDialog(
-        accent: accent,
-        initialCustomerId: pos.customerId,
-        initialCustomerName: pos.customerName,
-        onSearch: pos.searchCustomers,
-        onCreate: ({
-          required String name,
-          String? phone,
-          String? email,
-        }) =>
-            pos.createCustomer(name: name, phone: phone, email: email),
-        onApply: ({int? id, String? name}) {
-          if (name == null || name.trim().isEmpty) {
-            pos.clearCustomer();
-          } else {
-            pos.setCustomer(id: id, name: name.trim());
-          }
-        },
-        onClear: pos.clearCustomer,
-      ),
-    );
   }
 
   Future<void> _openDiscount(PosController pos) async {
@@ -298,44 +341,11 @@ class _PosCartPanelState extends State<PosCartPanel> {
                               onTableTap: null,
                               hasCustomer: hasCustomer,
                               customerName: customerName,
-                              onCustomerTap: () =>
-                                  _openCustomerPicker(pos, accent),
+                              onCustomerTap: _toggleCustomerSearch,
                               canClear: canClear,
                               onClear: () => _clearTicket(pos),
-                              showDiscount: showDiscount,
-                              hasDiscount: hasDiscount,
-                              onDiscount: () => _openDiscount(pos),
                             )
                     else ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _CustomerChip(
-                              accent: accent,
-                              soft: soft,
-                              hasCustomer: hasCustomer,
-                              name: customerName,
-                              onTap: () => _openCustomerPicker(pos, accent),
-                            ),
-                          ),
-                          if (showDiscount) ...[
-                            const SizedBox(width: 8),
-                            _HeaderDiscountButton(
-                              accent: accent,
-                              active: hasDiscount,
-                              onPressed: () => _openDiscount(pos),
-                            ),
-                          ],
-                          const SizedBox(width: 8),
-                          _ClearTicketButton(
-                            enabled: canClear,
-                            onPressed: canClear
-                                ? () => _clearTicket(pos)
-                                : null,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
                       if (widget.lockServiceContext)
                         _LockedServiceContext(
                           orderType: orderType,
@@ -345,7 +355,7 @@ class _PosCartPanelState extends State<PosCartPanel> {
                           accent: accent,
                           soft: soft,
                         )
-                      else ...[
+                      else
                         _OrderTypeRow(
                           value: orderType,
                           onChanged: pos.setOrderType,
@@ -353,7 +363,46 @@ class _PosCartPanelState extends State<PosCartPanel> {
                           allowedTypes: allowedOrderTypes,
                           iconOnly: widget.splitCompact,
                         ),
-                      ],
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _CustomerChip(
+                              accent: accent,
+                              soft: soft,
+                              hasCustomer: hasCustomer,
+                              expanded: _customerOpen,
+                              name: customerName,
+                              onTap: _toggleCustomerSearch,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _ClearTicketButton(
+                            enabled: canClear,
+                            onPressed: canClear
+                                ? () => _clearTicket(pos)
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (_customerOpen) ...[
+                      const SizedBox(height: 8),
+                      _InlineCustomerSearch(
+                        controller: _customerQuery,
+                        searching: _customerSearching,
+                        results: _customerResults,
+                        accent: accent,
+                        onChanged: (value) {
+                          setState(() {});
+                          _onCustomerQuery(value, pos);
+                        },
+                        onPick: (id, name) {
+                          pos.setCustomer(id: id, name: name);
+                          _toggleCustomerSearch();
+                        },
+                        onCreate: () => _createCustomerFromQuery(pos),
+                      ),
                     ],
                     if (hasParkedTicket) ...[
                       const SizedBox(height: 10),
@@ -378,6 +427,8 @@ class _PosCartPanelState extends State<PosCartPanel> {
                 onPay: widget.onPay,
                 onPayMethod: widget.onPayMethod,
                 onPark: widget.onPark,
+                onDiscount: showDiscount ? () => _openDiscount(pos) : null,
+                discountActive: hasDiscount,
                 primaryLabel: widget.primaryLabel,
                 primaryIcon: widget.primaryIcon,
                 primaryColor: widget.primaryColor,
@@ -485,11 +536,15 @@ class _CartLinesPaneState extends State<_CartLinesPane> {
           },
           onIncrement: () {
             HapticFeedback.selectionClick();
-            pos.updateCartQty(line, line.quantity + 1);
+            if (index >= pos.cart.length) return;
+            final current = pos.cart[index];
+            pos.updateCartQty(current, current.quantity + 1);
           },
           onDecrement: () {
             HapticFeedback.selectionClick();
-            pos.updateCartQty(line, line.quantity - 1);
+            if (index >= pos.cart.length) return;
+            final current = pos.cart[index];
+            pos.updateCartQty(current, current.quantity - 1);
           },
           onRemove: () {
             HapticFeedback.selectionClick();
@@ -514,6 +569,8 @@ class _CartFooterPane extends StatefulWidget {
     this.onPay,
     this.onPayMethod,
     this.onPark,
+    this.onDiscount,
+    this.discountActive = false,
     this.primaryLabel,
     this.primaryIcon,
     this.primaryColor,
@@ -524,6 +581,8 @@ class _CartFooterPane extends StatefulWidget {
   final VoidCallback? onPay;
   final ValueChanged<String>? onPayMethod;
   final VoidCallback? onPark;
+  final VoidCallback? onDiscount;
+  final bool discountActive;
   final String? primaryLabel;
   final IconData? primaryIcon;
   final Color? primaryColor;
@@ -540,6 +599,7 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
     final soft = widget.soft;
     final onPay = widget.onPay;
     final onPark = widget.onPark;
+    final onDiscount = widget.onDiscount;
     final primaryLabel = widget.primaryLabel;
     final primaryIcon = widget.primaryIcon;
     final primaryColor = widget.primaryColor;
@@ -593,6 +653,15 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
       ),
       child: Column(
         children: [
+          if (onDiscount != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: _FooterDiscountButton(
+                accent: accent,
+                active: widget.discountActive,
+                onPressed: onDiscount,
+              ),
+            ),
           _TotalRow(
             label: l10n.commonSubtotal,
             value: formatMoney(displaySubtotal, currency),
@@ -741,18 +810,165 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
   }
 }
 
+class _InlineCustomerSearch extends StatelessWidget {
+  const _InlineCustomerSearch({
+    required this.controller,
+    required this.searching,
+    required this.results,
+    required this.accent,
+    required this.onChanged,
+    required this.onPick,
+    required this.onCreate,
+  });
+
+  final TextEditingController controller;
+  final bool searching;
+  final List<Map<String, dynamic>> results;
+  final Color accent;
+  final ValueChanged<String> onChanged;
+  final void Function(int? id, String name) onPick;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final query = controller.text.trim();
+    final showResults = query.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: controller,
+          autofocus: true,
+          onChanged: onChanged,
+          style: GoogleFonts.inter(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: PosTheme.ink,
+          ),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: context.posText(
+              'cartCustomerSearchHint',
+              'Search or add customer...',
+            ),
+            hintStyle: TextStyle(
+              color: PosTheme.inkFaint,
+              fontWeight: FontWeight.w500,
+              fontSize: 13.5,
+            ),
+            prefixIcon: Icon(
+              Icons.person_outline_rounded,
+              size: 18,
+              color: PosTheme.inkMuted,
+            ),
+            suffixIcon: searching
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: PosTheme.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: PosTheme.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: accent, width: 1.4),
+            ),
+          ),
+        ),
+        if (showResults) ...[
+          const SizedBox(height: 6),
+          Material(
+            color: Colors.white,
+            elevation: 2,
+            shadowColor: const Color(0x140F172A),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 180),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: PosTheme.border),
+              ),
+              child: results.isEmpty
+                  ? searching
+                      ? const SizedBox(height: 44)
+                      : InkWell(
+                          onTap: onCreate,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            child: Text(
+                              'Add "$query"',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: accent,
+                              ),
+                            ),
+                          ),
+                        )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      itemCount: results.length,
+                      separatorBuilder: (_, _) =>
+                          Divider(height: 1, color: PosTheme.border),
+                      itemBuilder: (context, index) {
+                        final customer = results[index];
+                        final rawId = customer['id'];
+                        final id = rawId is int ? rawId : int.tryParse('$rawId');
+                        final name = customer['name']?.toString().trim() ?? '';
+                        final phone = customer['phone']?.toString().trim() ?? '';
+                        return ListTile(
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          title: Text(
+                            name.isEmpty ? query : name,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: phone.isEmpty ? null : Text(phone),
+                          onTap: name.isEmpty
+                              ? null
+                              : () => onPick(id, name),
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _CustomerChip extends StatelessWidget {
   const _CustomerChip({
     required this.accent,
     required this.soft,
     required this.hasCustomer,
     required this.onTap,
+    this.expanded = false,
     this.name,
   });
 
   final Color accent;
   final ({Color bg, Color fg}) soft;
   final bool hasCustomer;
+  final bool expanded;
   final String? name;
   final VoidCallback onTap;
 
@@ -799,469 +1015,15 @@ class _CustomerChip extends StatelessWidget {
                 ),
               ),
               Icon(
-                Icons.open_in_new_rounded,
-                size: 16,
+                expanded
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                size: 18,
                 color: hasCustomer ? soft.fg : PosTheme.inkFaint,
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CustomerPickerDialog extends StatefulWidget {
-  const _CustomerPickerDialog({
-    required this.accent,
-    required this.onSearch,
-    required this.onCreate,
-    required this.onApply,
-    required this.onClear,
-    this.initialCustomerId,
-    this.initialCustomerName,
-  });
-
-  final Color accent;
-  final int? initialCustomerId;
-  final String? initialCustomerName;
-  final Future<List<Map<String, dynamic>>> Function(String query) onSearch;
-  final Future<Map<String, dynamic>> Function({
-    required String name,
-    String? phone,
-    String? email,
-  }) onCreate;
-  final void Function({int? id, String? name}) onApply;
-  final VoidCallback onClear;
-
-  @override
-  State<_CustomerPickerDialog> createState() => _CustomerPickerDialogState();
-}
-
-class _CustomerPickerDialogState extends State<_CustomerPickerDialog> {
-  late final TextEditingController _searchController;
-  late final TextEditingController _createNameController;
-  late final TextEditingController _createPhoneController;
-  late final TextEditingController _createEmailController;
-  Timer? _debounce;
-  List<Map<String, dynamic>> _results = const [];
-  bool _searching = false;
-  bool _creating = false;
-  bool _createMode = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController = TextEditingController();
-    _createNameController = TextEditingController();
-    _createPhoneController = TextEditingController();
-    _createEmailController = TextEditingController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _runSearch('');
-    });
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _searchController.dispose();
-    _createNameController.dispose();
-    _createPhoneController.dispose();
-    _createEmailController.dispose();
-    super.dispose();
-  }
-
-  void _onSearchChanged(String query) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 280), () {
-      _runSearch(query);
-    });
-  }
-
-  Future<void> _runSearch(String query) async {
-    if (!mounted) return;
-    setState(() {
-      _searching = true;
-      _error = null;
-    });
-    try {
-      final results = await widget.onSearch(query);
-      if (!mounted) return;
-      setState(() {
-        _results = results;
-        _searching = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _results = const [];
-        _searching = false;
-        _error = e.toString();
-      });
-    }
-  }
-
-  void _pick(int? id, String name) {
-    widget.onApply(id: id, name: name.trim().isEmpty ? null : name.trim());
-    Navigator.of(context).pop();
-  }
-
-  void _clear() {
-    widget.onClear();
-    Navigator.of(context).pop();
-  }
-
-  Future<void> _create() async {
-    final name = _createNameController.text.trim();
-    if (name.isEmpty || _creating) return;
-    setState(() {
-      _creating = true;
-      _error = null;
-    });
-    try {
-      final customer = await widget.onCreate(
-        name: name,
-        phone: _createPhoneController.text.trim().isEmpty
-            ? null
-            : _createPhoneController.text.trim(),
-        email: _createEmailController.text.trim().isEmpty
-            ? null
-            : _createEmailController.text.trim(),
-      );
-      if (!mounted) return;
-      final id = customer['id'];
-      final intId = id is int ? id : int.tryParse('$id');
-      final customerName =
-          customer['name']?.toString().trim().isNotEmpty == true
-              ? customer['name'].toString().trim()
-              : name;
-      widget.onApply(id: intId, name: customerName);
-      Navigator.of(context).pop();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _creating = false;
-        _error = e.toString();
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final soft = posAccentSoft(widget.accent);
-    final hasCustomer = widget.initialCustomerId != null ||
-        (widget.initialCustomerName?.trim().isNotEmpty ?? false);
-
-    return Dialog(
-      backgroundColor: PosTheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(PosTheme.radiusLg),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 580),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: soft.bg,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      _createMode
-                          ? Icons.person_add_alt_1_rounded
-                          : Icons.person_rounded,
-                      color: soft.fg,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _createMode
-                              ? context.posText(
-                                  'cartNewCustomerTitle',
-                                  'New customer',
-                                )
-                              : l10n.cartAddCustomer,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 17,
-                            color: PosTheme.ink,
-                          ),
-                        ),
-                        Text(
-                          _createMode
-                              ? context.posText(
-                                  'cartNewCustomerHint',
-                                  'Saved to your customer list for next time.',
-                                )
-                              : l10n.cartCustomerSearchHint,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: PosTheme.inkMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: l10n.commonClose,
-                    onPressed: _creating
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              if (_error != null) ...[
-                Text(
-                  _error!,
-                  style: const TextStyle(
-                    color: Color(0xFFDC2626),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.5,
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
-              if (_createMode)
-                Flexible(child: _buildCreateForm(l10n))
-              else
-                Flexible(child: _buildSearchBody(l10n)),
-              const SizedBox(height: 14),
-              if (_createMode)
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: _creating
-                          ? null
-                          : () => setState(() {
-                                _createMode = false;
-                                _error = null;
-                              }),
-                      child: Text(
-                        context.posText('commonBack', 'Back'),
-                      ),
-                    ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: _creating
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      child: Text(l10n.commonCancel),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: _creating ||
-                              _createNameController.text.trim().isEmpty
-                          ? null
-                          : _create,
-                      child: _creating
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              context.posText(
-                                'cartCreateCustomer',
-                                'Create & select',
-                              ),
-                            ),
-                    ),
-                  ],
-                )
-              else
-                Row(
-                  children: [
-                    if (hasCustomer)
-                      TextButton(
-                        onPressed: _clear,
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFFDC2626),
-                        ),
-                        child: Text(l10n.cartClearCustomer),
-                      ),
-                    const Spacer(),
-                    FilledButton.tonalIcon(
-                      onPressed: () {
-                        final q = _searchController.text.trim();
-                        if (q.isNotEmpty &&
-                            _createNameController.text.trim().isEmpty) {
-                          _createNameController.text = q;
-                        }
-                        setState(() {
-                          _createMode = true;
-                          _error = null;
-                        });
-                      },
-                      icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                      label: Text(
-                        context.posText('cartNewCustomer', 'New customer'),
-                      ),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSearchBody(AppLocalizations l10n) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: _searchController,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: l10n.cartCustomerSearchHint,
-            filled: true,
-            fillColor: PosTheme.surfaceMuted,
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: _searching
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : (_searchController.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: l10n.commonClear,
-                        onPressed: () {
-                          _searchController.clear();
-                          _runSearch('');
-                          setState(() {});
-                        },
-                        icon: const Icon(Icons.close_rounded),
-                      )),
-          ),
-          onChanged: (v) {
-            setState(() {});
-            _onSearchChanged(v);
-          },
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: PosTheme.surfaceMuted,
-              borderRadius: BorderRadius.circular(PosTheme.radiusMd),
-              border: Border.all(color: PosTheme.border),
-            ),
-            child: _results.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                        _searching
-                            ? l10n.commonLoading
-                            : context.posText(
-                                'cartCustomerEmpty',
-                                'No matches. Create a new customer below.',
-                              ),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: PosTheme.inkMuted,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    itemCount: _results.length,
-                    separatorBuilder: (_, _) =>
-                        Divider(height: 1, color: PosTheme.border),
-                    itemBuilder: (context, index) {
-                      final c = _results[index];
-                      final id = c['id'];
-                      final intId = id is int ? id : int.tryParse('$id');
-                      final name = c['name']?.toString() ??
-                          l10n.cartCustomerFallback;
-                      final phone = c['phone']?.toString();
-                      return ListTile(
-                        leading: Icon(
-                          Icons.person_outline_rounded,
-                          color: PosTheme.inkMuted,
-                        ),
-                        title: Text(
-                          name,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: phone != null && phone.isNotEmpty
-                            ? Text(phone)
-                            : null,
-                        onTap: () => _pick(intId, name),
-                      );
-                    },
-                  ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCreateForm(AppLocalizations l10n) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _createNameController,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: InputDecoration(
-              labelText: context.posText('adminName', 'Name'),
-              filled: true,
-              fillColor: PosTheme.surfaceMuted,
-            ),
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (_) => _create(),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _createPhoneController,
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: context.posText('cartCustomerPhone', 'Phone'),
-              filled: true,
-              fillColor: PosTheme.surfaceMuted,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _createEmailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              labelText: context.posText('cartCustomerEmail', 'Email'),
-              filled: true,
-              fillColor: PosTheme.surfaceMuted,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1961,8 +1723,8 @@ class _ClearTicketButton extends StatelessWidget {
   }
 }
 
-class _HeaderDiscountButton extends StatelessWidget {
-  const _HeaderDiscountButton({
+class _FooterDiscountButton extends StatelessWidget {
+  const _FooterDiscountButton({
     required this.accent,
     required this.active,
     required this.onPressed,
@@ -1970,35 +1732,48 @@ class _HeaderDiscountButton extends StatelessWidget {
 
   final Color accent;
   final bool active;
-  final VoidCallback? onPressed;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final soft = posAccentSoft(accent);
-    return Tooltip(
-      message: context.l10n.discountLabel,
+    final label = context.l10n.discountLabel;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: active ? soft.bg : PosTheme.surfaceMuted,
-        borderRadius: BorderRadius.circular(PosTheme.radiusSm),
+        color: active ? soft.bg : PosTheme.surface,
+        borderRadius: BorderRadius.circular(999),
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(PosTheme.radiusSm),
+          borderRadius: BorderRadius.circular(999),
           child: Container(
-            width: 44,
-            height: 44,
-            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(PosTheme.radiusSm),
+              borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: active
-                    ? accent.withValues(alpha: 0.35)
+                    ? accent.withValues(alpha: 0.4)
                     : PosTheme.border,
               ),
             ),
-            child: Icon(
-              Icons.percent_rounded,
-              size: 20,
-              color: active ? soft.fg : PosTheme.inkMuted,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.percent_rounded,
+                  size: 13,
+                  color: active ? soft.fg : PosTheme.inkMuted,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: active ? soft.fg : PosTheme.ink,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -2228,9 +2003,6 @@ class _SplitServiceRow extends StatelessWidget {
     this.customerName,
     this.canClear = false,
     this.onClear,
-    this.showDiscount = false,
-    this.hasDiscount = false,
-    this.onDiscount,
   });
 
   final Color accent;
@@ -2246,9 +2018,6 @@ class _SplitServiceRow extends StatelessWidget {
   final String? customerName;
   final bool canClear;
   final VoidCallback? onClear;
-  final bool showDiscount;
-  final bool hasDiscount;
-  final VoidCallback? onDiscount;
 
   @override
   Widget build(BuildContext context) {
@@ -2278,14 +2047,6 @@ class _SplitServiceRow extends StatelessWidget {
                 onTap: onCustomerTap,
               ),
             ),
-            if (showDiscount) ...[
-              const SizedBox(width: 8),
-              _HeaderDiscountButton(
-                accent: accent,
-                active: hasDiscount,
-                onPressed: onDiscount,
-              ),
-            ],
             const SizedBox(width: 8),
             _ClearTicketButton(
               enabled: canClear,
@@ -2425,14 +2186,23 @@ class _CartLineRow extends StatelessWidget {
     final lineName = line.displayNameFor(lang);
     final hasNote = line.notes?.trim().isNotEmpty == true;
 
+    final cardColor =
+        PosTheme.isDark ? const Color(0xFF1B2433) : const Color(0xFFFFFFFF);
     return Material(
-      color: PosTheme.surface,
+      color: cardColor,
       borderRadius: BorderRadius.circular(PosTheme.radiusMd),
       child: Container(
         decoration: BoxDecoration(
+          color: cardColor,
           borderRadius: BorderRadius.circular(PosTheme.radiusMd),
-          border: Border.all(color: PosTheme.border),
-          boxShadow: PosTheme.cardShadow(),
+          border: Border.all(color: const Color(0xFFE7E5E4)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0A0F172A),
+              blurRadius: 8,
+              offset: Offset(0, 1),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -2590,7 +2360,7 @@ class _CartLineRow extends StatelessWidget {
                           'Unit price',
                         ),
                         child: _UnitPriceBox(
-                          value: formatMoney(line.unitPrice, currency),
+                          value: formatMoney(line.lineTotal, currency),
                         ),
                       );
                       if (stacked) {
@@ -2641,13 +2411,13 @@ class _LabeledField extends StatelessWidget {
         Text(
           label.toUpperCase(),
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 9.41,
             fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+            letterSpacing: 0.34,
             color: PosTheme.inkMuted,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 5.13),
         child,
       ],
     );
@@ -2662,9 +2432,9 @@ class _UnitPriceBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 44,
+      height: 36.77,
       alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 9.41),
       decoration: BoxDecoration(
         color: PosTheme.surfaceMuted,
         borderRadius: BorderRadius.circular(PosTheme.radiusMd),
@@ -2674,7 +2444,7 @@ class _UnitPriceBox extends StatelessWidget {
         value,
         style: GoogleFonts.inter(
           fontWeight: FontWeight.w700,
-          fontSize: 15,
+          fontSize: 12.57,
           color: PosTheme.ink,
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
@@ -2835,7 +2605,7 @@ class _QtyStepper extends StatelessWidget {
   Widget build(BuildContext context) {
     final soft = posAccentSoft(accent);
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3.33),
       decoration: BoxDecoration(
         color: PosTheme.surfaceMuted,
         borderRadius: BorderRadius.circular(PosTheme.radiusMd),
@@ -2854,7 +2624,7 @@ class _QtyStepper extends StatelessWidget {
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.w800,
-                fontSize: 15,
+                fontSize: 12.57,
                 color: soft.fg,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -2892,14 +2662,14 @@ class _QtyButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(PosTheme.radiusSm),
         child: Container(
-          width: 40,
-          height: 36,
+          width: 33.52,
+          height: 30.18,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(PosTheme.radiusSm),
             border: Border.all(color: accent.withValues(alpha: 0.28)),
           ),
-          child: Icon(icon, size: 18, color: soft.fg),
+          child: Icon(icon, size: 15.05, color: soft.fg),
         ),
       ),
     );

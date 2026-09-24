@@ -105,10 +105,12 @@ class PosItemTypeBadge extends StatelessWidget {
     super.key,
     required this.type,
     this.compact = false,
+    this.enlarged = false,
   });
 
   final String type;
   final bool compact;
+  final bool enlarged;
 
   static String? labelFor(String? type, AppLocalizations l10n) {
     final key = normalizePosItemType(type);
@@ -174,7 +176,11 @@ class PosItemTypeBadge extends StatelessWidget {
     final soft = posAccentSoft(accent);
     final fg = PosTheme.isDark ? soft.fg : accent;
     final bg = PosTheme.isDark ? soft.bg : _bg(key).withValues(alpha: 0.96);
-    final markSize = compact ? 13.0 : 15.0;
+    final markSize = enlarged ? 17.31 : (compact ? 13.0 : 15.0);
+    final fontSize = enlarged ? 10.23 : 10.0;
+    final pad = enlarged
+        ? const EdgeInsets.fromLTRB(5.46, 3.89, 7.87, 3.89)
+        : const EdgeInsets.fromLTRB(5, 3, 8, 3);
 
     if (compact) {
       return Tooltip(
@@ -184,7 +190,7 @@ class PosItemTypeBadge extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(5, 3, 8, 3),
+      padding: pad,
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(999),
@@ -203,15 +209,15 @@ class PosItemTypeBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           PosItemTypeMark(type: key, size: markSize),
-          const SizedBox(width: 5),
+          SizedBox(width: enlarged ? 4.14 : 5),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 72),
+            constraints: BoxConstraints(maxWidth: enlarged ? 96 : 72),
             child: Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: fontSize,
                 fontWeight: FontWeight.w800,
                 height: 1.1,
                 color: fg,
