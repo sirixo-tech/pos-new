@@ -500,7 +500,7 @@ class PosAdminController extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      ordersPage = await _api.fetchAdminOrders(
+      final pageResult = await _api.fetchAdminOrders(
         _requireSession(),
         q: q,
         status: status,
@@ -509,6 +509,17 @@ class PosAdminController extends ChangeNotifier {
         payment: payment,
         page: page,
       );
+      if ((status == null || status.isEmpty) && page == 1) {
+        ordersPage = await _withTodayDrafts(
+          pageResult,
+          q: q,
+          source: source,
+          period: period,
+          payment: payment,
+        );
+      } else {
+        ordersPage = pageResult;
+      }
     } catch (e) {
       _setError(e);
     } finally {
@@ -516,6 +527,37 @@ class PosAdminController extends ChangeNotifier {
         ordersLoading = false;
       }
       notifyListeners();
+    }
+  }
+
+  Future<AdminOrdersPage> _withTodayDrafts(
+    AdminOrdersPage page, {
+    String? q,
+    String? source,
+    required String period,
+    required String payment,
+  }) async {
+    try {
+      final drafts = await _api.fetchAdminOrders(
+        _requireSession(),
+        q: q,
+        status: 'draft',
+        source: source,
+        period: period,
+        payment: payment,
+        page: 1,
+      );
+      final seen = page.orders.map((order) => order.id).toSet();
+      final extra = drafts.orders.where((order) => seen.add(order.id)).toList();
+      if (extra.isEmpty) return page;
+      return AdminOrdersPage(
+        orders: [...extra, ...page.orders],
+        currentPage: page.currentPage,
+        lastPage: page.lastPage,
+        total: page.total + extra.length,
+      );
+    } catch (_) {
+      return page;
     }
   }
 

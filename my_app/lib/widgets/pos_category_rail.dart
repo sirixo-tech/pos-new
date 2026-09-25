@@ -19,6 +19,7 @@ class PosCategoryRail extends StatelessWidget {
     this.navLabel,
     this.accent,
     this.serverUrl,
+    this.showImages = true,
   });
 
   final List<MenuCategory> categories;
@@ -30,6 +31,7 @@ class PosCategoryRail extends StatelessWidget {
   final String? navLabel;
   final Color? accent;
   final String? serverUrl;
+  final bool showImages;
 
   void _select(int? id) {
     HapticFeedback.selectionClick();
@@ -74,10 +76,12 @@ class PosCategoryRail extends StatelessWidget {
                 isActive: !searchActive && category.id == activeCategoryId,
                 accent: primary,
                 onTap: () => _select(category.id),
-                imageUrl: resolveMediaUrl(
-                  category.imageUrl,
-                  serverUrl: serverUrl,
-                ),
+                imageUrl: showImages
+                    ? resolveMediaUrl(
+                        category.imageUrl,
+                        serverUrl: serverUrl,
+                      )
+                    : null,
               );
             },
           ),
@@ -163,10 +167,12 @@ class PosCategoryRail extends StatelessWidget {
                               !searchActive && category.id == activeCategoryId,
                           accent: primary,
                           onTap: () => _select(category.id),
-                          imageUrl: resolveMediaUrl(
-                            category.imageUrl,
-                            serverUrl: serverUrl,
-                          ),
+                          imageUrl: showImages
+                              ? resolveMediaUrl(
+                                  category.imageUrl,
+                                  serverUrl: serverUrl,
+                                )
+                              : null,
                         ),
                       );
                     },

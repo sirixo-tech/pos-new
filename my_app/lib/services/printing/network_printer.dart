@@ -20,6 +20,8 @@ class NetworkPrinter {
     try {
       socket.add(Uint8List.fromList(bytes));
       await socket.flush();
+    } catch (error) {
+      throw StateError('printer write failed: $error');
     } finally {
       await socket.close();
     }

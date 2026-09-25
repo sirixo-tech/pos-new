@@ -99,8 +99,8 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     return Column(
       children: [
         AdminToolbar(
-          leading: SizedBox(
-            width: 280,
+          leading: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(

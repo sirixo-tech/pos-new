@@ -171,6 +171,7 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
       connectivity: connectivity,
       printer: printer.health,
       printerSupported: PosReceiptPrinter.isSupported,
+      printerChecking: printer.probing,
       displayConnected: displayConnected,
       scannerConnected: scanner.connected,
     );
@@ -209,8 +210,11 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
                 icon: Icons.print_outlined,
                 label: 'Printer',
                 connected: PosReceiptPrinter.isSupported &&
+                    !printer.probing &&
                     printer.health.state == PrinterHealthState.ready,
-                detail: _printerDetail(printer.health),
+                detail: printer.probing
+                    ? 'Checking…'
+                    : _printerDetail(printer.health),
                 onTap: _openPrinter,
               ),
               _StatusRow(
@@ -354,13 +358,15 @@ class _StatusRow extends StatelessWidget {
   required bool printerSupported,
   required bool displayConnected,
   required bool scannerConnected,
+  bool printerChecking = false,
 }) {
   final internetOk = connectivity.isOnline;
   final printerSevere = printerSupported &&
+      !printerChecking &&
       (printer.state == PrinterHealthState.missing ||
           printer.state == PrinterHealthState.error);
   final printerOk = !printerSupported ||
-      printer.state == PrinterHealthState.ready;
+      (!printerChecking && printer.state == PrinterHealthState.ready);
   return (
     ready: internetOk && printerOk && displayConnected && scannerConnected,
     severe: !internetOk || printerSevere,

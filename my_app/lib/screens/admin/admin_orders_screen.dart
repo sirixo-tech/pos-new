@@ -42,6 +42,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   static const _autoRefreshInterval = Duration(seconds: 10);
 
   static const _statuses = [
+    'draft',
     'pending',
     'confirmed',
     'preparing',
@@ -342,7 +343,12 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                     for (final s in _statuses) ...[
                       const SizedBox(width: 8),
                       _StatusFilterChip(
-                        label: _titleCase(s),
+                        label: s == 'draft'
+                            ? context.posText(
+                                'adminStatusDraftHeld',
+                                'Draft (held)',
+                              )
+                            : _titleCase(s),
                         selected: _status == s,
                         accent: accent,
                         onTap: () {
@@ -1261,6 +1267,7 @@ class _AdminOrderDetailSheetState extends State<AdminOrderDetailSheet> {
 
   String _statusLabel(String value) {
     return switch (value) {
+      'draft' => context.posText('adminStatusDraftHeld', 'Draft (held)'),
       'pending' => context.posText('adminStatusPending', 'Pending'),
       'confirmed' => context.posText('adminStatusConfirmed', 'Confirmed'),
       'preparing' => context.posText('adminStatusPreparing', 'Preparing'),

@@ -60,7 +60,9 @@ class AdminChip extends StatelessWidget {
     };
     final tone = posStatusColors(mapped);
     return AdminChip(
-      label: _titleCase(status),
+      label: key == 'draft'
+          ? 'Draft (held)'
+          : _titleCase(status),
       color: tone.fg,
       backgroundColor: tone.bg,
     );
@@ -76,7 +78,11 @@ class AdminChip extends StatelessWidget {
     };
     final tone = posStatusColors(mapped);
     return AdminChip(
-      label: _titleCase(paymentStatus),
+      label: switch (key) {
+        'pending' => 'Payment pending',
+        'failed' || 'failure' => 'Payment failed',
+        _ => _titleCase(paymentStatus),
+      },
       color: tone.fg,
       backgroundColor: tone.bg,
     );
@@ -224,20 +230,22 @@ class AdminToolbar extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: PosTheme.border)),
         ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              if (leading != null) ...[
-                leading!,
-                const SizedBox(width: 10),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (leading != null)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                    child: leading!,
+                  ),
+                ...children,
               ],
-              for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                children[i],
-              ],
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

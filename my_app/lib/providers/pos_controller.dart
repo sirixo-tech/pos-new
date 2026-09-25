@@ -2195,11 +2195,55 @@ class PosController extends ChangeNotifier {
       return localRows;
     }
 
+    var server = const <Map<String, dynamic>>[];
     try {
-      final server = await _api.fetchOpenOrders(current);
-      return [...localRows, ...server];
+      server = await _api.fetchOpenOrders(current);
     } catch (_) {
-      return localRows;
+      server = const [];
+    }
+    final drafts = await _paymentDraftRows(current);
+    final seen = server
+        .map((order) => parseJsonIntOrNull(order['id']))
+        .whereType<int>()
+        .toSet();
+    final extra = drafts.where((order) {
+      final id = parseJsonIntOrNull(order['id']);
+      return id != null && seen.add(id);
+    });
+    return [...localRows, ...server, ...extra];
+  }
+
+  Future<List<Map<String, dynamic>>> _paymentDraftRows(PosSession current) async {
+    try {
+      final page = await _api.fetchAdminOrders(
+        current,
+        status: 'draft',
+        period: 'today',
+      );
+      return page.orders
+          .where((order) => (order.source ?? '').toLowerCase().trim() != 'pos')
+          .map(
+            (order) => {
+              'id': order.id,
+              'order_number': order.orderNumber,
+              'status': 'draft',
+              'payment_status': order.paymentStatus,
+              'payment_method': order.paymentMethod,
+              'type': order.type,
+              'source': order.source,
+              'total': order.total,
+              'amount_due': order.total,
+              'token': order.token,
+              'customer_name': order.customerName,
+              'table_name': order.tableName,
+              'created_at': order.createdAt?.toIso8601String(),
+              'payment_hint': order.paymentHint,
+              'is_payment_draft': true,
+            },
+          )
+          .toList();
+    } catch (_) {
+      return const [];
     }
   }
 
@@ -2221,7 +2265,16 @@ class PosController extends ChangeNotifier {
     if (isOnline) {
       try {
         final orders = await _api.fetchOpenOrders(current);
-        serverCount = orders.length;
+        final drafts = await _paymentDraftRows(current);
+        final seen = orders
+            .map((order) => parseJsonIntOrNull(order['id']))
+            .whereType<int>()
+            .toSet();
+        serverCount = orders.length +
+            drafts.where((order) {
+              final id = parseJsonIntOrNull(order['id']);
+              return id != null && !seen.contains(id);
+            }).length;
       } catch (_) {
         // Keep local count on transient failures.
       }
@@ -4103,6 +4156,11 @@ class PosController extends ChangeNotifier {
 
         final number = order['order_number']?.toString() ?? '#$id';
         final source = order['source']?.toString();
+        final orderStatus =
+            (order['status']?.toString() ?? '').toLowerCase().trim();
+        if (orderStatus == 'draft') {
+          continue;
+        }
         unawaited(
           _printJobs?.enqueueKot(
             orderId: id,
@@ -4164,6 +4222,7 @@ class PosController extends ChangeNotifier {
       }
 
       _newOrdersLastSeenId = maxId;
+      await _syncPaymentDraftAlerts(current);
     } catch (_) {
       // Keep prior cursor; next poll retries.
     } finally {
@@ -4307,6 +4366,46 @@ class PosController extends ChangeNotifier {
     final notice = paymentSessionNotice;
     paymentSessionNotice = null;
     return notice;
+  }
+
+  Future<void> _syncPaymentDraftAlerts(PosSession current) async {
+    final drafts = await _paymentDraftRows(current);
+    if (drafts.isEmpty) return;
+    var added = false;
+    for (final order in drafts) {
+      final id = parseJsonIntOrNull(order['id']);
+      if (id == null || _selfPlacedOrderIds.contains(id)) continue;
+      final already = waiterAlerts.any(
+            (alert) => alert.orderId == id && alert.type.isNewOrderCue,
+          ) ||
+          registerBannerAlert?.orderId == id ||
+          _newOrderBannerQueue.any((alert) => alert.orderId == id);
+      if (already) continue;
+      final payment =
+          '${order['payment_status'] ?? ''}'.toLowerCase().trim();
+      final failed = payment.contains('fail');
+      final number = '${order['order_number'] ?? '#$id'}';
+      final alert = WaiterAlert(
+        id: 'draft-order-$id',
+        type: WaiterAlertType.newOrder,
+        title: failed ? 'Payment failed' : 'Payment pending',
+        body: 'Draft order $number',
+        at: DateTime.tryParse('${order['created_at'] ?? ''}') ?? DateTime.now(),
+        orderId: id,
+        orderNumber: number,
+        source: order['source']?.toString(),
+        orderType: order['type']?.toString(),
+        total: parseJsonDoubleOrNull(order['total']),
+      );
+      if (_pushWaiterAlert(alert)) {
+        added = true;
+        registerBannerAlert ??= alert;
+      }
+    }
+    if (added) {
+      unawaited(PosCartSound.instance.playNewOrderAlert());
+      notifyListeners();
+    }
   }
 
   WaiterAlert _buildNewOrderAlert({
@@ -4516,8 +4615,12 @@ class PosController extends ChangeNotifier {
     if (_selfPlacedOrderIds.contains(id)) return true;
 
     final status = (order['status']?.toString() ?? '').toLowerCase().trim();
-    if (status == 'draft' || status == 'abandoned' || status == 'cancelled') {
+    if (status == 'abandoned' || status == 'cancelled') {
       return true;
+    }
+    if (status == 'draft') {
+      final source = (order['source']?.toString() ?? '').toLowerCase().trim();
+      return source.isEmpty || source == 'pos';
     }
 
     final source = (order['source']?.toString() ?? '').toLowerCase().trim();

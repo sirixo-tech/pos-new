@@ -1651,6 +1651,17 @@ class PosApi {
     String payment = 'all',
     int page = 1,
   }) async {
+    if (status == 'draft') {
+      return _fetchDraftAdminOrders(
+        session,
+        q: q,
+        source: source,
+        period: period,
+        payment: payment,
+        page: page,
+      );
+    }
+
     final uri = Uri.parse(_adminUrl(session, '/orders')).replace(
       queryParameters: {
         if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
@@ -1662,7 +1673,155 @@ class PosApi {
       },
     );
     final response = await _client.get(uri, headers: _adminHeaders(session));
-    return AdminOrdersPage.fromJson(_unwrapData(await _decode(response)));
+    return _adminOrdersPage(await _decode(response));
+  }
+
+  /// Draft orders use the same date range as the web admin list.
+  /// The POS status filter rejects `draft`, so this tries the admin orders
+  /// API and then keeps only draft rows from the normal list.
+  Future<AdminOrdersPage> _fetchDraftAdminOrders(
+    PosSession session, {
+    String? q,
+    String? source,
+    required String period,
+    required String payment,
+    required int page,
+  }) async {
+    final range = _adminOrderDateRange(period);
+    final query = <String, String>{
+      'status': 'draft',
+      'branch': '${session.branchId}',
+      if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+      if (source != null && source.isNotEmpty) 'source': source,
+      if (range.from != null) 'date_from': range.from!,
+      if (range.to != null) 'date_to': range.to!,
+      if (payment != 'all') 'payment': payment,
+      'page': '$page',
+    };
+    final headers = _adminHeaders(session);
+    final uris = [
+      Uri.parse('${session.v1BaseUrl}/admin/orders').replace(queryParameters: query),
+      Uri.parse(_adminUrl(session, '/orders')).replace(queryParameters: query),
+    ];
+    for (final uri in uris) {
+      try {
+        final response = await _client.get(uri, headers: headers);
+        final loaded = _adminOrdersPage(await _decode(response));
+        final drafts = _onlyDraftOrders(loaded);
+        if (drafts.orders.isNotEmpty || loaded.orders.isEmpty) {
+          return drafts;
+        }
+      } on Object {
+        // This route does not accept draft, or it is not available.
+      }
+    }
+
+    try {
+      final recent = await fetchRecentOrders(
+        session,
+        filter: period == 'all' ? 'all' : 'today',
+        query: q,
+        page: page,
+        perPage: 50,
+      );
+      final rows = (recent['orders'] as List?)
+              ?.whereType<Map>()
+              .map((row) => AdminOrderSummary.fromJson(Map<String, dynamic>.from(row)))
+              .where((order) => order.status.toLowerCase() == 'draft')
+              .toList() ??
+          const <AdminOrderSummary>[];
+      if (rows.isNotEmpty) {
+        final meta = recent['meta'] is Map
+            ? Map<String, dynamic>.from(recent['meta'] as Map)
+            : const <String, dynamic>{};
+        return AdminOrdersPage(
+          orders: rows,
+          currentPage: meta['current_page'] as int? ?? page,
+          lastPage: meta['last_page'] as int? ?? 1,
+          total: rows.length,
+        );
+      }
+    } on Object {
+      // Recent orders can omit drafts. The period list is the last source.
+    }
+
+    final fallback = await _client.get(
+      Uri.parse(_adminUrl(session, '/orders')).replace(
+        queryParameters: {
+          if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+          if (source != null && source.isNotEmpty) 'source': source,
+          'period': period,
+          'payment': payment,
+          'page': '$page',
+        },
+      ),
+      headers: headers,
+    );
+    return _onlyDraftOrders(_adminOrdersPage(await _decode(fallback)));
+  }
+
+  AdminOrdersPage _onlyDraftOrders(AdminOrdersPage page) {
+    final drafts = page.orders
+        .where((order) => order.status.toLowerCase() == 'draft')
+        .toList();
+    return AdminOrdersPage(
+      orders: drafts,
+      currentPage: page.currentPage,
+      lastPage: page.lastPage,
+      total: drafts.length,
+    );
+  }
+
+  ({String? from, String? to}) _adminOrderDateRange(String period) {
+    final now = DateTime.now();
+    String day(DateTime date) {
+      final month = date.month.toString().padLeft(2, '0');
+      final value = date.day.toString().padLeft(2, '0');
+      return '${date.year}-$month-$value';
+    }
+
+    return switch (period) {
+      'yesterday' => () {
+          final date = day(now.subtract(const Duration(days: 1)));
+          return (from: date, to: date);
+        }(),
+      'last_7_days' => (
+          from: day(now.subtract(const Duration(days: 6))),
+          to: day(now),
+        ),
+      'all' => (from: null, to: null),
+      _ => () {
+          final date = day(now);
+          return (from: date, to: date);
+        }(),
+    };
+  }
+
+  AdminOrdersPage _adminOrdersPage(Map<String, dynamic> json) {
+    final data = json['data'];
+    if (data is Map) {
+      return AdminOrdersPage.fromJson(Map<String, dynamic>.from(data));
+    }
+    if (data is List) {
+      final meta = json['meta'] is Map
+          ? Map<String, dynamic>.from(json['meta'] as Map)
+          : <String, dynamic>{};
+      return AdminOrdersPage.fromJson({
+        'data': data,
+        'meta': meta,
+      });
+    }
+    final orders = json['orders'];
+    if (orders is List) {
+      final meta = json['meta'] is Map
+          ? Map<String, dynamic>.from(json['meta'] as Map)
+          : <String, dynamic>{};
+      return AdminOrdersPage.fromJson({
+        'data': orders,
+        'meta': meta,
+      });
+    }
+    return AdminOrdersPage.fromJson(json);
   }
 
   Future<Map<String, dynamic>> fetchAdminOrder(

@@ -466,7 +466,10 @@ class _AdminMenuPickerSheet extends StatelessWidget {
     final soft = posAccentSoft(accent);
     final size = MediaQuery.sizeOf(context);
     final maxHeight = posMobileSheetHeight(context);
-    final sheetMaxWidth = size.width >= 900 ? 920.0 : size.width;
+    // Leave a small side margin, then use the rest of the window so the
+    // search field and Reorder / Category / Item actions stay on screen.
+    final available = size.width - (size.width >= 1100 ? 48 : 24);
+    final sheetMaxWidth = available > 1280 ? 1280.0 : available;
 
     return Align(
       alignment: Alignment.bottomCenter,

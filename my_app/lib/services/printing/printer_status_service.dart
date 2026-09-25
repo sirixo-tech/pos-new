@@ -22,8 +22,11 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
   bool _started = false;
   bool _hasProbed = false;
   Timer? _timer;
-  int _probeToken = 0;
+  StreamSubscription<dynamic>? _usbHardware;
   int _ticks = 0;
+  Future<void>? _flight;
+  bool _queued = false;
+  bool _queuedScan = false;
 
   PrinterHealth get health => _health;
   bool get probing => _probing;
@@ -33,6 +36,9 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
     if (_started) return;
     _started = true;
     await refresh(allowBluetoothScan: true);
+    _usbHardware ??= PosReceiptPrinter.watchUsbHardware(() {
+      unawaited(refresh());
+    });
     _timer?.cancel();
     _timer = Timer.periodic(_pollInterval, (_) {
       _ticks++;
@@ -49,9 +55,30 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Soft probe. Bluetooth discovery only when [allowBluetoothScan] is true
-  /// (start, resume, return from setup) — BLE scan is slow and steals the radio.
-  Future<void> refresh({bool allowBluetoothScan = false}) async {
+  /// Soft probe. One check runs at a time. A newer request waits and then
+  /// runs once, so a slow USB or LAN failure is never dropped.
+  /// Bluetooth never discovery-scans here. [allowBluetoothScan] only allows
+  /// one connect to the saved address (start, resume, setup).
+  Future<void> refresh({bool allowBluetoothScan = false}) {
+    final current = _flight;
+    if (current != null) {
+      _queued = true;
+      if (allowBluetoothScan) _queuedScan = true;
+      return current;
+    }
+    final run = _refreshOnce(allowBluetoothScan: allowBluetoothScan);
+    _flight = run;
+    return run.whenComplete(() {
+      _flight = null;
+      if (!_queued) return;
+      final scan = _queuedScan;
+      _queued = false;
+      _queuedScan = false;
+      unawaited(refresh(allowBluetoothScan: scan));
+    });
+  }
+
+  Future<void> _refreshOnce({required bool allowBluetoothScan}) async {
     if (!PosReceiptPrinter.isSupported) {
       _setHealth(
         PrinterHealth(
@@ -75,25 +102,15 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
-    final token = ++_probeToken;
     _probing = true;
     notifyListeners();
     try {
       final next = await PosReceiptPrinter.probe(
         allowBluetoothScan: allowBluetoothScan,
       );
-      if (token != _probeToken) return;
-      if (!allowBluetoothScan &&
-          config.connection == PosPrinterConnection.bluetooth &&
-          next.state == PrinterHealthState.missing &&
-          _health.state == PrinterHealthState.ready &&
-          !PosReceiptPrinter.bleLinkIsLive) {
-        return;
-      }
       _setHealth(next);
     } catch (e, st) {
       debugPrint('PrinterStatusService.refresh failed: $e\n$st');
-      if (token != _probeToken) return;
       _setHealth(
         PrinterHealth(
           state: PrinterHealthState.error,
@@ -103,11 +120,6 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
           lastCheckedAt: DateTime.now(),
         ),
       );
-    } finally {
-      if (token == _probeToken) {
-        _probing = false;
-        notifyListeners();
-      }
     }
   }
 
@@ -142,6 +154,7 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     _timer?.cancel();
+    unawaited(_usbHardware?.cancel());
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

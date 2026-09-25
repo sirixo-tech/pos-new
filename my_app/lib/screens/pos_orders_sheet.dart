@@ -1003,6 +1003,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
                               const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final order = _orders[index];
+                            final paymentDraft = order['is_payment_draft'] == true;
                             final id = (order['id'] is num)
                                 ? (order['id'] as num).toInt()
                                 : null;
@@ -1020,8 +1021,9 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
                               heldStyle: _isHeldTab,
                               active: isActive,
                               money: (v) => _money(v, currency),
-                              onResume:
-                                  _isHeldTab ? () => _resume(order) : null,
+                              onResume: _isHeldTab && !paymentDraft
+                                  ? () => _resume(order)
+                                  : null,
                               resuming: rowKey != null &&
                                   rowKey == _resumingKey,
                               nextAdvance: (_isHeldTab || _isCancelledTab)
@@ -1031,7 +1033,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
                               onAdvance: (status) =>
                                   _setStatus(order, status),
                               onCancel: () => _confirmCancel(order),
-                              onClearHeld: _isHeldTab
+                              onClearHeld: _isHeldTab && !paymentDraft
                                   ? () => _confirmClearHeld(order)
                                   : null,
                               onCollect: () => _collectPayment(order),
@@ -1901,7 +1903,9 @@ class _OrderCard extends StatelessWidget {
     final sourceRaw = order['source']?.toString();
     final paymentStatusRaw =
         '${order['payment_status'] ?? ''}'.trim().toLowerCase();
-    final paymentLabel = heldStyle
+    final paymentDraft = order['is_payment_draft'] == true ||
+        '${order['status'] ?? ''}'.toLowerCase() == 'draft';
+    final paymentLabel = heldStyle && !paymentDraft
         ? null
         : billRequested
             ? (isSplitBill
@@ -1909,6 +1913,8 @@ class _OrderCard extends StatelessWidget {
                 : l10n.waiterBillRequestedBadge)
             : switch (paymentStatusRaw) {
                 'paid' => l10n.commonPaid,
+                'pending' when paymentDraft => 'Payment pending',
+                'failed' || 'failure' => 'Payment failed',
                 'partial' => context.posText(
                     'payStatusPartial',
                     'Partially paid',
@@ -1919,7 +1925,7 @@ class _OrderCard extends StatelessWidget {
                   ),
                 _ => context.posText('ordersUnpaid', 'Unpaid'),
               };
-    final paymentMethodLabel = heldStyle
+    final paymentMethodLabel = heldStyle && !paymentDraft
         ? ''
         : formatPaymentMethod(order['payment_method']?.toString());
     final notesTone = kitchenCalloutColors();
@@ -2915,6 +2921,9 @@ String _orderStatusTitle(
   String status, {
   required bool held,
 }) {
+  if (status.toLowerCase() == 'draft') {
+    return context.posText('adminStatusDraftHeld', 'Draft (held)');
+  }
   if (held) return context.l10n.ordersHeldTicket;
   final lane = _orderLaneKey(status);
   if (lane.isNotEmpty) return kitchenLaneTitleForKey(context, lane);

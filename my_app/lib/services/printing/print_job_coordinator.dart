@@ -16,6 +16,16 @@ import 'scan_to_print_settings.dart';
 
 enum PrintJobKind { kot, receipt }
 
+/// True when bytes may already have reached the printer.
+/// A connect failure before the write can still retry. Paper-out on the
+/// built-in printer is reported before printEpson, so those jobs can too.
+bool _printMayHaveStarted(Object error) {
+  final text = error.toString().toLowerCase();
+  return text.contains('smartpos print failed') ||
+      text.contains('smartpos_print_failed') ||
+      text.contains('printer write failed');
+}
+
 class PrintJobFailure {
   const PrintJobFailure({
     required this.kind,
@@ -59,6 +69,10 @@ class _PrintJob {
   final bool cashier;
   bool forceAttempt = false;
 
+  /// The write may already have fed the slip. Automatic recovery must not
+  /// send that job again. A connect failure before the write stays false.
+  bool mayHavePrinted = false;
+
   String get jobKey {
     final ref = orderNumber.trim().isNotEmpty
         ? 'number:${orderNumber.trim().toLowerCase()}'
@@ -84,6 +98,7 @@ class PrintJobCoordinator extends ChangeNotifier {
       StreamController<PrintJobFailure>.broadcast();
 
   bool _draining = false;
+  Future<void>? _retryFlight;
   bool _restored = false;
   Timer? _healthWatch;
   PrinterHealthState? _lastHealthState;
@@ -125,6 +140,9 @@ class PrintJobCoordinator extends ChangeNotifier {
         orderNumber: row.orderNumber,
         source: row.source,
         cashier: row.cashier,
+      );
+      job.mayHavePrinted = _printMayHaveStarted(
+        StateError(row.errorMessage ?? ''),
       );
       _failed[job.jobKey] = job;
       if (job.kind == PrintJobKind.kot) {
@@ -208,13 +226,31 @@ class PrintJobCoordinator extends ChangeNotifier {
     );
   }
 
-  Future<void> retryFailed() async {
+  Future<void> retryFailed({bool includeMayHavePrinted = true}) async {
+    final inFlight = _retryFlight;
+    if (inFlight != null) {
+      await inFlight;
+      if (!includeMayHavePrinted) return;
+    }
+    final run = _retryFailedOnce(includeMayHavePrinted: includeMayHavePrinted);
+    _retryFlight = run;
+    try {
+      await run;
+    } finally {
+      if (identical(_retryFlight, run)) _retryFlight = null;
+    }
+  }
+
+  Future<void> _retryFailedOnce({required bool includeMayHavePrinted}) async {
     if (_failed.isEmpty) return;
-    final jobs = _failed.values.toList();
-    _failed.clear();
+    final jobs = _failed.values
+        .where((job) => includeMayHavePrinted || !job.mayHavePrinted)
+        .toList();
+    if (jobs.isEmpty) return;
     for (final job in jobs) {
+      if (_queued.contains(job.jobKey)) continue;
+      _failed.remove(job.jobKey);
       job.forceAttempt = true;
-      _queued.remove(job.jobKey);
       _completed.remove(job.jobKey);
       await _enqueue(job);
     }
@@ -234,7 +270,7 @@ class PrintJobCoordinator extends ChangeNotifier {
                 health.state == PrinterHealthState.attention) &&
             !paperOrCable);
     if (wasBlocked && ready && _failed.isNotEmpty) {
-      unawaited(retryFailed());
+      unawaited(retryFailed(includeMayHavePrinted: false));
     }
   }
 
@@ -328,6 +364,7 @@ class PrintJobCoordinator extends ChangeNotifier {
               '[PRINT] skipped ${job.kind.name} ${job.orderNumber} $error',
             );
           } else {
+            job.mayHavePrinted = _printMayHaveStarted(error);
             _failed[job.jobKey] = job;
             await PendingPrintJobStore.upsert(
               PendingPrintJob(
@@ -451,7 +488,7 @@ class PrintJobCoordinator extends ChangeNotifier {
           !_draining &&
           health != null &&
           !health.blocksPrinting) {
-        unawaited(retryFailed());
+        unawaited(retryFailed(includeMayHavePrinted: false));
       }
     });
   }

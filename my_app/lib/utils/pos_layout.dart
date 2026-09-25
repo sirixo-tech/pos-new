@@ -92,14 +92,20 @@ int posMenuGridCrossAxisCount(double width) {
 ///
 /// [width] must be the **menu pane** width (not full window) — on desktop the
 /// category rail + cart shrink the grid, and using screen width overflows cards.
-double posMenuGridChildAspectRatio(double width, {bool compact = false}) {
+double posMenuGridChildAspectRatio(
+  double width, {
+  bool compact = false,
+  bool images = true,
+}) {
   final crossAxisCount = posMenuGridCrossAxisCount(width);
   const horizontalPadding = 32.0;
   const spacing = 10.0;
   final cellWidth =
       (width - horizontalPadding - spacing * (crossAxisCount - 1)) /
       crossAxisCount;
-  final imageHeight = cellWidth * 0.72;
-  final footerHeight = compact ? 70.0 : 92.0;
+  final imageHeight = images ? cellWidth * 0.72 : 0.0;
+  final footerHeight = images
+      ? (compact ? 70.0 : 92.0)
+      : cellWidth * 0.9;
   return cellWidth / (imageHeight + footerHeight);
 }

@@ -221,10 +221,15 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
       if (_savedConfig != null) {
         final health = await PosReceiptPrinter.probe();
         if (!mounted) return;
-        setState(() => _health = health);
+        _publishHealth(health);
       }
     } else {
       await _loadUsb();
+      if (_savedConfig?.connection == PosPrinterConnection.usb) {
+        final health = await PosReceiptPrinter.probe();
+        if (!mounted) return;
+        _publishHealth(health);
+      }
     }
   }
 
@@ -244,11 +249,37 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
     await UsbPrinterStorage.save(config);
     final health = await PosReceiptPrinter.probe();
     if (!mounted) return;
-    setState(() {
-      _savedConfig = config;
-      _health = health;
-    });
+    _publishHealth(health, config: config);
     await _showConnected(config, health);
+  }
+
+  void _publishHealth(PrinterHealth health, {UsbPrinterConfig? config}) {
+    context.read<PrinterStatusService>().applyHealth(health);
+    setState(() {
+      _health = health;
+      if (config != null) _savedConfig = config;
+    });
+  }
+
+  PrinterHealth? _cardHealth(PrinterStatusService service) {
+    final saved = _savedConfig;
+    final local = _health;
+    if (saved == null) return local;
+    final live = service.health;
+    final liveConfig = live.config;
+    if (!service.hasProbed || liveConfig == null) return local;
+    if (liveConfig.connection == saved.connection &&
+        liveConfig.address == saved.address) {
+      return live;
+    }
+    return local;
+  }
+
+  bool _cardChecking(PrinterStatusService service) {
+    final saved = _savedConfig;
+    final live = service.health.config;
+    if (!service.probing || saved == null || live == null) return false;
+    return live.connection == saved.connection && live.address == saved.address;
   }
 
   Future<void> _showConnected(
@@ -305,11 +336,8 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
     await UsbPrinterStorage.save(config);
     final health = await PosReceiptPrinter.probe();
     if (!mounted) return;
-    setState(() {
-      _savedConfig = config;
-      _health = health;
-      _savingNetwork = false;
-    });
+    setState(() => _savingNetwork = false);
+    _publishHealth(health, config: config);
     await _showConnected(config, health);
   }
 
@@ -341,7 +369,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
       try {
         health = await PosReceiptPrinter.probe(allowBluetoothScan: true);
         await PosReceiptPrinter.warmUp();
-        if (mounted) setState(() => _health = health);
+        if (mounted) _publishHealth(health);
       } catch (e) {
         if (mounted) {
           showPosSnackBar(
@@ -354,7 +382,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
       }
     } else {
       health = await PosReceiptPrinter.probe();
-      if (mounted) setState(() => _health = health);
+      if (mounted) _publishHealth(health);
     }
 
     if (mounted) {
@@ -376,10 +404,8 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
       terminalName: terminal?.name ?? pos.selectedTerminalCode,
     );
     if (!mounted) return;
-    setState(() {
-      _health = result;
-      _testing = false;
-    });
+    setState(() => _testing = false);
+    _publishHealth(result);
 
     final l10n = context.l10n;
     if (!result.hasIssue) {
@@ -489,16 +515,22 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
               if (_savedConfig != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: _SelectedPrinterCard(
-                    config: _savedConfig!,
-                    accent: accent,
-                    soft: soft,
-                    health: _health,
-                    testing: _testing,
-                    openingDrawer: _openingDrawer,
-                    onTestPrint: _testPrint,
-                    onOpenDrawer: _openDrawer,
-                    onClear: _clearPrinter,
+                  child: Builder(
+                    builder: (context) {
+                      final service = context.watch<PrinterStatusService>();
+                      return _SelectedPrinterCard(
+                        config: _savedConfig!,
+                        accent: accent,
+                        soft: soft,
+                        health: _cardHealth(service),
+                        checking: _cardChecking(service),
+                        testing: _testing,
+                        openingDrawer: _openingDrawer,
+                        onTestPrint: _testPrint,
+                        onOpenDrawer: _openDrawer,
+                        onClear: _clearPrinter,
+                      );
+                    },
                   ),
                 ),
               Padding(
@@ -831,12 +863,14 @@ class _SelectedPrinterCard extends StatelessWidget {
     required this.onOpenDrawer,
     required this.onClear,
     this.health,
+    this.checking = false,
   });
 
   final UsbPrinterConfig config;
   final Color accent;
   final ({Color bg, Color fg}) soft;
   final PrinterHealth? health;
+  final bool checking;
   final bool testing;
   final bool openingDrawer;
   final VoidCallback onTestPrint;
@@ -845,14 +879,16 @@ class _SelectedPrinterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final connected = health?.state == PrinterHealthState.ready;
+    final connected = !checking && health?.state == PrinterHealthState.ready;
     final icon = switch (config.connection) {
       PosPrinterConnection.bluetooth => Icons.bluetooth_connected_rounded,
       PosPrinterConnection.network => Icons.lan_rounded,
       PosPrinterConnection.smartpos => Icons.print_rounded,
       PosPrinterConnection.usb => Icons.usb_rounded,
     };
-    final tone = posStatusColors(connected ? 'ready' : 'failed');
+    final tone = posStatusColors(
+      checking ? 'pending' : (connected ? 'ready' : 'failed'),
+    );
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
@@ -900,7 +936,9 @@ class _SelectedPrinterCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    connected ? 'Connected' : 'Disconnected',
+                    checking
+                        ? 'Checking…'
+                        : (connected ? 'Connected' : 'Disconnected'),
                     style: TextStyle(
                       color: tone.fg,
                       fontWeight: FontWeight.w800,

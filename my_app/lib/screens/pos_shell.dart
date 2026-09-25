@@ -11,6 +11,7 @@ import '../models/pos_models.dart';
 import '../payments/payment_session.dart';
 import '../payments/payment_session_manager.dart';
 import '../providers/kitchen_controller.dart';
+import '../providers/pos_catalog_layout_settings.dart';
 import '../providers/pos_category_bar_settings.dart';
 import '../providers/pos_controller.dart';
 import '../providers/pos_locale_controller.dart';
@@ -29,7 +30,6 @@ import '../services/printing/scan_to_print_history.dart';
 import '../services/printing/scan_to_print_settings.dart';
 import '../theme/pos_theme.dart';
 import '../utils/format.dart';
-import '../utils/marketplace_platform_ui.dart';
 import '../utils/media_url.dart';
 import '../utils/outside_schedule.dart';
 import '../utils/order_barcode_scan.dart';
@@ -51,7 +51,11 @@ import '../widgets/pos_appearance_picker.dart';
 import '../widgets/pos_auto_lock_picker.dart';
 import '../widgets/pos_language_switcher.dart';
 import '../widgets/pos_menu_item_card.dart';
+import '../widgets/pos_catalog_layout_picker.dart';
 import '../widgets/pos_more_menu.dart';
+import '../widgets/pos_more_menu_sections.dart';
+import 'customer_display/dqr222_advertisement_page.dart';
+import 'help/pos_help_page.dart';
 import '../widgets/pos_network_logo.dart';
 import '../widgets/pos_close_shift_dialog.dart';
 import '../widgets/pos_open_shift_dialog.dart';
@@ -1460,12 +1464,16 @@ class _PosCategoryRailHost extends StatelessWidget {
     final serverUrl = context.select(
       (PosController p) => p.serverUrl ?? p.session?.serverUrl,
     );
+    final showCategoryImages = context.select(
+      (PosCatalogLayoutSettings s) => s.showsCategoryImages,
+    );
 
     return PosCategoryRail(
       categories: categories,
       activeCategoryId: activeCategoryId,
       accent: accent,
       serverUrl: serverUrl,
+      showImages: showCategoryImages,
       horizontal: horizontal,
       searchActive: searchActive,
       onSelect: (id) {
@@ -1544,7 +1552,7 @@ class _SearchStripState extends State<_SearchStrip> {
             onHeldQr: held == null || widget.onHeldQr == null
                 ? null
                 : () => widget.onHeldQr!(held),
-            heldQrLabel: held?.orderNumber,
+            heldQrLabel: held == null ? null : 'Pending UPI QR',
           );
         },
       ),
@@ -1594,6 +1602,9 @@ class _MenuScrollBody extends StatelessWidget {
         context.select((PosController p) => p.cartQtyByMenuItemId);
     final simpleLines =
         context.select((PosController p) => p.simpleCartLineByMenuItemId);
+    final showItemImages = context.select(
+      (PosCatalogLayoutSettings s) => s.showsItemImages,
+    );
     final pos = context.read<PosController>();
 
     if (menuEmpty) {
@@ -1624,6 +1635,7 @@ class _MenuScrollBody extends StatelessWidget {
                   simpleLineByItemId: simpleLines,
                   onIncrementSimple: pos.incrementSimpleCartLine,
                   onDecrementSimple: pos.decrementSimpleCartLine,
+                  showImage: showItemImages,
                 ),
               ),
             if (searchQuery.isNotEmpty)
@@ -1658,6 +1670,7 @@ class _MenuScrollBody extends StatelessWidget {
                     childAspectRatio: posMenuGridChildAspectRatio(
                       paneWidth,
                       compact: true,
+                      images: showItemImages,
                     ),
                   ),
                   delegate: SliverChildBuilderDelegate(
@@ -1670,6 +1683,7 @@ class _MenuScrollBody extends StatelessWidget {
                         accent: accent,
                         compact: true,
                         serverUrl: serverUrl,
+                        showImage: showItemImages,
                         inTicketQty: cartQty[item.id] ?? 0,
                         simpleCartLine: simpleLines[item.id],
                         onTap: () => onItemTap(item),
@@ -1699,6 +1713,7 @@ class _PopularSection extends StatelessWidget {
     required this.onIncrementSimple,
     required this.onDecrementSimple,
     this.serverUrl,
+    this.showImage = true,
   });
 
   final List<MenuItem> items;
@@ -1710,12 +1725,15 @@ class _PopularSection extends StatelessWidget {
   final ValueChanged<CartLine> onIncrementSimple;
   final ValueChanged<CartLine> onDecrementSimple;
   final String? serverUrl;
+  final bool showImage;
 
   @override
   Widget build(BuildContext context) {
     final short = PosTheme.isShort(context);
     final soft = posAccentSoft(accent);
-    final stripHeight = short ? 148.0 : 200.0;
+    final stripHeight = showImage
+        ? (short ? 148.0 : 200.0)
+        : (short ? 148.0 : 168.0);
     final cardWidth = short ? 120.0 : 144.0;
     final pad = short
         ? const EdgeInsets.fromLTRB(12, 8, 12, 10)
@@ -1794,6 +1812,7 @@ class _PopularSection extends StatelessWidget {
                         currency: currency,
                         accent: accent,
                         serverUrl: serverUrl,
+                        showImage: showImage,
                         compact: true,
                         inTicketQty: qtyByItemId[item.id] ?? 0,
                         simpleCartLine: simpleLineByItemId[item.id],
@@ -2314,222 +2333,26 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
                 accent: accent,
                 embedded: true,
                 tooltip: l10n.shellMore,
-                sections: [
-                  PosMoreMenuSection(
-                    title: l10n.shellMenuSession,
-                    items: [
-                      PosMoreMenuItem(
-                          id: 'store_toggle',
-                          icon: storeAccepting
-                              ? Icons.pause_circle_filled_rounded
-                              : Icons.storefront_rounded,
-                          label: storeAccepting
-                              ? l10n.storeCloseConfirm
-                              : l10n.storeOpenConfirm,
-                          subtitle: storeStatusLabel,
-                          badge: storeStatusLabel,
-                          enabled: canManageStore,
-                        ),
-                      PosMoreMenuItem(
-                        id: 'status',
-                        icon: Icons.monitor_heart_outlined,
-                        label: 'Status',
-                      ),
-                      PosMoreMenuItem(
-                        id: 'reports',
-                        icon: Icons.summarize_rounded,
-                        label: l10n.shellReports,
-                      ),
-                      PosMoreMenuItem(
-                        id: 'appearance',
-                        icon: Icons.palette_outlined,
-                        label: l10n.shellAppearance,
-                      ),
-                      if (canAccessAdmin && canViewMenu)
-                        PosMoreMenuItem(
-                          id: 'menu',
-                          icon: Icons.menu_book_outlined,
-                          label: l10n.adminMenu,
-                        ),
-                      if (canAccessAdmin)
-                        PosMoreMenuItem(
-                          id: 'manage',
-                          icon: Icons.admin_panel_settings_rounded,
-                          label: 'Administration',
-                        ),
-                      for (final platform in marketplacePlatforms)
-                        PosMoreMenuItem(
-                          id: '${platform.provider}_orders',
-                          icon: Icons.delivery_dining_rounded,
-                          label:
-                              marketplacePlatformDisplayLabel(l10n, platform),
-                        ),
-                      PosMoreMenuItem(
-                        id: 'refresh',
-                        icon: Icons.refresh_rounded,
-                        label: l10n.shellRefreshMenu,
-                      ),
-                      PosMoreMenuItem(
-                        id: 'shortcuts',
-                        icon: Icons.keyboard_alt_outlined,
-                        label: l10n.shellKeyboardShortcuts,
-                      ),
-                      if (showLanguageSwitcher)
-                        PosMoreMenuItem(
-                          id: 'language',
-                          icon: Icons.language_rounded,
-                          label: l10n.shellLanguage,
-                        ),
-                      if (terminalCount > 1)
-                        PosMoreMenuItem(
-                          id: 'terminal',
-                          icon: Icons.monitor_rounded,
-                          label: l10n.shellChangeRegister,
-                        ),
-                      if (canChangeLocation)
-                        PosMoreMenuItem(
-                          id: 'location',
-                          icon: Icons.storefront_outlined,
-                          label: l10n.shellChangeLocation,
-                        ),
-                      if (hasPin)
-                        PosMoreMenuItem(
-                          id: 'lock',
-                          icon: Icons.lock_rounded,
-                          label: l10n.shellLockRegister,
-                        ),
-                      if (hasPin)
-                        PosMoreMenuItem(
-                          id: 'auto_lock',
-                          icon: Icons.timer_outlined,
-                          label: l10n.shellAutoLock,
-                        ),
-                      PosMoreMenuItem(
-                        id: 'pin',
-                        icon: Icons.pin_rounded,
-                        label: hasPin ? l10n.pinChangeTitle : l10n.pinSetTitle,
-                      ),
-                      if (canUseCaptain)
-                        PosMoreMenuItem(
-                          id: 'waiter_mode',
-                          icon: Icons.room_service_rounded,
-                          label: l10n.waiterSwitchToWaiter,
-                        ),
-                      if (canChooseWorkMode)
-                        PosMoreMenuItem(
-                          id: 'change_mode',
-                          icon: Icons.devices_other_rounded,
-                          label: l10n.waiterChangeMode,
-                        ),
-                    ],
-                  ),
-                  PosMoreMenuSection(
-                    title: l10n.shellMenuDevice,
-                    items: [
-                      if (PosDisplayMode.supportsToggle)
-                        PosMoreMenuItem(
-                          id: 'fullscreen',
-                          icon: PosDisplayMode.enabled
-                              ? Icons.fullscreen_exit_rounded
-                              : Icons.fullscreen_rounded,
-                          label: PosDisplayMode.enabled
-                              ? context.posText(
-                                  'shellExitFullscreen',
-                                  'Exit fullscreen',
-                                )
-                              : context.posText(
-                                  'shellEnterFullscreen',
-                                  'Enter fullscreen',
-                                ),
-                        ),
-                      PosMoreMenuItem(
-                        id: 'printer',
-                        icon: Icons.print_outlined,
-                        label: l10n.printerSetupTitle,
-                      ),
-                      PosMoreMenuItem(
-                        id: 'quick_pay_layout',
-                        icon: Icons.tune_rounded,
-                        label: context.posText(
-                          'cartQuickPayLayout',
-                          'Arrange quick pay',
-                        ),
-                        subtitle: context.posText(
-                          'cartQuickPayLayoutHint',
-                          'Reorder or hide Cash, UPI, Card, More',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'sounds',
-                        icon: Icons.volume_up_outlined,
-                        label: 'Sound settings',
-                      ),
-                      PosMoreMenuItem(
-                        id: 'customer_display',
-                        icon: Icons.tv_rounded,
-                        label: context.posText(
-                          'shellCustomerDisplay',
-                          'Customer display',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'token_display',
-                        icon: Icons.confirmation_number_outlined,
-                        label: context.posText(
-                          'shellTokenDisplay',
-                          'Token display',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'cart_display',
-                        icon: Icons.point_of_sale_rounded,
-                        label: context.posText(
-                          'shellCartDisplay',
-                          'Cart display',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'qr_pairing',
-                        icon: Icons.qr_code_2_rounded,
-                        label: context.posText(
-                          'shellQrDisplayPairing',
-                          'QR display pairing',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'updates',
-                        icon: Icons.system_update_alt_rounded,
-                        label: checkingForUpdates
-                            ? l10n.updateChecking
-                            : l10n.shellCheckForUpdates,
-                        enabled: !checkingForUpdates,
-                      ),
-                      if (pendingOrderCount > 0)
-                        PosMoreMenuItem(
-                          id: 'sync',
-                          icon: Icons.sync_rounded,
-                          label: l10n.shellSyncOrders,
-                          badge: '$pendingOrderCount',
-                        ),
-                      if (hasDeviceBinding)
-                        PosMoreMenuItem(
-                          id: 'unpair',
-                          icon: Icons.link_off_rounded,
-                          label: l10n.shellClearPairing,
-                        ),
-                    ],
-                  ),
-                  PosMoreMenuSection(
-                    items: [
-                      PosMoreMenuItem(
-                        id: 'logout',
-                        icon: Icons.logout_rounded,
-                        label: l10n.commonSignOut,
-                        destructive: true,
-                      ),
-                    ],
-                  ),
-                ],
+                sections: buildPosMoreMenuSections(
+                  context: context,
+                  l10n: l10n,
+                  storeAccepting: storeAccepting,
+                  storeStatusLabel: storeStatusLabel,
+                  canManageStore: canManageStore,
+                  canAccessAdmin: canAccessAdmin,
+                  canViewMenu: canViewMenu,
+                  marketplacePlatforms: marketplacePlatforms,
+                  showLanguageSwitcher: showLanguageSwitcher,
+                  terminalCount: terminalCount,
+                  canChangeLocation: canChangeLocation,
+                  hasPin: hasPin,
+                  canUseCaptain: canUseCaptain,
+                  canChooseWorkMode: canChooseWorkMode,
+                  checkingForUpdates: checkingForUpdates,
+                  pendingOrderCount: pendingOrderCount,
+                  hasDeviceBinding: hasDeviceBinding,
+                  includeShortcuts: true,
+                ),
                 onSelected: (value) async {
                   await _handleMoreMenuAction(
                     context: context,
@@ -2547,217 +2370,26 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
                 accent: accent,
                 embedded: true,
                 tooltip: l10n.shellMore,
-                sections: [
-                  PosMoreMenuSection(
-                    title: l10n.shellMenuSession,
-                    items: [
-                      PosMoreMenuItem(
-                          id: 'store_toggle',
-                          icon: storeAccepting
-                              ? Icons.pause_circle_filled_rounded
-                              : Icons.storefront_rounded,
-                          label: storeAccepting
-                              ? l10n.storeCloseConfirm
-                              : l10n.storeOpenConfirm,
-                          subtitle: storeStatusLabel,
-                          badge: storeStatusLabel,
-                          enabled: canManageStore,
-                        ),
-                      PosMoreMenuItem(
-                        id: 'reports',
-                        icon: Icons.summarize_rounded,
-                        label: l10n.shellReports,
-                      ),
-                      PosMoreMenuItem(
-                        id: 'appearance',
-                        icon: Icons.palette_outlined,
-                        label: l10n.shellAppearance,
-                      ),
-                      PosMoreMenuItem(
-                        id: 'status',
-                        icon: Icons.monitor_heart_outlined,
-                        label: 'Status',
-                      ),
-                      if (canAccessAdmin && canViewMenu)
-                        PosMoreMenuItem(
-                          id: 'menu',
-                          icon: Icons.menu_book_outlined,
-                          label: l10n.adminMenu,
-                        ),
-                      if (canAccessAdmin)
-                        PosMoreMenuItem(
-                          id: 'manage',
-                          icon: Icons.admin_panel_settings_rounded,
-                          label: 'Administration',
-                        ),
-                      for (final platform in marketplacePlatforms)
-                        PosMoreMenuItem(
-                          id: '${platform.provider}_orders',
-                          icon: Icons.delivery_dining_rounded,
-                          label:
-                              marketplacePlatformDisplayLabel(l10n, platform),
-                        ),
-                      PosMoreMenuItem(
-                        id: 'refresh',
-                        icon: Icons.refresh_rounded,
-                        label: l10n.shellRefreshMenu,
-                      ),
-                      if (showLanguageSwitcher)
-                        PosMoreMenuItem(
-                          id: 'language',
-                          icon: Icons.language_rounded,
-                          label: l10n.shellLanguage,
-                        ),
-                      if (terminalCount > 1)
-                        PosMoreMenuItem(
-                          id: 'terminal',
-                          icon: Icons.monitor_rounded,
-                          label: l10n.shellChangeRegister,
-                        ),
-                      if (canChangeLocation)
-                        PosMoreMenuItem(
-                          id: 'location',
-                          icon: Icons.storefront_outlined,
-                          label: l10n.shellChangeLocation,
-                        ),
-                      if (hasPin)
-                        PosMoreMenuItem(
-                          id: 'lock',
-                          icon: Icons.lock_rounded,
-                          label: l10n.shellLockRegister,
-                        ),
-                      if (hasPin)
-                        PosMoreMenuItem(
-                          id: 'auto_lock',
-                          icon: Icons.timer_outlined,
-                          label: l10n.shellAutoLock,
-                        ),
-                      PosMoreMenuItem(
-                        id: 'pin',
-                        icon: Icons.pin_rounded,
-                        label: hasPin ? l10n.pinChangeTitle : l10n.pinSetTitle,
-                      ),
-                      if (canUseCaptain)
-                        PosMoreMenuItem(
-                          id: 'waiter_mode',
-                          icon: Icons.room_service_rounded,
-                          label: l10n.waiterSwitchToWaiter,
-                        ),
-                      if (canChooseWorkMode)
-                        PosMoreMenuItem(
-                          id: 'change_mode',
-                          icon: Icons.devices_other_rounded,
-                          label: l10n.waiterChangeMode,
-                        ),
-                    ],
-                  ),
-                  PosMoreMenuSection(
-                    title: l10n.shellMenuDevice,
-                    items: [
-                      if (PosDisplayMode.supportsToggle)
-                        PosMoreMenuItem(
-                          id: 'fullscreen',
-                          icon: PosDisplayMode.enabled
-                              ? Icons.fullscreen_exit_rounded
-                              : Icons.fullscreen_rounded,
-                          label: PosDisplayMode.enabled
-                              ? context.posText(
-                                  'shellExitFullscreen',
-                                  'Exit fullscreen',
-                                )
-                              : context.posText(
-                                  'shellEnterFullscreen',
-                                  'Enter fullscreen',
-                                ),
-                        ),
-                      PosMoreMenuItem(
-                        id: 'printer',
-                        icon: Icons.print_outlined,
-                        label: l10n.printerSetupTitle,
-                      ),
-                      PosMoreMenuItem(
-                        id: 'quick_pay_layout',
-                        icon: Icons.tune_rounded,
-                        label: context.posText(
-                          'cartQuickPayLayout',
-                          'Arrange quick pay',
-                        ),
-                        subtitle: context.posText(
-                          'cartQuickPayLayoutHint',
-                          'Reorder or hide Cash, UPI, Card, More',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'sounds',
-                        icon: Icons.volume_up_outlined,
-                        label: 'Sound settings',
-                      ),
-                      PosMoreMenuItem(
-                        id: 'customer_display',
-                        icon: Icons.tv_rounded,
-                        label: context.posText(
-                          'shellCustomerDisplay',
-                          'Customer display',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'token_display',
-                        icon: Icons.confirmation_number_outlined,
-                        label: context.posText(
-                          'shellTokenDisplay',
-                          'Token display',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'cart_display',
-                        icon: Icons.point_of_sale_rounded,
-                        label: context.posText(
-                          'shellCartDisplay',
-                          'Cart display',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'qr_pairing',
-                        icon: Icons.qr_code_2_rounded,
-                        label: context.posText(
-                          'shellQrDisplayPairing',
-                          'QR display pairing',
-                        ),
-                      ),
-                      PosMoreMenuItem(
-                        id: 'updates',
-                        icon: Icons.system_update_alt_rounded,
-                        label: checkingForUpdates
-                            ? l10n.updateChecking
-                            : l10n.shellCheckForUpdates,
-                        enabled: !checkingForUpdates,
-                      ),
-                      if (pendingOrderCount > 0)
-                        PosMoreMenuItem(
-                          id: 'sync',
-                          icon: Icons.sync_rounded,
-                          label: l10n.shellSyncOrders,
-                          badge: '$pendingOrderCount',
-                        ),
-                      if (hasDeviceBinding)
-                        PosMoreMenuItem(
-                          id: 'unpair',
-                          icon: Icons.link_off_rounded,
-                          label: l10n.shellClearPairing,
-                        ),
-                    ],
-                  ),
-                  PosMoreMenuSection(
-                    items: [
-                      PosMoreMenuItem(
-                        id: 'logout',
-                        icon: Icons.logout_rounded,
-                        label: l10n.commonSignOut,
-                        destructive: true,
-                      ),
-                    ],
-                  ),
-                ],
+                sections: buildPosMoreMenuSections(
+                  context: context,
+                  l10n: l10n,
+                  storeAccepting: storeAccepting,
+                  storeStatusLabel: storeStatusLabel,
+                  canManageStore: canManageStore,
+                  canAccessAdmin: canAccessAdmin,
+                  canViewMenu: canViewMenu,
+                  marketplacePlatforms: marketplacePlatforms,
+                  showLanguageSwitcher: showLanguageSwitcher,
+                  terminalCount: terminalCount,
+                  canChangeLocation: canChangeLocation,
+                  hasPin: hasPin,
+                  canUseCaptain: canUseCaptain,
+                  canChooseWorkMode: canChooseWorkMode,
+                  checkingForUpdates: checkingForUpdates,
+                  pendingOrderCount: pendingOrderCount,
+                  hasDeviceBinding: hasDeviceBinding,
+                  includeShortcuts: false,
+                ),
                 onSelected: (value) async {
                   await _handleMoreMenuAction(
                     context: context,
@@ -2911,6 +2543,24 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
               onOpenDayEndReports();
             } else if (value == 'appearance') {
               await showPosAppearancePicker(context);
+            } else if (value == 'item_images') {
+              await showPosCatalogLayoutPicker(context);
+            } else if (value == 'help') {
+              if (context.mounted) {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const PosHelpPage(),
+                  ),
+                );
+              }
+            } else if (value == 'dqr_images') {
+              if (context.mounted) {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const Dqr222AdvertisementPage(),
+                  ),
+                );
+              }
             } else if (value == 'auto_lock') {
               await showPosAutoLockPicker(context);
             } else if (value == 'fullscreen') {

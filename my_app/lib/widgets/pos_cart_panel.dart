@@ -655,7 +655,7 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
         children: [
           if (onDiscount != null)
             Align(
-              alignment: Alignment.centerRight,
+              alignment: Alignment.centerLeft,
               child: _FooterDiscountButton(
                 accent: accent,
                 active: widget.discountActive,

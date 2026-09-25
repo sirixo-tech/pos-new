@@ -23,6 +23,7 @@ class PosMenuItemCard extends StatefulWidget {
     this.onIncrementSimple,
     this.onDecrementSimple,
     this.serverUrl,
+    this.showImage = true,
   });
 
   final MenuItem item;
@@ -35,6 +36,7 @@ class PosMenuItemCard extends StatefulWidget {
   final ValueChanged<CartLine>? onIncrementSimple;
   final ValueChanged<CartLine>? onDecrementSimple;
   final String? serverUrl;
+  final bool showImage;
 
   @override
   State<PosMenuItemCard> createState() => _PosMenuItemCardState();
@@ -102,6 +104,16 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final unavailable = widget.item.isManuallyUnavailable;
     final outsideSchedule = widget.item.isOutsideSchedule;
+
+    if (!widget.showImage) {
+      return _buildColorCard(
+        itemName: itemName,
+        showStepper: showStepper,
+        showFromPrice: showFromPrice,
+        unavailable: unavailable,
+        outsideSchedule: outsideSchedule,
+      );
+    }
 
     return Opacity(
       opacity: unavailable ? 0.78 : 1,
@@ -205,10 +217,21 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                       Positioned(
                         top: widget.compact ? 6 : 8,
                         left: widget.compact ? 6 : 8,
-                        child: PosItemTypeBadge(
-                          type: widget.item.itemType!,
-                          compact: false,
-                          enlarged: true,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: Colors.black.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: PosItemTypeMark(
+                              type: widget.item.itemType!,
+                              size: widget.compact ? 14 : 16,
+                            ),
+                          ),
                         ),
                       ),
                     if (widget.item.isManuallyUnavailable ||
@@ -330,13 +353,15 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize:
-                    boundedHeight ? MainAxisSize.max : MainAxisSize.min,
+                mainAxisSize: boundedHeight && widget.showImage
+                    ? MainAxisSize.max
+                    : MainAxisSize.min,
                 children: [
-                  if (boundedHeight)
-                    Expanded(child: image)
-                  else
-                    AspectRatio(aspectRatio: 4 / 3, child: image),
+                  if (widget.showImage)
+                    if (boundedHeight)
+                      Expanded(child: image)
+                    else
+                      AspectRatio(aspectRatio: 4 / 3, child: image),
                   footer,
                 ],
               );
@@ -345,6 +370,228 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
         ),
       ),
     ),
+    );
+  }
+
+  static const _colorCardPalette = <Color>[
+    Color(0xFFD4F1FA),
+    Color(0xFFF8D5E4),
+    Color(0xFFF8DCC8),
+    Color(0xFFD4F0DC),
+    Color(0xFFFBF3C2),
+  ];
+
+  static const _colorCardPrice = Color(0xFFFF5C1F);
+
+  Color _colorCardFill() {
+    final index = widget.item.id.abs() % _colorCardPalette.length;
+    return _colorCardPalette[index];
+  }
+
+  Widget _buildColorCard({
+    required String itemName,
+    required bool showStepper,
+    required bool showFromPrice,
+    required bool unavailable,
+    required bool outsideSchedule,
+  }) {
+    final fill = _colorCardFill();
+    final circle = widget.compact ? 48.0 : 56.0;
+    return Opacity(
+      opacity: unavailable ? 0.78 : 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          clipBehavior: Clip.antiAlias,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            onTap: _handleTap,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final bounded = constraints.maxHeight.isFinite;
+                return SizedBox(
+                  height: bounded ? constraints.maxHeight : null,
+                  child: Stack(
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    widget.compact ? 10 : 12,
+                    widget.compact ? 8 : 10,
+                    widget.compact ? 10 : 12,
+                    widget.compact ? 8 : 10,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize:
+                        bounded ? MainAxisSize.max : MainAxisSize.min,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: normalizePosItemType(widget.item.itemType) ==
+                                null
+                            ? const SizedBox(height: 16)
+                            : PosItemTypeMark(
+                                type: widget.item.itemType!,
+                                size: 14,
+                              ),
+                      ),
+                      if (bounded)
+                        const Spacer()
+                      else
+                        const SizedBox(height: 8),
+                      Center(
+                        child: Container(
+                          width: circle,
+                          height: circle,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            _initials(itemName),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: widget.compact ? 16 : 18,
+                              color: const Color(0xFF1F2937),
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: widget.compact ? 8 : 10),
+                      Text(
+                        itemName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: widget.compact ? 13 : 14,
+                          height: 1.15,
+                          color: const Color(0xFF1F2937),
+                        ),
+                      ),
+                      if (widget.item.variants.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.item.variants
+                              .map((variant) => variant.name)
+                              .join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF6B7280),
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              showFromPrice
+                                  ? '${context.l10n.menuFrom} ${formatMoney(_minDisplayPrice(), widget.currency)}'
+                                  : formatMoney(
+                                      _minDisplayPrice(),
+                                      widget.currency,
+                                    ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: _colorCardPrice,
+                                fontWeight: FontWeight.w700,
+                                fontSize: widget.compact ? 13 : 14,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                          if (showStepper)
+                            _Stepper(
+                              quantity: widget.simpleCartLine!.quantity,
+                              compact: true,
+                              accent: const Color(0xFF3F2A22),
+                              onDecrement: () => widget.onDecrementSimple
+                                  ?.call(widget.simpleCartLine!),
+                              onIncrement: () {
+                                HapticFeedback.selectionClick();
+                                widget.onIncrementSimple
+                                    ?.call(widget.simpleCartLine!);
+                              },
+                            )
+                          else
+                            Material(
+                              color: _colorCardPrice,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _handleTap,
+                                child: const SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: Icon(
+                                    Icons.add_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (unavailable || outsideSchedule)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      color: unavailable
+                          ? const Color(0xCC991B1B)
+                          : const Color(0xCCB45309),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        unavailable
+                            ? context.posText(
+                                'menuNotAvailableBadge',
+                                'Not available',
+                              )
+                            : context.posText(
+                                'menuOutsideScheduleBadge',
+                                'Outside schedule',
+                              ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -391,7 +638,9 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
               Expanded(
                 child: Text(
                   itemName,
-                  maxLines: widget.compact ? 1 : 2,
+                  maxLines: widget.item.variants.isNotEmpty
+                      ? 1
+                      : (widget.compact ? 1 : 2),
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
@@ -404,6 +653,20 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
               ),
             ],
           ),
+          if (widget.item.variants.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              widget.item.variants.map((variant) => variant.name).join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: widget.compact ? 10 : 11,
+                fontWeight: FontWeight.w600,
+                color: PosTheme.inkMuted,
+                height: 1.2,
+              ),
+            ),
+          ],
           if (showDescription) ...[
             const SizedBox(height: 3),
             Text(

@@ -154,12 +154,14 @@ class KitchenKotFilterChips extends StatelessWidget {
     required this.selectedChannel,
     required this.onChanged,
     this.compact = false,
+    this.wrap = false,
   });
 
   final List<KitchenBoardOrder> orders;
   final String? selectedChannel;
   final ValueChanged<String?> onChanged;
   final bool compact;
+  final bool wrap;
 
   @override
   Widget build(BuildContext context) {
@@ -173,14 +175,26 @@ class KitchenKotFilterChips extends StatelessWidget {
         onChanged(null);
       });
     }
+    final chips = [
+      for (final key in keys)
+        _kotFilterChip(
+          context,
+          key: key,
+        ),
+    ];
+    if (wrap) {
+      return Wrap(
+        spacing: compact ? 5 : 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: chips,
+      );
+    }
     return Row(
       children: [
-        for (var i = 0; i < keys.length; i++) ...[
+        for (var i = 0; i < chips.length; i++) ...[
           if (i > 0) SizedBox(width: compact ? 5 : 6),
-          _kotFilterChip(
-            context,
-            key: keys[i],
-          ),
+          chips[i],
         ],
       ],
     );

@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbConstants
+import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Handler
@@ -31,6 +32,8 @@ class MainActivity : FlutterActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val smartPosPrinter = SmartPosPrinterHandler(mainHandler)
     private var bluetoothPermResult: MethodChannel.Result? = null
+    private var usbAttachReceiver: BroadcastReceiver? = null
+    private var usbAttachSink: EventChannel.EventSink? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -198,9 +201,96 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "pos_main/usb_devices",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "listAttached" -> result.success(attachedUsbDevices())
+                else -> result.notImplemented()
+            }
+        }
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "pos_main/usb_devices_events",
+        ).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, sink: EventChannel.EventSink) {
+                    usbAttachSink = sink
+                    registerUsbAttachReceiver()
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    usbAttachSink = null
+                    unregisterUsbAttachReceiver()
+                }
+            },
+        )
+    }
+
+    private fun attachedUsbDevices(): List<Map<String, Any?>> {
+        val usbManager = getSystemService(USB_SERVICE) as UsbManager
+        return usbManager.deviceList.values.map { device -> usbDeviceRow(device) }
+    }
+
+    private fun usbDeviceRow(device: UsbDevice): Map<String, Any?> {
+        val productName = try {
+            device.productName
+        } catch (_: SecurityException) {
+            null
+        }
+        val manufacturerName = try {
+            device.manufacturerName
+        } catch (_: SecurityException) {
+            null
+        }
+        return mapOf(
+            "vendorId" to device.vendorId,
+            "productId" to device.productId,
+            "productName" to productName,
+            "manufacturerName" to manufacturerName,
+            "deviceName" to device.deviceName,
+        )
+    }
+
+    private fun registerUsbAttachReceiver() {
+        if (usbAttachReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val action = intent?.action ?: return
+                if (action != UsbManager.ACTION_USB_DEVICE_ATTACHED &&
+                    action != UsbManager.ACTION_USB_DEVICE_DETACHED
+                ) {
+                    return
+                }
+                usbAttachSink?.success(action)
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(receiver, filter)
+        }
+        usbAttachReceiver = receiver
+    }
+
+    private fun unregisterUsbAttachReceiver() {
+        val receiver = usbAttachReceiver ?: return
+        try {
+            unregisterReceiver(receiver)
+        } catch (_: IllegalArgumentException) {
+            // Already unregistered.
+        }
+        usbAttachReceiver = null
     }
 
     override fun onDestroy() {
+        unregisterUsbAttachReceiver()
         stopIminScannerListener()
         usbDisplays?.destroy()
         usbDisplays = null

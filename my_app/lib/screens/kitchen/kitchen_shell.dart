@@ -189,6 +189,7 @@ class _KitchenShellState extends State<KitchenShell> {
                           ],
                         ),
                       ),
+                      const KitchenKotFilterTuneButton(),
                       if (showLanguage)
                         IconButton(
                           tooltip: context.l10n.shellLanguage,
@@ -321,34 +322,33 @@ class _KitchenShellState extends State<KitchenShell> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: KitchenFilterCarousel(
-                    child: Row(
-                      children: [
-                        KitchenKotFilterChips(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: KitchenKotFilterChips(
                           orders: kitchen.allActiveOrders,
                           selectedChannel: kitchen.selectedChannel,
                           onChanged: kitchen.setChannelFilter,
+                          wrap: true,
                         ),
-                        const SizedBox(width: 4),
-                        const KitchenKotFilterTuneButton(),
+                      ),
+                      const SizedBox(width: 6),
+                      KitchenSortMenu(
+                        selected: kitchen.selectedSort,
+                        onChanged: kitchen.setTicketSort,
+                      ),
+                      if (kitchen.bootstrap?.kitchens.isNotEmpty == true) ...[
                         const SizedBox(width: 6),
-                        KitchenSortMenu(
-                          selected: kitchen.selectedSort,
-                          onChanged: kitchen.setTicketSort,
+                        KitchenStationMenu(
+                          stations: kitchen.bootstrap!.kitchens,
+                          selectedId: kitchen.selectedKitchenId,
+                          onChanged: kitchen.setKitchenFilter,
                         ),
-                        if (kitchen.bootstrap?.kitchens.isNotEmpty == true) ...[
-                          const SizedBox(width: 6),
-                          KitchenStationMenu(
-                            stations: kitchen.bootstrap!.kitchens,
-                            selectedId: kitchen.selectedKitchenId,
-                            onChanged: kitchen.setKitchenFilter,
-                          ),
-                        ],
                       ],
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),

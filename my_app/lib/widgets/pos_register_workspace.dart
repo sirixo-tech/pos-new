@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../l10n/pos_l10n.dart';
 import '../models/pos_models.dart';
+import '../providers/pos_catalog_layout_settings.dart';
 import '../providers/pos_category_bar_settings.dart';
 import '../providers/pos_controller.dart';
 import '../theme/pos_theme.dart';
@@ -213,12 +214,16 @@ class _PosCategoryRailHost extends StatelessWidget {
     final serverUrl = context.select(
       (PosController p) => p.serverUrl ?? p.session?.serverUrl,
     );
+    final showCategoryImages = context.select(
+      (PosCatalogLayoutSettings s) => s.showsCategoryImages,
+    );
 
     return PosCategoryRail(
       categories: categories,
       activeCategoryId: activeCategoryId,
       accent: accent,
       serverUrl: serverUrl,
+      showImages: showCategoryImages,
       horizontal: horizontal,
       searchActive: searchActive,
       onSelect: (id) {
@@ -324,6 +329,9 @@ class _MenuScrollBody extends StatelessWidget {
         context.select((PosController p) => p.cartQtyByMenuItemId);
     final simpleLines =
         context.select((PosController p) => p.simpleCartLineByMenuItemId);
+    final showItemImages = context.select(
+      (PosCatalogLayoutSettings s) => s.showsItemImages,
+    );
     final pos = context.read<PosController>();
 
     if (menuEmpty) {
@@ -354,6 +362,7 @@ class _MenuScrollBody extends StatelessWidget {
                   simpleLineByItemId: simpleLines,
                   onIncrementSimple: pos.incrementSimpleCartLine,
                   onDecrementSimple: pos.decrementSimpleCartLine,
+                  showImage: showItemImages,
                 ),
               ),
             if (searchQuery.isNotEmpty)
@@ -388,6 +397,7 @@ class _MenuScrollBody extends StatelessWidget {
                     childAspectRatio: posMenuGridChildAspectRatio(
                       paneWidth,
                       compact: true,
+                      images: showItemImages,
                     ),
                   ),
                   delegate: SliverChildBuilderDelegate(
@@ -400,6 +410,7 @@ class _MenuScrollBody extends StatelessWidget {
                         accent: accent,
                         compact: true,
                         serverUrl: serverUrl,
+                        showImage: showItemImages,
                         inTicketQty: cartQty[item.id] ?? 0,
                         simpleCartLine: simpleLines[item.id],
                         onTap: () => onItemTap(item),
@@ -429,6 +440,7 @@ class _PopularSection extends StatelessWidget {
     required this.onIncrementSimple,
     required this.onDecrementSimple,
     this.serverUrl,
+    this.showImage = true,
   });
 
   final List<MenuItem> items;
@@ -440,11 +452,14 @@ class _PopularSection extends StatelessWidget {
   final ValueChanged<CartLine> onIncrementSimple;
   final ValueChanged<CartLine> onDecrementSimple;
   final String? serverUrl;
+  final bool showImage;
 
   @override
   Widget build(BuildContext context) {
     final short = PosTheme.isShort(context);
-    final stripHeight = short ? 148.0 : 200.0;
+    final stripHeight = showImage
+        ? (short ? 148.0 : 200.0)
+        : (short ? 148.0 : 168.0);
     final cardWidth = short ? 120.0 : 144.0;
     final pad = short
         ? const EdgeInsets.fromLTRB(12, 8, 12, 10)
@@ -524,6 +539,7 @@ class _PopularSection extends StatelessWidget {
                         currency: currency,
                         accent: accent,
                         serverUrl: serverUrl,
+                        showImage: showImage,
                         compact: true,
                         inTicketQty: qtyByItemId[item.id] ?? 0,
                         simpleCartLine: simpleLineByItemId[item.id],

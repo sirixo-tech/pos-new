@@ -9,6 +9,7 @@ import 'config/platform_config.dart';
 import 'config/pos_app_info.dart';
 import 'l10n/pos_l10n.dart';
 import 'providers/cart_quick_pay_settings.dart';
+import 'providers/pos_catalog_layout_settings.dart';
 import 'providers/pos_category_bar_settings.dart';
 import 'providers/kitchen_controller.dart';
 import 'providers/kitchen_kot_filter_order.dart';
@@ -67,6 +68,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
   late final KitchenKotFilterOrder _kotFilterOrder;
   late final CartQuickPaySettings _quickPaySettings;
   late final PosCategoryBarSettings _categoryBarSettings;
+  late final PosCatalogLayoutSettings _catalogLayoutSettings;
   late final PosApi _api;
   late final WindowCloseGuard _windowCloseGuard;
 
@@ -95,6 +97,8 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
     unawaited(_quickPaySettings.load());
     _categoryBarSettings = PosCategoryBarSettings();
     unawaited(_categoryBarSettings.load());
+    _catalogLayoutSettings = PosCatalogLayoutSettings();
+    unawaited(_catalogLayoutSettings.load());
     _localeController = PosLocaleController()..load();
     _themeController = PosThemeController()..load();
     _idleLockController = PosIdleLockController()..load();
@@ -144,6 +148,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
     _kotFilterOrder.dispose();
     _quickPaySettings.dispose();
     _categoryBarSettings.dispose();
+    _catalogLayoutSettings.dispose();
     _posController.dispose();
     _localeController.dispose();
     _themeController.dispose();
@@ -198,6 +203,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
         ChangeNotifierProvider.value(value: _kotFilterOrder),
         ChangeNotifierProvider.value(value: _quickPaySettings),
         ChangeNotifierProvider.value(value: _categoryBarSettings),
+        ChangeNotifierProvider.value(value: _catalogLayoutSettings),
       ],
       child: Consumer2<PosLocaleController, PosThemeController>(
         builder: (context, localeController, themeController, _) {

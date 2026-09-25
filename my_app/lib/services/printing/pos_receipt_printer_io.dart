@@ -26,6 +26,7 @@ import 'printer_health.dart';
 import 'receipt_typography.dart';
 import 'thermal_text_encoder.dart';
 import 'usb_printer_config.dart';
+import 'windows_printer_queue.dart';
 
 /// Native Android / macOS / Windows / iOS — ESC/POS via USB, CUPS, Bluetooth, or LAN.
 class PosReceiptPrinter {
@@ -141,6 +142,77 @@ class PosReceiptPrinter {
     );
   }
 
+  static const _usbDevicesChannel = MethodChannel('pos_main/usb_devices');
+  static const _usbDevicesEvents = EventChannel('pos_main/usb_devices_events');
+
+  /// Android plug and unplug. Null off Android. Does not open the printer.
+  static StreamSubscription<dynamic>? watchUsbHardware(void Function() onChange) {
+    if (!Platform.isAndroid) return null;
+    return _usbDevicesEvents.receiveBroadcastStream().listen(
+      (_) => onChange(),
+      onError: (Object _) {},
+    );
+  }
+
+  /// Live Android USB devices. Null when the platform call is unavailable,
+  /// so the existing list-based connection check still runs.
+  static Future<List<Map<String, dynamic>>?> _androidAttachedUsb() async {
+    try {
+      final raw = await _usbDevicesChannel.invokeMethod<List<dynamic>>(
+        'listAttached',
+      );
+      if (raw == null) return const [];
+      return raw
+          .whereType<Map>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .toList();
+    } on Object {
+      return null;
+    }
+  }
+
+  static bool _androidUsbStillAttached(
+    UsbPrinterConfig config,
+    List<Map<String, dynamic>> devices,
+  ) {
+    final address = config.address.trim().toLowerCase();
+    final name = config.name.trim().toLowerCase();
+    for (final device in devices) {
+      final vendor = '${device['vendorId'] ?? ''}'.trim();
+      final product = '${device['productId'] ?? ''}'.trim();
+      if (vendor.isNotEmpty &&
+          product.isNotEmpty &&
+          address == '$vendor:$product'.toLowerCase()) {
+        return true;
+      }
+      final productName = '${device['productName'] ?? ''}'.trim().toLowerCase();
+      final manufacturer =
+          '${device['manufacturerName'] ?? ''}'.trim().toLowerCase();
+      if (name.isNotEmpty &&
+          (name == productName ||
+              name == '$manufacturer $productName'.trim())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// True when the saved printer is plugged in, false when its vendor and
+  /// product are absent, null when this list cannot prove either way.
+  static bool? _androidUsbAttachment(
+    UsbPrinterConfig config,
+    List<Map<String, dynamic>> devices,
+  ) {
+    if (_androidUsbStillAttached(config, devices)) return true;
+    final parts = config.address.split(':');
+    if (parts.length == 2 &&
+        int.tryParse(parts[0].trim()) != null &&
+        int.tryParse(parts[1].trim()) != null) {
+      return false;
+    }
+    return null;
+  }
+
   static Future<void> stopBluetoothScan() async {
     try {
       await _thermal.stopScan();
@@ -158,6 +230,9 @@ class PosReceiptPrinter {
           isBle ? PosPrinterConnection.bluetooth : PosPrinterConnection.usb,
       printable: true,
       source: isBle ? 'bluetooth' : 'usb',
+      // Android USB reports isConnected false until the port is opened.
+      // A printer that is in the USB list is connected, same as before.
+      reachable: isBle ? (printer.isConnected ?? true) : true,
     );
   }
 
@@ -169,6 +244,9 @@ class PosReceiptPrinter {
 
   static Printer? _lastResolvedPrinter;
   static bool bleLinkIsLive = false;
+  static Future<void> _bluetoothChain = Future<void>.value();
+  static String? _warmBluetoothAddress;
+  static Timer? _warmBluetoothTimer;
 
   static Future<PrinterHealth> _probeDevice({
     bool allowBluetoothScan = false,
@@ -201,6 +279,30 @@ class PosReceiptPrinter {
         checkedAt,
         allowScan: allowBluetoothScan,
       );
+    }
+
+    if (Platform.isAndroid && config.connection == PosPrinterConnection.usb) {
+      final live = await _androidAttachedUsb();
+      if (live != null) {
+        final attached = _androidUsbAttachment(config, live);
+        if (attached == false) {
+          return PrinterHealth(
+            state: PrinterHealthState.missing,
+            config: config,
+            message: thermalPrinterConnectError(config.name),
+            issues: const ['offline', 'missing'],
+            lastCheckedAt: checkedAt,
+          );
+        }
+        if (attached == true) {
+          return PrinterHealth(
+            state: PrinterHealthState.ready,
+            config: config,
+            message: 'Ready',
+            lastCheckedAt: checkedAt,
+          );
+        }
+      }
     }
 
     if (config.connection == PosPrinterConnection.network) {
@@ -304,6 +406,32 @@ class PosReceiptPrinter {
       );
     }
 
+    if (!device.reachable) {
+      return PrinterHealth(
+        state: PrinterHealthState.missing,
+        config: config,
+        device: device,
+        message: thermalPrinterConnectError(config.name),
+        issues: const ['offline', 'missing'],
+        lastCheckedAt: checkedAt,
+      );
+    }
+
+    if (Platform.isWindows && config.connection == PosPrinterConnection.usb) {
+      final queue = device.name.trim().isNotEmpty ? device.name : config.name;
+      final spooler = await WindowsPrinterQueue.lookup(queue);
+      if (!spooler.present || spooler.offline) {
+        return PrinterHealth(
+          state: PrinterHealthState.missing,
+          config: config,
+          device: device,
+          message: thermalPrinterConnectError(config.name),
+          issues: const ['offline', 'missing'],
+          lastCheckedAt: checkedAt,
+        );
+      }
+    }
+
     return PrinterHealth(
       state: PrinterHealthState.ready,
       config: config,
@@ -342,9 +470,10 @@ class PosReceiptPrinter {
             lastCheckedAt: checkedAt,
           ),
         'paperout' => PrinterHealth(
-            state: PrinterHealthState.ready,
+            state: PrinterHealthState.attention,
             config: config,
-            message: 'Ready',
+            message: 'Printer paper roll is finished.',
+            issues: const ['paper_out'],
             lastCheckedAt: checkedAt,
           ),
         'overheated' => PrinterHealth(
@@ -393,42 +522,46 @@ class PosReceiptPrinter {
     DateTime checkedAt, {
     required bool allowScan,
   }) async {
-    final cached = _lastResolvedPrinter;
-    if (cached != null && _matchesSavedPrinter(cached, config)) {
-      try {
-        if (await PrinterManager.instance.isConnected(cached)) {
-          bleLinkIsLive = true;
-          return PrinterHealth(
-            state: PrinterHealthState.ready,
-            config: config,
-            message: 'Ready',
-            lastCheckedAt: checkedAt,
-          );
-        }
-      } catch (_) {}
-    }
-
-    if (!allowScan) {
-      if (bleLinkIsLive) {
-        bleLinkIsLive = false;
-        return _disconnectedHealth(config, checkedAt, bluetooth: true);
-      }
-      // Idle BLE with no live GATT session: keep last scan result in
-      // PrinterStatusService. Report missing only as a hint for first probe.
+    final printer = _bluetoothPrinterFromConfig(config);
+    if (printer == null) {
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
+    final address = printer.address?.trim() ?? '';
+    if (address.isNotEmpty && _warmBluetoothAddress == address) {
+      bleLinkIsLive = true;
+      return PrinterHealth(
+        state: PrinterHealthState.ready,
+        config: config,
+        message: 'Ready',
+        lastCheckedAt: checkedAt,
+      );
+    }
 
-    final printer = await _resolveSavedPrinter();
-    if (printer == null) {
+    try {
+      if (await PrinterManager.instance.isConnected(printer)) {
+        _markBluetoothWarm(printer);
+        return PrinterHealth(
+          state: PrinterHealthState.ready,
+          config: config,
+          message: 'Ready',
+          lastCheckedAt: checkedAt,
+        );
+      }
+    } catch (_) {}
+
+    // A health poll must not start a BLE scan. Scanning drops a live link.
+    // [allowScan] only means "try the saved address once" (open, resume, setup).
+    if (!allowScan) {
       bleLinkIsLive = false;
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
-    _lastResolvedPrinter = printer;
-    try {
-      if (await PrinterManager.instance.isConnected(printer)) {
-        bleLinkIsLive = true;
-      }
-    } catch (_) {}
+
+    final connected = await _withBluetooth(() => _connectBluetooth(printer));
+    if (!connected) {
+      bleLinkIsLive = false;
+      return _disconnectedHealth(config, checkedAt, bluetooth: true);
+    }
+    _markBluetoothWarm(printer);
     return PrinterHealth(
       state: PrinterHealthState.ready,
       config: config,
@@ -853,6 +986,11 @@ class PosReceiptPrinter {
       return;
     }
 
+    if (config.connection == PosPrinterConnection.bluetooth) {
+      await _printBluetooth(config, bytes);
+      return;
+    }
+
     final saved = await _resolveSavedPrinter();
     if (saved == null) {
       throw StateError(
@@ -864,7 +1002,7 @@ class PosReceiptPrinter {
     }
 
     await _ensureThermalConnected(saved);
-    await _thermal.printData(saved, bytes, longData: true);
+    await _writeThermal(saved, bytes);
   }
 
   static Future<void> _printBytesMacOS({
@@ -895,7 +1033,7 @@ class PosReceiptPrinter {
     }
 
     await _ensureThermalConnected(printer);
-    await _thermal.printData(printer, bytes, longData: true);
+    await _writeThermal(printer, bytes);
   }
 
   static Future<UsbPrinterDevice?> _findMappedDevice(
@@ -927,10 +1065,118 @@ class PosReceiptPrinter {
     return null;
   }
 
+  static Printer? _bluetoothPrinterFromConfig(UsbPrinterConfig config) {
+    final address = config.address.trim();
+    if (address.isEmpty || address == 'N/A') {
+      final cached = _lastResolvedPrinter;
+      if (cached != null && _matchesSavedPrinter(cached, config)) return cached;
+      return null;
+    }
+    return Printer(
+      name: config.name,
+      address: address,
+      connectionType: ConnectionType.BLE,
+    );
+  }
+
+  static Future<T> _withBluetooth<T>(Future<T> Function() action) {
+    final previous = _bluetoothChain;
+    final gate = Completer<void>();
+    _bluetoothChain = gate.future;
+    return previous
+        .catchError((Object _) {})
+        .then((_) => action())
+        .whenComplete(gate.complete);
+  }
+
+  static void _markBluetoothWarm(Printer printer) {
+    final address = printer.address?.trim() ?? '';
+    _lastResolvedPrinter = printer;
+    bleLinkIsLive = true;
+    if (address.isEmpty) return;
+    _warmBluetoothAddress = address;
+    _warmBluetoothTimer?.cancel();
+    _warmBluetoothTimer = Timer(const Duration(seconds: 90), () {
+      if (_warmBluetoothAddress != address) return;
+      _warmBluetoothAddress = null;
+      bleLinkIsLive = false;
+      unawaited(
+        _thermal.disconnect(printer).catchError((Object _) {}),
+      );
+    });
+  }
+
+  /// Connect the saved BLE address. Does not scan.
+  static Future<bool> _connectBluetooth(Printer printer) async {
+    final manager = PrinterManager.instance;
+    try {
+      if (await manager.isConnected(printer)) return true;
+    } catch (_) {}
+    try {
+      await stopBluetoothScan();
+    } catch (_) {}
+    try {
+      final connected = await _thermal
+          .connect(
+            printer,
+            connectionStabilizationDelay: const Duration(seconds: 12),
+          )
+          .timeout(const Duration(seconds: 20), onTimeout: () => false);
+      if (connected) return true;
+      return await manager.isConnected(printer);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> _printBluetooth(
+    UsbPrinterConfig config,
+    List<int> bytes,
+  ) {
+    final printer = _bluetoothPrinterFromConfig(config);
+    if (printer == null) {
+      throw StateError(
+        thermalPrinterConnectError(config.name, bluetooth: true),
+      );
+    }
+    return _withBluetooth(() async {
+      final address = printer.address?.trim() ?? '';
+      final warm = address.isNotEmpty && _warmBluetoothAddress == address;
+      if (warm) {
+        _warmBluetoothTimer?.cancel();
+        try {
+          await _thermal.printData(printer, bytes, longData: true);
+          _markBluetoothWarm(printer);
+          return;
+        } catch (error) {
+          debugPrint('Bluetooth warm print failed, reconnecting: $error');
+          _warmBluetoothAddress = null;
+          bleLinkIsLive = false;
+        }
+      }
+      final connected = await _connectBluetooth(printer);
+      if (!connected) {
+        throw StateError(
+          thermalPrinterConnectError(config.name, bluetooth: true),
+        );
+      }
+      await _thermal.printData(printer, bytes, longData: true);
+      _markBluetoothWarm(printer);
+    });
+  }
+
   /// Ensure the plugin has an open transport to [printer].
   ///
   /// Android USB: plugin `connect` often returns `false` — poll until permission
   /// is granted. Bluetooth: wait for a real BLE connection with a longer timeout.
+  static Future<void> _writeThermal(Printer printer, List<int> bytes) async {
+    try {
+      await _thermal.printData(printer, bytes, longData: true);
+    } catch (error) {
+      throw StateError('printer write failed: $error');
+    }
+  }
+
   static Future<void> _ensureThermalConnected(Printer printer) async {
     final isBle = printer.connectionType == ConnectionType.BLE;
 

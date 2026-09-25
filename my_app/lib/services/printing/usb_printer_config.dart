@@ -168,6 +168,7 @@ class UsbPrinterDevice {
     this.cupsState,
     this.issues = const [],
     this.statusMessage,
+    this.reachable = true,
   });
 
   final String name;
@@ -178,6 +179,9 @@ class UsbPrinterDevice {
   final String? cupsState;
   final List<String> issues;
   final String? statusMessage;
+
+  /// False when the platform already knows this USB device is unplugged.
+  final bool reachable;
 }
 
 class UsbPrinterStorage {

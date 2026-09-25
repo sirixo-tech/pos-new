@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../models/pos_models.dart';
 import '../offline/pending_order.dart';
 import 'printer_health.dart';
@@ -26,6 +28,10 @@ class PosReceiptPrinter {
   }
 
   static Future<void> stopBluetoothScan() async {}
+
+  static StreamSubscription<dynamic>? watchUsbHardware(void Function() onChange) {
+    return null;
+  }
 
   static Future<void> warmUp() async {}
 
