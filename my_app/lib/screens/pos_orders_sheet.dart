@@ -149,6 +149,14 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
     final pos = context.read<PosController>();
     final session = pos.session;
     if (session == null) return;
+    if (PosApi.isRateLimited) {
+      if (_error == null && mounted) {
+        setState(() {
+          _error = 'Too many attempts. Wait a moment, then try again.';
+        });
+      }
+      return;
+    }
     final nextPage = page ?? _page;
 
     setState(() {
@@ -449,6 +457,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
   }
 
   Future<void> _printOrder(Map<String, dynamic> order) async {
+    if ('${order['status'] ?? ''}'.toLowerCase() == 'cancelled') return;
     final pos = context.read<PosController>();
     final session = pos.session;
     if (session == null) return;
@@ -493,6 +502,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
   }
 
   Future<void> _printKot(Map<String, dynamic> order) async {
+    if ('${order['status'] ?? ''}'.toLowerCase() == 'cancelled') return;
     final pos = context.read<PosController>();
     final session = pos.session;
     if (session == null) return;
@@ -1833,7 +1843,7 @@ class _OrderCard extends StatelessWidget {
         order['can_collect_payment'] == true;
     final hasOrderNumber =
         '${order['order_number'] ?? ''}'.trim().isNotEmpty;
-    final canPrint = hasOrderNumber;
+    final canPrint = hasOrderNumber && !isCancelled;
     final canPrintKot = hasOrderNumber && !heldStyle && !isCancelled;
     final due = order['amount_due'] ?? order['total'];
     final status = '${order['status'] ?? ''}'.toLowerCase();

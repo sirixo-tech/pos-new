@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as image_codec;
 
 import 'android_usb_customer_display_transport.dart';
+import 'customer_voice_service.dart';
 import 'dqr222_customer_display_protocol.dart';
 import 'dqr222_cart_renderer.dart';
 import 'dqr222_media_protocol.dart';
@@ -1462,7 +1463,19 @@ Future<void> _queueCommandWrite(
   return operation;
 }
 
+List<String> _withoutCustomerDisplayAudio(List<String> commands) {
+  if (CustomerVoiceService.instance.isEnabled) return commands;
+  return [
+    for (final command in commands)
+      if (command != 'audioon' &&
+          !command.startsWith('setvolume**') &&
+          !command.startsWith('play**'))
+        command,
+  ];
+}
+
 Future<void> _writeCommands(String port, List<String> commands) async {
+  commands = _withoutCustomerDisplayAudio(commands);
   if (commands.isEmpty) return;
   if (dqr222TestTransport != null) {
     await dqr222TestTransport!.writeCommands(commands);

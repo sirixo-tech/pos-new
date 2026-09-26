@@ -37,7 +37,7 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
   void initState() {
     super.initState();
     final pos = context.read<PosController>();
-    _voiceService = CustomerVoiceService();
+    _voiceService = CustomerVoiceService.instance;
     unawaited(_voiceService.loadSettings());
     _voiceService.setCustomerScreenActive(true);
     _controller = CustomerDisplayController(
@@ -236,7 +236,8 @@ class _CustomerCartDisplayPageState extends State<CustomerCartDisplayPage> {
   void initState() {
     super.initState();
     final pos = context.read<PosController>();
-    _voiceService = CustomerVoiceService();
+    _voiceService = CustomerVoiceService.instance;
+    unawaited(_voiceService.loadSettings());
     _controller = CustomerDisplayController(
       serverUrl: pos.serverUrl ?? '',
       voice: _voiceService,

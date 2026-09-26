@@ -306,10 +306,12 @@ class ReceiptTemplateRenderer {
         formatMoneyThermal(order.subtotal, currency, showSymbol: showSymbol),
       );
     }
-    if (settings.showTax) {
+    if (settings.showTax || order.isOffline) {
       for (final tax in order.taxBreakdown) {
+        if (tax.amount <= 0) continue;
+        final included = tax.included ? ' incl.' : '';
         esc.row(
-          '${tax.name} (${tax.rate}%)',
+          '${tax.name} (${tax.rate}%$included)',
           formatMoneyThermal(tax.amount, currency, showSymbol: showSymbol),
         );
       }

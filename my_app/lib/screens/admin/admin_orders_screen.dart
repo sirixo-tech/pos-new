@@ -1298,6 +1298,7 @@ class _AdminOrderDetailSheetState extends State<AdminOrderDetailSheet> {
   }
 
   Future<void> _printReceipt(Map<String, dynamic> order) async {
+    if ('${order['status'] ?? ''}'.toLowerCase() == 'cancelled') return;
     final session = context.read<PosController>().session;
     if (session == null) return;
 
@@ -1338,6 +1339,7 @@ class _AdminOrderDetailSheetState extends State<AdminOrderDetailSheet> {
   }
 
   Future<void> _printKot(Map<String, dynamic> order) async {
+    if ('${order['status'] ?? ''}'.toLowerCase() == 'cancelled') return;
     final session = context.read<PosController>().session;
     if (session == null) return;
 
@@ -1626,7 +1628,9 @@ class _AdminOrderDetailSheetState extends State<AdminOrderDetailSheet> {
                           );
                         },
                       ),
-                      if (PosReceiptPrinter.isSupported) ...[
+                      if (PosReceiptPrinter.isSupported &&
+                          '${order['status'] ?? ''}'.toLowerCase() !=
+                              'cancelled') ...[
                         const SizedBox(height: 12),
                         Row(
                           children: [
@@ -2332,6 +2336,31 @@ class _TerminalBanner extends StatelessWidget {
   }
 }
 
+List<Map<String, dynamic>> _latestPaymentAttempts(
+  Iterable<Map<String, dynamic>> attempts,
+) {
+  final latest = <String, Map<String, dynamic>>{};
+  for (final attempt in attempts) {
+    final key = [
+      '${attempt['status'] ?? ''}'.toLowerCase(),
+      '${attempt['method'] ?? ''}'.toLowerCase(),
+      '${attempt['failure_reason'] ?? ''}'.trim().toLowerCase(),
+      '${attempt['amount'] ?? ''}',
+    ].join('|');
+    final previous = latest[key];
+    if (previous == null ||
+        _paymentAttemptTime(attempt).isAfter(_paymentAttemptTime(previous))) {
+      latest[key] = attempt;
+    }
+  }
+  return latest.values.toList();
+}
+
+DateTime _paymentAttemptTime(Map<String, dynamic> attempt) {
+  return DateTime.tryParse('${attempt['created_at'] ?? ''}') ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+}
+
 class _PaymentHistorySection extends StatelessWidget {
   const _PaymentHistorySection({
     required this.order,
@@ -2349,10 +2378,11 @@ class _PaymentHistorySection extends StatelessWidget {
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
-    final attempts = (order['payment_attempts'] as List? ?? const [])
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
+    final attempts = _latestPaymentAttempts(
+      (order['payment_attempts'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e)),
+    );
     final statusLogs = (order['payment_status_logs'] as List? ?? const [])
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))

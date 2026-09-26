@@ -174,6 +174,21 @@ class _PosRegisterWorkspaceState extends State<PosRegisterWorkspace> {
               widget.searchController.clear();
               context.read<PosController>().setSearchQuery('');
             },
+            onSubmitted: (value) {
+              final pos = context.read<PosController>();
+              final match = pos.matchBarcode(value);
+              if (match == null) return;
+              widget.searchController.clear();
+              pos.setSearchQuery('');
+              final variant = match.variant;
+              if (variant != null && match.item.modifiers.isEmpty) {
+                pos.addToCart(
+                  CartLine(menuItem: match.item, variant: variant),
+                );
+                return;
+              }
+              widget.onItemTap(match.item);
+            },
           ),
           if (categoriesOnTop)
             _PosCategoryRailHost(
@@ -241,6 +256,7 @@ class _SearchStrip extends StatefulWidget {
     required this.controller,
     required this.onChanged,
     required this.onClear,
+    this.onSubmitted,
     this.focusNode,
   });
 
@@ -248,6 +264,7 @@ class _SearchStrip extends StatefulWidget {
   final FocusNode? focusNode;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   State<_SearchStrip> createState() => _SearchStripState();
@@ -293,6 +310,7 @@ class _SearchStripState extends State<_SearchStrip> {
             focusNode: widget.focusNode,
             onChanged: _onQueryChanged,
             onClear: _onClear,
+            onSubmitted: widget.onSubmitted,
           ),
         ],
       ),

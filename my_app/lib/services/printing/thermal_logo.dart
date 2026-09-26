@@ -8,6 +8,7 @@ class ThermalLogo {
   ThermalLogo._();
 
   static final Map<String, List<int>> _cache = {};
+  static final Map<String, DateTime> _unavailableUntil = {};
 
   /// Raster ESC/POS bytes for [url], or null when unavailable.
   static Future<List<int>?> rasterBytes({
@@ -26,10 +27,17 @@ class ThermalLogo {
     if (cached != null) {
       return cached;
     }
+    final pausedUntil = _unavailableUntil[url];
+    if (pausedUntil != null && DateTime.now().isBefore(pausedUntil)) {
+      return null;
+    }
 
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 2));
       if (response.statusCode != 200) {
+        _unavailableUntil[url] = DateTime.now().add(const Duration(seconds: 30));
         return null;
       }
 
@@ -42,8 +50,10 @@ class ThermalLogo {
       final positioned = _positionOnPaper(resized, paper, align);
       final raster = _toRasterBytes(positioned);
       _cache[cacheKey] = raster;
+      _unavailableUntil.remove(url);
       return raster;
     } catch (_) {
+      _unavailableUntil[url] = DateTime.now().add(const Duration(seconds: 30));
       return null;
     }
   }

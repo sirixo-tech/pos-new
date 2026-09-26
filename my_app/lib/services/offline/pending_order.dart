@@ -141,8 +141,11 @@ class PendingOrderStore {
   static Future<PendingOrder> create({
     required int branchId,
     required Map<String, dynamic> orderData,
+    String? idempotencyKey,
   }) async {
-    final localUuid = _uuid.v4();
+    final supplied = idempotencyKey?.trim();
+    final localUuid =
+        supplied != null && supplied.isNotEmpty ? supplied : _uuid.v4();
     final localOrderNumber = generateLocalOrderNumber();
     final now = DateTime.now();
     final data = Map<String, dynamic>.from(orderData)
@@ -179,7 +182,7 @@ class PendingOrderStore {
 
     try {
       final db = await PosDatabase.instance.database;
-      final id = await db.insert('pending_orders', {
+      await db.insert('pending_orders', {
         'local_uuid': localUuid,
         'branch_id': branchId,
         'order_data': jsonEncode(data),
@@ -189,7 +192,7 @@ class PendingOrderStore {
         'created_at': now.millisecondsSinceEpoch,
       });
 
-      return order.copyWith(serverOrderId: id);
+      return order;
     } catch (e) {
       debugPrint('PendingOrderStore create failed: $e');
       return order;
@@ -197,7 +200,10 @@ class PendingOrderStore {
   }
 
   /// Orders waiting to sync — includes orphaned `syncing` rows after a crash.
-  static Future<List<PendingOrder>> getPendingOrders(int branchId) async {
+  static Future<List<PendingOrder>> getPendingOrders(
+    int branchId, {
+    bool includeFailed = true,
+  }) async {
     if (kIsWeb) {
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -208,9 +214,11 @@ class PendingOrderStore {
           if (raw != null) {
             final row = jsonDecode(raw) as Map<String, dynamic>;
             final order = PendingOrder.fromRow(row);
-            if (order.status == PendingOrderStatus.pending ||
-                order.status == PendingOrderStatus.failed ||
-                order.status == PendingOrderStatus.syncing) {
+            final status = order.status;
+            final waiting = status == PendingOrderStatus.pending ||
+                status == PendingOrderStatus.syncing ||
+                (includeFailed && status == PendingOrderStatus.failed);
+            if (waiting) {
               list.add(order);
             }
           }
@@ -225,15 +233,16 @@ class PendingOrderStore {
 
     try {
       final db = await PosDatabase.instance.database;
+      final statuses = <String>[
+        PendingOrderStatus.pending.name,
+        PendingOrderStatus.syncing.name,
+        if (includeFailed) PendingOrderStatus.failed.name,
+      ];
       final results = await db.query(
         'pending_orders',
-        where: 'branch_id = ? AND status IN (?, ?, ?)',
-        whereArgs: [
-          branchId,
-          PendingOrderStatus.pending.name,
-          PendingOrderStatus.failed.name,
-          PendingOrderStatus.syncing.name,
-        ],
+        where:
+            'branch_id = ? AND status IN (${List.filled(statuses.length, '?').join(', ')})',
+        whereArgs: [branchId, ...statuses],
         orderBy: 'created_at ASC',
       );
       return results.map(PendingOrder.fromRow).toList();
@@ -374,11 +383,17 @@ class PendingOrderStore {
     }
   }
 
-  static Future<void> markPending(String localUuid) async {
+  static Future<void> markPending(
+    String localUuid, {
+    String? errorMessage,
+  }) async {
     if (kIsWeb) {
       final existing = await getByUuid(localUuid);
       if (existing != null) {
-        final updated = existing.copyWith(status: PendingOrderStatus.pending);
+        final updated = existing.copyWith(
+          status: PendingOrderStatus.pending,
+          errorMessage: errorMessage,
+        );
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(
           '$_webOrderPrefix$localUuid',
@@ -392,7 +407,10 @@ class PendingOrderStore {
       final db = await PosDatabase.instance.database;
       await db.update(
         'pending_orders',
-        {'status': PendingOrderStatus.pending.name},
+        {
+          'status': PendingOrderStatus.pending.name,
+          'error_message': errorMessage,
+        },
         where: 'local_uuid = ?',
         whereArgs: [localUuid],
       );

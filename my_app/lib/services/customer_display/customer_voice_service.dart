@@ -6,12 +6,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../pos_cart_sound.dart';
 
 class CustomerVoiceService {
-  CustomerVoiceService();
+  CustomerVoiceService._();
+
+  static final CustomerVoiceService instance = CustomerVoiceService._();
 
   static const _enabledKey = 'customer_voice_announcements_enabled';
 
   bool _isCustomerScreenActive = false;
-  bool _isEnabled = true;
+  bool _isEnabled = false;
   bool _isProcessing = false;
   final List<String> _queue = [];
 
@@ -21,7 +23,7 @@ class CustomerVoiceService {
   Future<void> loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _isEnabled = prefs.getBool(_enabledKey) ?? true;
+      _isEnabled = prefs.getBool(_enabledKey) ?? false;
     } catch (_) {}
   }
 

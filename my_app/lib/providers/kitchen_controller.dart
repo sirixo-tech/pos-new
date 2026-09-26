@@ -125,6 +125,7 @@ class KitchenController extends ChangeNotifier {
     final session = _session;
     final token = _kitchenToken;
     if (session == null || token == null) return;
+    if (PosApi.isRateLimited) return;
 
     if (!silent) {
       refreshing = true;

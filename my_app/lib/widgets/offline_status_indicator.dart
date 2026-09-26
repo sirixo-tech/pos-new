@@ -151,9 +151,12 @@ class OfflineBanner extends StatelessWidget {
         final l10n = context.l10n;
         final isOffline = connectivity.isOffline;
         final failed = syncService.failedCount;
+        final storedError = syncService.lastError;
         final message = isOffline
             ? l10n.offlineBanner
-            : l10n.offlineSyncFailedBanner(failed);
+            : storedError != null && storedError.trim().isNotEmpty
+                ? '${l10n.offlineSyncFailedBanner(failed)} ${posUserFacingError(storedError)}'
+                : l10n.offlineSyncFailedBanner(failed);
 
         return Container(
           width: double.infinity,

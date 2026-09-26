@@ -368,14 +368,13 @@ class PosShiftControl extends StatelessWidget {
     );
   }
 
+  static final _openedClock = DateFormat('h:mm a');
+
   static String? _formatOpenedClock(String? raw) {
     if (raw == null || raw.trim().isEmpty) return null;
     final parsed = DateTime.tryParse(raw);
     if (parsed == null) return null;
-    final local = parsed.toLocal();
-    final h = local.hour.toString().padLeft(2, '0');
-    final m = local.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+    return _openedClock.format(parsed.toLocal());
   }
 }
 

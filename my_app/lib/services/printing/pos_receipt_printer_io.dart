@@ -911,7 +911,8 @@ class PosReceiptPrinter {
       builder.text('--------------------------------');
       builder.text(notes);
     }
-    builder.raw(EscPosBuilder.cutSequence());
+    builder.feed(4);
+    builder.raw(EscPosBuilder.cutSequence(feedLines: 4));
     return builder.build();
   }
 

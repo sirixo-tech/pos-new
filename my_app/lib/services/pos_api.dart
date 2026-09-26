@@ -73,6 +73,27 @@ class PosApi {
 
   static String get appVersion => PosAppInfo.version;
 
+  static DateTime? _rateLimitedUntil;
+
+  /// True while the server has asked us to wait after HTTP 429.
+  static bool get isRateLimited {
+    final until = _rateLimitedUntil;
+    if (until == null) return false;
+    if (DateTime.now().isBefore(until)) return true;
+    _rateLimitedUntil = null;
+    return false;
+  }
+
+  static void noteIfRateLimited(PosApiException error) {
+    if (error.statusCode != 429) return;
+    final wait = error.retryAfter ?? const Duration(seconds: 45);
+    final until = DateTime.now().add(wait);
+    final current = _rateLimitedUntil;
+    if (current == null || until.isAfter(current)) {
+      _rateLimitedUntil = until;
+    }
+  }
+
   final http.Client _client;
 
   String _normalizeServerUrl(String url) => PlatformConfig.normalizeServerUrl(url);
@@ -547,38 +568,123 @@ class PosApi {
     Map<String, dynamic>? discount,
     String? idempotencyKey,
   }) async {
-    final response = await _client.post(
-      Uri.parse('${session.apiBaseUrl}/orders'),
-      headers: _jsonHeaders(
-        token: session.token,
-        restaurantId: session.restaurantId,
-        branchId: session.branchId,
-      ),
-      body: jsonEncode({
-        'items': items,
-        'type': type,
-        if (posTerminalId != null) 'pos_terminal_id': posTerminalId,
-        if (tableId != null) 'table_id': tableId,
-        if (customerId != null) 'customer_id': customerId,
-        if (customerName != null && customerName.isNotEmpty)
-          'customer_name': customerName,
-        if (notes != null && notes.isNotEmpty) 'notes': notes,
-        if (discount != null) 'discount': discount,
-        'pos_register_payment': payment,
-        if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
-      }),
-    );
-    final json = await _decode(response);
-    final data = json['data'] as Map<String, dynamic>? ?? json;
-    final order = data['order'] as Map<String, dynamic>?;
-    if (order == null) {
-      throw PosApiException('Order response missing order payload.');
+    final response = await _client
+        .post(
+          Uri.parse('${session.apiBaseUrl}/orders'),
+          headers: {
+            ..._jsonHeaders(
+              token: session.token,
+              restaurantId: session.restaurantId,
+              branchId: session.branchId,
+            ),
+            if (idempotencyKey != null && idempotencyKey.isNotEmpty)
+              'Idempotency-Key': idempotencyKey,
+          },
+          body: jsonEncode({
+            'items': items,
+            'type': type,
+            if (posTerminalId != null) 'pos_terminal_id': posTerminalId,
+            if (tableId != null) 'table_id': tableId,
+            if (customerId != null) 'customer_id': customerId,
+            if (customerName != null && customerName.isNotEmpty)
+              'customer_name': customerName,
+            if (notes != null && notes.isNotEmpty) 'notes': notes,
+            if (discount != null) 'discount': discount,
+            'pos_register_payment': payment,
+            if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final json = _decodeJsonBody(response);
+    final placed = _placedOrderFromBody(json);
+    final status = response.statusCode;
+    if (status >= 200 && status < 300 && placed != null) {
+      return placed;
     }
-    final paymentPayload = data['payment'];
-    return PlacedPosOrder.fromJson({
-      ...order,
-      if (paymentPayload is Map<String, dynamic>) 'payment': paymentPayload,
-    });
+    if (placed != null &&
+        placed.id > 0 &&
+        idempotencyKey != null &&
+        _isExistingOrderReplay(status, json)) {
+      return placed;
+    }
+    if (status >= 200 && status < 300) {
+      throw PosApiException(
+        'Order response missing order payload.',
+        statusCode: status,
+      );
+    }
+    throw _apiException(response, json);
+  }
+
+  Map<String, dynamic> _decodeJsonBody(http.Response response) {
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+    throw PosApiException(
+      'Invalid server response (${response.statusCode}).',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// A 2xx body, or an idempotent replay, that identifies the saved order.
+  PlacedPosOrder? _placedOrderFromBody(Map<String, dynamic> json) {
+    final data = json['data'];
+    final root = data is Map ? Map<String, dynamic>.from(data) : json;
+    final candidates = <Object?>[
+      root['order'],
+      root['pos_order'],
+      root['posOrder'],
+      root['ticket'],
+      json['order'],
+      if (root['id'] != null || root['order_number'] != null) root,
+    ];
+    for (final candidate in candidates) {
+      if (candidate is! Map) continue;
+      final map = Map<String, dynamic>.from(candidate);
+      final id = parseJsonInt(map['id']);
+      final number = map['order_number'] ?? map['order_no'] ?? map['number'];
+      final numberText = number?.toString().trim() ?? '';
+      if (id <= 0 && numberText.isEmpty) continue;
+      final paymentPayload = root['payment'] ?? map['payment'];
+      return PlacedPosOrder.fromJson({
+        ...map,
+        if (numberText.isNotEmpty) 'order_number': numberText,
+        if (paymentPayload is Map) 'payment': Map<String, dynamic>.from(paymentPayload),
+      });
+    }
+    return null;
+  }
+
+  bool _isExistingOrderReplay(int status, Map<String, dynamic> json) {
+    if (status == 409) return true;
+    final message = '${json['message'] ?? ''}'.toLowerCase();
+    return message.contains('idempoten') ||
+        message.contains('already exists') ||
+        message.contains('already been') ||
+        message.contains('duplicate');
+  }
+
+  PosApiException _apiException(http.Response response, Map<String, dynamic> body) {
+    final message = body['message'] as String? ??
+        body['error'] as String? ??
+        (body['errors'] is Map
+            ? (body['errors'] as Map).values.first?.first?.toString()
+            : null) ??
+        'Request failed (${response.statusCode}).';
+    final error = PosApiException(
+      message,
+      statusCode: response.statusCode,
+      retryAfter: _retryAfter(response, body),
+      trialExpired: body['trial_expired'] == true,
+      subscriptionInactive: body['subscription_inactive'] == true,
+      canManageBilling: body['can_manage_billing'] == true,
+      billingSelfServe: body['billing_self_serve'] == true,
+      coveredByOrganization: body['covered_by_organization'] == true,
+    );
+    noteIfRateLimited(error);
+    return error;
   }
 
   /// Recent branch orders for the in-POS orders list.
@@ -2058,7 +2164,7 @@ class PosApi {
             : null) ??
         'Request failed (${response.statusCode}).';
 
-    throw PosApiException(
+    final error = PosApiException(
       message,
       statusCode: response.statusCode,
       retryAfter: _retryAfter(response, body),
@@ -2068,6 +2174,8 @@ class PosApi {
       billingSelfServe: body['billing_self_serve'] == true,
       coveredByOrganization: body['covered_by_organization'] == true,
     );
+    noteIfRateLimited(error);
+    throw error;
   }
 
   Duration? _retryAfter(http.Response response, Map<String, dynamic> body) {

@@ -58,7 +58,7 @@ class OrderSyncService extends ChangeNotifier {
     await PendingOrderStore.resetOrphanedSyncing(session.branchId);
     await _refreshCounts();
     if (connectivity.isOnline) {
-      await syncPendingOrders();
+      await syncPendingOrders(includeFailed: true);
     }
   }
 
@@ -69,7 +69,7 @@ class OrderSyncService extends ChangeNotifier {
     _lastConnectivityStatus = status;
 
     if (status == ConnectionStatus.online && wasOffline && _session != null) {
-      unawaited(syncPendingOrders());
+      unawaited(syncPendingOrders(includeFailed: true));
     }
   }
 
@@ -106,6 +106,7 @@ class OrderSyncService extends ChangeNotifier {
     String? customerName,
     String? notes,
     Map<String, dynamic>? discount,
+    String? idempotencyKey,
   }) async {
     final session = _session;
     if (session == null) {
@@ -127,29 +128,34 @@ class OrderSyncService extends ChangeNotifier {
     final pending = await PendingOrderStore.create(
       branchId: session.branchId,
       orderData: orderData,
+      idempotencyKey: idempotencyKey,
     );
 
     await _refreshCounts();
     return pending;
   }
 
-  Future<void> syncPendingOrders() async {
+  Future<void> syncPendingOrders({bool includeFailed = false}) async {
     final session = _session;
     if (session == null || _syncing || !connectivity.isOnline) {
       return;
     }
+    if (PosApi.isRateLimited) return;
 
     _syncing = true;
     notifyListeners();
 
     try {
       await PendingOrderStore.resetOrphanedSyncing(session.branchId);
-      final pendingOrders =
-          await PendingOrderStore.getPendingOrders(session.branchId);
+      final pendingOrders = await PendingOrderStore.getPendingOrders(
+        session.branchId,
+        includeFailed: includeFailed,
+      );
 
       for (final order in pendingOrders) {
         if (!connectivity.isOnline) break;
-        await _syncOrder(order, session);
+        final step = await _syncOrder(order, session);
+        if (step == _SyncStep.retryLater) break;
       }
     } finally {
       _syncing = false;
@@ -158,7 +164,7 @@ class OrderSyncService extends ChangeNotifier {
     }
   }
 
-  Future<bool> _syncOrder(PendingOrder order, PosSession session) async {
+  Future<_SyncStep> _syncOrder(PendingOrder order, PosSession session) async {
     try {
       await PendingOrderStore.markSyncing(order.localUuid);
 
@@ -166,23 +172,71 @@ class OrderSyncService extends ChangeNotifier {
       final discount = discountRaw is Map
           ? Map<String, dynamic>.from(discountRaw)
           : null;
+      final paymentRaw = order.orderData['pos_register_payment'];
+      if (paymentRaw is! Map) {
+        await PendingOrderStore.markFailed(
+          localUuid: order.localUuid,
+          errorMessage: 'Saved order is missing a payment method.',
+        );
+        onOrderSynced?.call(
+          order.copyWith(
+            status: PendingOrderStatus.failed,
+            errorMessage: 'Saved order is missing a payment method.',
+          ),
+          false,
+        );
+        return _SyncStep.failed;
+      }
+
+      final items = _itemsForSync(order.orderData);
+      if (items.isEmpty) {
+        const message = 'This offline order has no items to send.';
+        await PendingOrderStore.markFailed(
+          localUuid: order.localUuid,
+          errorMessage: message,
+        );
+        onOrderSynced?.call(
+          order.copyWith(
+            status: PendingOrderStatus.failed,
+            errorMessage: message,
+          ),
+          false,
+        );
+        return _SyncStep.failed;
+      }
 
       final serverOrder = await api.createOrder(
         session,
-        items: (order.orderData['items'] as List<dynamic>)
-            .cast<Map<String, dynamic>>(),
-        type: order.orderData['type'] as String,
-        posTerminalId: order.orderData['pos_terminal_id'] as int?,
-        tableId: order.orderData['table_id'] as int?,
-        customerId: order.orderData['customer_id'] as int?,
-        customerName: order.orderData['customer_name'] as String?,
-        notes: order.orderData['notes'] as String?,
+        items: items,
+        type: order.orderData['type']?.toString().trim().isNotEmpty == true
+            ? order.orderData['type'].toString()
+            : 'dine_in',
+        posTerminalId: _asInt(order.orderData['pos_terminal_id']),
+        tableId: _asInt(order.orderData['table_id']),
+        customerId: _asInt(order.orderData['customer_id']),
+        customerName: order.orderData['customer_name']?.toString(),
+        notes: order.orderData['notes']?.toString(),
         discount: discount,
-        payment:
-            order.orderData['pos_register_payment'] as Map<String, dynamic>,
+        payment: Map<String, dynamic>.from(paymentRaw),
         idempotencyKey:
             order.orderData['idempotency_key'] as String? ?? order.localUuid,
       );
+
+      if (serverOrder.id <= 0 && serverOrder.orderNumber.trim().isEmpty) {
+        const message = 'Order response missing order payload.';
+        await PendingOrderStore.markFailed(
+          localUuid: order.localUuid,
+          errorMessage: message,
+        );
+        onOrderSynced?.call(
+          order.copyWith(
+            status: PendingOrderStatus.failed,
+            errorMessage: message,
+          ),
+          false,
+        );
+        return _SyncStep.failed;
+      }
 
       await PendingOrderStore.markSynced(
         localUuid: order.localUuid,
@@ -199,11 +253,16 @@ class OrderSyncService extends ChangeNotifier {
       );
       onOrderSynced?.call(updated, true);
 
-      return true;
+      return _SyncStep.synced;
     } on PosApiException catch (e) {
-      // Failed rows stay in the outbox and are retried on the next flush.
-      // Hard 4xx (e.g. shift required) surface via lastError until resolved.
       final safe = posUserFacingError(e);
+      if (_isRetryableApiError(e)) {
+        await PendingOrderStore.markPending(
+          order.localUuid,
+          errorMessage: safe,
+        );
+        return _SyncStep.retryLater;
+      }
       await PendingOrderStore.markFailed(
         localUuid: order.localUuid,
         errorMessage: safe,
@@ -216,23 +275,77 @@ class OrderSyncService extends ChangeNotifier {
       );
       onOrderSynced?.call(updated, false);
 
-      return false;
+      return _SyncStep.failed;
     } catch (e) {
       final safe = posUserFacingError(e);
-      await PendingOrderStore.markFailed(
-        localUuid: order.localUuid,
+      await PendingOrderStore.markPending(
+        order.localUuid,
         errorMessage: safe,
       );
-
-      final updated = order.copyWith(
-        status: PendingOrderStatus.failed,
-        errorMessage: safe,
-        retryCount: order.retryCount + 1,
-      );
-      onOrderSynced?.call(updated, false);
-
-      return false;
+      return _SyncStep.retryLater;
     }
+  }
+
+  bool _isRetryableApiError(PosApiException error) {
+    final code = error.statusCode;
+    if (code == null || code == 408 || code == 429 || code >= 500) {
+      return true;
+    }
+    return false;
+  }
+
+  int? _asInt(Object? value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
+
+  List<Map<String, dynamic>> _itemsForSync(Map<String, dynamic> orderData) {
+    final saved = _orderItems(orderData['items']);
+    if (saved.any((item) => item['menu_item_id'] != null)) return saved;
+    return _itemsFromSnapshot(orderData['cart_snapshot']);
+  }
+
+  List<Map<String, dynamic>> _itemsFromSnapshot(Object? raw) {
+    if (raw is! List) return const [];
+    final items = <Map<String, dynamic>>[];
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final line = Map<String, dynamic>.from(entry);
+      final menuItemId = line['menu_item_id'];
+      if (menuItemId == null) continue;
+      final modifiers = <Map<String, dynamic>>[];
+      final rawMods = line['modifiers'];
+      if (rawMods is List) {
+        for (final mod in rawMods) {
+          if (mod is! Map) continue;
+          final optionId = mod['modifier_option_id'];
+          if (optionId == null) continue;
+          modifiers.add({
+            'modifier_option_id': optionId,
+            'quantity': 1,
+          });
+        }
+      }
+      items.add({
+        'menu_item_id': menuItemId,
+        if (line['variant_id'] != null) 'variant_id': line['variant_id'],
+        'quantity': line['quantity'] ?? 1,
+        if (line['notes'] != null && '${line['notes']}'.trim().isNotEmpty)
+          'notes': line['notes'],
+        if (modifiers.isNotEmpty) 'modifiers': modifiers,
+      });
+    }
+    return items;
+  }
+
+  List<Map<String, dynamic>> _orderItems(Object? raw) {
+    if (raw is! List) return const [];
+    return [
+      for (final item in raw)
+        if (item is Map) Map<String, dynamic>.from(item),
+    ];
   }
 
   Future<void> retrySingleOrder(String localUuid) async {
@@ -253,3 +366,5 @@ class OrderSyncService extends ChangeNotifier {
     super.dispose();
   }
 }
+
+enum _SyncStep { synced, failed, retryLater }

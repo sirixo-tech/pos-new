@@ -31,6 +31,7 @@ import 'screens/terminal_picker_screen.dart';
 import 'screens/waiter/waiter_shell.dart';
 import 'services/offline/offline.dart';
 import 'services/pos_api.dart';
+import 'services/customer_display/customer_voice_service.dart';
 import 'services/pos_cart_sound.dart';
 import 'services/pos_display_mode.dart';
 import 'services/printing/pos_channel_print_policy.dart';
@@ -127,6 +128,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
     _printerStatus.start();
     _scannerStatus.start();
     unawaited(PosCartSound.instance.warmUp());
+    unawaited(CustomerVoiceService.instance.loadSettings());
     _windowCloseGuard = WindowCloseGuard(onCloseRequest: _confirmWindowClose);
     unawaited(_windowCloseGuard.install());
   }

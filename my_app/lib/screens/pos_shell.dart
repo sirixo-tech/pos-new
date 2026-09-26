@@ -674,14 +674,6 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         return;
       }
 
-      if (payment.method == 'cash') {
-        unawaited(() async {
-          try {
-            await PosReceiptPrinter.openCashDrawer();
-          } catch (_) {}
-        }());
-      }
-
       final isOfflineOrder = pos.lastOfflineOrder != null;
       _closeCart();
       pos.showCashierPlacedNotice(
@@ -690,8 +682,31 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       );
 
       if (isOfflineOrder && pos.lastOfflineOrder != null) {
-        await _printOfflineReceipt(pos.bootstrap!, pos.lastOfflineOrder!);
+        final bootstrap = pos.bootstrap;
+        if (!PosReceiptPrinter.isSupported) {
+          // Browser checkout has no printer port. The order stays queued.
+        } else if (bootstrap == null) {
+          showPosSnackBar(
+            context,
+            'Order saved on this register. Receipt data is not loaded yet.',
+            error: true,
+          );
+        } else {
+          await _printOfflineReceipt(bootstrap, pos.lastOfflineOrder!);
+          if (payment.method == 'cash') {
+            try {
+              await PosReceiptPrinter.openCashDrawer();
+            } catch (_) {}
+          }
+        }
       } else if (order.id > 0) {
+        if (payment.method == 'cash') {
+          unawaited(() async {
+            try {
+              await PosReceiptPrinter.openCashDrawer();
+            } catch (_) {}
+          }());
+        }
         _queueCheckoutPrints(
           orderId: order.id,
           orderNumber: order.orderNumber,
@@ -921,20 +936,67 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   Future<void> _openScanToPrintDialog() async {
     final reference = await showPosScanToPrintDialog(context);
     if (reference == null || !mounted) return;
-    await _handleScannedPayload(reference);
+    await _handleScannedPayload(reference, orderOnly: true);
   }
 
-  Future<void> _handleScannedPayload(String payload) async {
-    final orderNumber = OrderBarcodeScan.parseOrderNumber(payload);
-    if (orderNumber != null) {
-      await _printScannedOrder(orderNumber);
-      return;
+  Future<void> _submitSearch(String raw) async {
+    final added = await _handleScannedPayload(raw, quietMiss: true);
+    if (!added || !mounted) return;
+    _searchController.clear();
+    context.read<PosController>().setSearchQuery('');
+  }
+
+  /// A connected scanner adds the menu item for that barcode.
+  /// An order slip still prints only from the scan-to-print dialog, or when
+  /// the code is an order reference and not a menu barcode.
+  /// Returns true when the payload was a known item or a printed order.
+  Future<bool> _handleScannedPayload(
+    String payload, {
+    bool quietMiss = false,
+    bool orderOnly = false,
+  }) async {
+    final pos = context.read<PosController>();
+    if (!orderOnly) {
+      final match = pos.matchBarcode(payload);
+      if (match != null) {
+        return _addScannedItem(pos, match);
+      }
     }
 
-    final pos = context.read<PosController>();
-    final item = pos.menuItemForBarcode(payload);
-    if (item == null) return;
-    await _onItemTap(item);
+    final orderNumber = OrderBarcodeScan.parseOrderNumber(payload);
+    if (orderNumber != null &&
+        (orderOnly || OrderBarcodeScan.isOrderReference(payload))) {
+      await _printScannedOrder(orderNumber);
+      return true;
+    }
+
+    if (!quietMiss && mounted) {
+      showPosSnackBar(
+        context,
+        'No menu item for barcode ${payload.trim()}',
+        error: true,
+      );
+    }
+    return false;
+  }
+
+  Future<bool> _addScannedItem(PosController pos, MenuBarcodeMatch match) async {
+    final variant = match.variant;
+    if (variant != null && match.item.modifiers.isEmpty) {
+      final alreadyInCart = pos.cart.any(
+        (line) =>
+            line.menuItem.id == match.item.id && line.variant?.id == variant.id,
+      );
+      if (!alreadyInCart) {
+        final ok = await confirmOutsideScheduleIfNeeded(context, match.item);
+        if (!ok || !mounted) return true;
+      }
+      pos.addToCart(CartLine(menuItem: match.item, variant: variant));
+      return true;
+    }
+
+    await _onItemTap(match.item);
+    return true;
   }
 
   Future<void> _printScannedOrder(String orderNumber) async {
@@ -1054,19 +1116,19 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
 
   Future<void> _printOfflineReceipt(PosBootstrap bootstrap, PendingOrder order) async {
     try {
+      await PosReceiptPrinter.printOfflineKot(
+        bootstrap: bootstrap,
+        order: order,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showPosErrorSnackBar(context, e);
+    }
+    try {
       await PosReceiptPrinter.printOfflineReceipt(
         bootstrap: bootstrap,
         order: order,
       );
-      try {
-        await PosReceiptPrinter.printOfflineKot(
-          bootstrap: bootstrap,
-          order: order,
-        );
-      } catch (e) {
-        if (!mounted) return;
-        showPosErrorSnackBar(context, e);
-      }
       await PendingOrderStore.markPrinted(order.localUuid);
     } catch (e) {
       if (!mounted) return;
@@ -1431,6 +1493,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
               _searchController.clear();
               context.read<PosController>().setSearchQuery('');
             },
+            onSubmitted: (value) => unawaited(_submitSearch(value)),
             onScan: () => unawaited(_openScanToPrintDialog()),
             onHeldQr: _reopenHeldPaymentQr,
           ),
@@ -1500,6 +1563,7 @@ class _SearchStrip extends StatefulWidget {
     required this.controller,
     required this.onChanged,
     required this.onClear,
+    this.onSubmitted,
     this.onScan,
     this.onHeldQr,
     this.focusNode,
@@ -1509,6 +1573,7 @@ class _SearchStrip extends StatefulWidget {
   final FocusNode? focusNode;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final ValueChanged<String>? onSubmitted;
   final VoidCallback? onScan;
   final ValueChanged<PaymentSession>? onHeldQr;
 
@@ -1557,6 +1622,7 @@ class _SearchStripState extends State<_SearchStrip> {
             focusNode: widget.focusNode,
             onChanged: _onQueryChanged,
             onClear: _onClear,
+            onSubmitted: widget.onSubmitted,
             onScan: widget.onScan,
             onHeldQr: held == null || widget.onHeldQr == null
                 ? null

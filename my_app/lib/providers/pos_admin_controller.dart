@@ -493,6 +493,12 @@ class PosAdminController extends ChangeNotifier {
     int page = 1,
     bool silent = false,
   }) async {
+    if (ordersLoading) return;
+    if (PosApi.isRateLimited) {
+      error ??= 'Too many attempts. Wait a moment, then try again.';
+      notifyListeners();
+      return;
+    }
     clearError();
     final showLoading = !silent || ordersPage == null;
     if (showLoading) {

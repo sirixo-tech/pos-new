@@ -27,6 +27,38 @@ class OrderBarcodeScan {
     _idleFlushTimer = null;
   }
 
+  /// True for an order slip: an order URL, or a code that starts with ORD-.
+  /// A product barcode is not an order just because it contains a hyphen.
+  static bool isOrderReference(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return false;
+    if (RegExp(r'^ORD[-_]', caseSensitive: false).hasMatch(trimmed)) {
+      return true;
+    }
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null || !uri.hasScheme) return false;
+    final parameters = <String, String>{
+      for (final entry in uri.queryParameters.entries)
+        entry.key.toLowerCase(): entry.value,
+    };
+    const orderKeys = [
+      'order_number',
+      'ordernumber',
+      'order_no',
+      'orderno',
+      'order',
+      'reference',
+    ];
+    if (orderKeys.any((key) => (parameters[key] ?? '').trim().isNotEmpty)) {
+      return true;
+    }
+    final segments = uri.pathSegments;
+    for (var index = 0; index + 1 < segments.length; index++) {
+      if (segments[index].toLowerCase() == 'order') return true;
+    }
+    return false;
+  }
+
   static String? parseOrderNumber(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) {

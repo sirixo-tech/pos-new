@@ -17,6 +17,7 @@ class PendingPrintJob {
     this.status = 'pending',
     this.errorMessage,
     this.paperOut = false,
+    this.createdAtMs,
   });
 
   final String jobKey;
@@ -28,20 +29,24 @@ class PendingPrintJob {
   final String status;
   final String? errorMessage;
   final bool paperOut;
+  final int? createdAtMs;
 
-  Map<String, dynamic> toRow() => {
-        'job_key': jobKey,
-        'kind': kind,
-        'order_id': orderId,
-        'order_number': orderNumber,
-        'source': source,
-        'cashier': cashier ? 1 : 0,
-        'status': status,
-        'error_message': errorMessage,
-        'paper_out': paperOut ? 1 : 0,
-        'created_at': DateTime.now().millisecondsSinceEpoch,
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      };
+  Map<String, dynamic> toRow() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return {
+      'job_key': jobKey,
+      'kind': kind,
+      'order_id': orderId,
+      'order_number': orderNumber,
+      'source': source,
+      'cashier': cashier ? 1 : 0,
+      'status': status,
+      'error_message': errorMessage,
+      'paper_out': paperOut ? 1 : 0,
+      'created_at': createdAtMs ?? now,
+      'updated_at': now,
+    };
+  }
 
   static PendingPrintJob fromRow(Map<String, dynamic> row) {
     return PendingPrintJob(
@@ -54,6 +59,7 @@ class PendingPrintJob {
       status: row['status'] as String? ?? 'pending',
       errorMessage: row['error_message'] as String?,
       paperOut: row['paper_out'] == 1 || row['paper_out'] == true,
+      createdAtMs: (row['created_at'] as num?)?.toInt(),
     );
   }
 }
@@ -72,9 +78,20 @@ class PendingPrintJobStore {
     }
     try {
       final db = await PosDatabase.instance.database;
+      final existing = await db.query(
+        'pending_print_jobs',
+        columns: const ['created_at'],
+        where: 'job_key = ?',
+        whereArgs: [job.jobKey],
+        limit: 1,
+      );
+      final row = job.toRow();
+      if (existing.isNotEmpty) {
+        row['created_at'] = existing.first['created_at'];
+      }
       await db.insert(
         'pending_print_jobs',
-        job.toRow(),
+        row,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     } catch (e) {

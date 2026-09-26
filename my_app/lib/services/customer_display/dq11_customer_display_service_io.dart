@@ -10,6 +10,7 @@ import 'package:qr/qr.dart';
 
 import '../../config/pos_app_info.dart';
 import 'android_usb_customer_display_transport.dart';
+import 'customer_voice_service.dart';
 
 const _dq11Width = 320;
 const _dq11Height = 480;
@@ -491,6 +492,7 @@ Future<void> showDq11PaymentSuccess({
 
 Future<void> _announceDq11Payment(double amount) async {
   if (!Platform.isWindows) return;
+  if (!CustomerVoiceService.instance.isEnabled) return;
   final safeAmount = amount.isFinite && amount >= 0 ? amount : 0;
   const script = r'''
 Add-Type -AssemblyName System.Speech

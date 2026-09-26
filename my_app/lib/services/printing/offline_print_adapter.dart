@@ -1,7 +1,6 @@
 import '../../models/pos_models.dart';
 import '../../models/receipt_print_models.dart';
 import '../../utils/order_charges_calculator.dart';
-import '../../utils/tax_calculator.dart';
 import '../offline/pending_order.dart';
 
 /// Builds venue + order DTOs for local template rendering from POS bootstrap.
@@ -42,8 +41,6 @@ class OfflinePrintAdapter {
         order.orderData['pos_register_payment'] as Map<String, dynamic>?;
     final paymentMethod = payment?['method'] as String?;
     final hasPayment = payment != null;
-    final includedRate = includedTaxRateSum(totals.taxComputation.breakdown);
-    final scTaxable = bootstrap.restaurant.serviceCharge.taxable;
 
     return OfflinePrintOrder(
       orderNumber: order.displayOrderNumber,
@@ -54,47 +51,41 @@ class OfflinePrintAdapter {
       tableName: _tableName(order),
       paymentStatus: hasPayment ? 'paid' : 'pending',
       paymentMethod: paymentMethod,
-      subtotal: exclusiveAmount(subtotal, includedRate),
+      subtotal: subtotal,
       total: totals.total,
       taxBreakdown: [
         for (final tax in totals.taxComputation.breakdown)
-          OfflinePrintTaxLine(
-            name: tax.name,
-            rate: tax.rate,
-            amount: tax.amount,
-            included: tax.included,
-          ),
+          if (tax.amount > 0)
+            OfflinePrintTaxLine(
+              name: tax.name,
+              rate: tax.rate,
+              amount: tax.amount,
+              included: tax.included,
+            ),
       ],
       extraCharges: [
         for (final extra in totals.extraChargeLines)
           if (extra.amount > 0)
             OfflinePrintExtraCharge(
               label: extra.label,
-              amount: extra.taxable
-                  ? exclusiveAmount(extra.amount, includedRate)
-                  : extra.amount,
+              amount: extra.amount,
             ),
       ],
-      serviceCharge: scTaxable
-          ? exclusiveAmount(totals.serviceChargeAmount, includedRate)
-          : totals.serviceChargeAmount,
+      serviceCharge: totals.serviceChargeAmount,
       serviceChargeLabel: bootstrap.restaurant.serviceCharge.label,
       items: [
         for (final item in lines)
           OfflinePrintItem(
             name: item.name,
             quantity: item.quantity,
-            unitPrice: exclusiveAmount(item.unitPrice, includedRate),
-            total: exclusiveAmount(item.total, includedRate),
+            unitPrice: item.unitPrice,
+            total: item.total,
             variantName: item.variantName,
             modifiers: [
               for (final mod in item.modifiers)
                 OfflinePrintModifier(
                   optionName: mod.optionName,
-                  priceAdjustment: exclusiveAmount(
-                    mod.priceAdjustment,
-                    includedRate,
-                  ),
+                  priceAdjustment: mod.priceAdjustment,
                 ),
             ],
             kitchenId: item.kitchenId,

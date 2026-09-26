@@ -734,6 +734,7 @@ class PosSearchField extends StatefulWidget {
     required this.onChanged,
     this.hintText,
     this.onClear,
+    this.onSubmitted,
     this.onScan,
     this.onHeldQr,
     this.heldQrLabel,
@@ -744,6 +745,7 @@ class PosSearchField extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final String? hintText;
   final VoidCallback? onClear;
+  final ValueChanged<String>? onSubmitted;
   final VoidCallback? onHeldQr;
   final String? heldQrLabel;
   final VoidCallback? onScan;
@@ -870,6 +872,7 @@ class _PosSearchFieldState extends State<PosSearchField> {
               controller: widget.controller,
               focusNode: _focusNode,
               onChanged: widget.onChanged,
+              onSubmitted: widget.onSubmitted,
               style: TextStyle(
                 fontSize: 14.5,
                 fontWeight: FontWeight.w600,

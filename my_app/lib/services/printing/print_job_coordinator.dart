@@ -60,13 +60,15 @@ class _PrintJob {
     required this.orderNumber,
     this.source = '',
     this.cashier = false,
-  });
+    DateTime? queuedAt,
+  }) : queuedAt = queuedAt ?? DateTime.now();
 
   final PrintJobKind kind;
   final int orderId;
   final String orderNumber;
   final String source;
   final bool cashier;
+  final DateTime queuedAt;
   bool forceAttempt = false;
 
   /// The write may already have fed the slip. Automatic recovery must not
@@ -140,6 +142,9 @@ class PrintJobCoordinator extends ChangeNotifier {
         orderNumber: row.orderNumber,
         source: row.source,
         cashier: row.cashier,
+        queuedAt: row.createdAtMs == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(row.createdAtMs!),
       );
       job.mayHavePrinted = _printMayHaveStarted(
         StateError(row.errorMessage ?? ''),
@@ -245,14 +250,22 @@ class PrintJobCoordinator extends ChangeNotifier {
     if (_failed.isEmpty) return;
     final jobs = _failed.values
         .where((job) => includeMayHavePrinted || !job.mayHavePrinted)
-        .toList();
+        .toList()
+      ..sort((a, b) {
+        final byTime = a.queuedAt.compareTo(b.queuedAt);
+        if (byTime != 0) return byTime;
+        if (a.kind != b.kind) {
+          return a.kind == PrintJobKind.kot ? -1 : 1;
+        }
+        return a.jobKey.compareTo(b.jobKey);
+      });
     if (jobs.isEmpty) return;
     for (final job in jobs) {
       if (_queued.contains(job.jobKey)) continue;
       _failed.remove(job.jobKey);
       job.forceAttempt = true;
       _completed.remove(job.jobKey);
-      await _enqueue(job);
+      await _enqueue(job, append: true);
     }
   }
 
@@ -312,13 +325,13 @@ class PrintJobCoordinator extends ChangeNotifier {
     );
   }
 
-  Future<void> _enqueue(_PrintJob job) async {
+  Future<void> _enqueue(_PrintJob job, {bool append = false}) async {
     final key = job.jobKey;
     if (key.isEmpty) return;
     if (_completed.contains(key) || _queued.contains(key)) return;
 
     _queued.add(key);
-    if (job.kind == PrintJobKind.kot) {
+    if (!append && job.kind == PrintJobKind.kot) {
       _queue.addFirst(job);
     } else {
       _queue.add(job);
@@ -331,6 +344,7 @@ class PrintJobCoordinator extends ChangeNotifier {
         orderNumber: job.orderNumber,
         source: job.source,
         cashier: job.cashier,
+        createdAtMs: job.queuedAt.millisecondsSinceEpoch,
       ),
     );
     unawaited(_drain());

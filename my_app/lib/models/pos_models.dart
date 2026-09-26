@@ -370,6 +370,7 @@ class MenuItem {
     this.imageUrl,
     this.itemType,
     this.barcode,
+    this.sku,
     this.orderTypeSurcharges,
     this.isAvailable = true,
     this.isOrderable = true,
@@ -388,6 +389,7 @@ class MenuItem {
   final String? imageUrl;
   final String? itemType;
   final String? barcode;
+  final String? sku;
   final Map<String, dynamic>? orderTypeSurcharges;
   final Map<String, Map<String, String>> translations;
   /// Manual availability toggle (false = sold out / turned off in admin).
@@ -433,6 +435,7 @@ class MenuItem {
     if (q.isEmpty) return true;
     if (name.toLowerCase().contains(q)) return true;
     if (barcode != null && barcode!.toLowerCase().contains(q)) return true;
+    if (sku != null && sku!.toLowerCase().contains(q)) return true;
     for (final fields in translations.values) {
       final translated = fields['name']?.toLowerCase();
       if (translated != null && translated.contains(q)) return true;
@@ -464,7 +467,8 @@ class MenuItem {
       description: json['description'] as String?,
       imageUrl: json['image_url'] as String?,
       itemType: json['item_type'] as String?,
-      barcode: json['barcode'] as String?,
+      barcode: _codeText(json['barcode']),
+      sku: _codeText(json['sku']),
       orderTypeSurcharges:
           json['order_type_surcharges'] as Map<String, dynamic>?,
       translations: parseMenuTranslations(json['translations']),
@@ -484,6 +488,13 @@ class MenuItem {
     );
   }
 
+  static String? _codeText(Object? value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    return text;
+  }
+
   static Map<String, dynamic> _mapJson(dynamic value) {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) return Map<String, dynamic>.from(value);
@@ -498,19 +509,29 @@ class MenuVariant {
     required this.id,
     required this.name,
     required this.price,
+    this.barcode,
   });
 
   final int id;
   final String name;
   final double price;
+  final String? barcode;
 
   factory MenuVariant.fromJson(Map<String, dynamic> json) {
     return MenuVariant(
       id: parseJsonInt(json['id']),
-      name: json['name'] as String,
+      name: json['name'] as String? ?? '',
       price: parseJsonDouble(json['price']),
+      barcode: MenuItem._codeText(json['barcode'] ?? json['sku']),
     );
   }
+}
+
+class MenuBarcodeMatch {
+  const MenuBarcodeMatch({required this.item, this.variant});
+
+  final MenuItem item;
+  final MenuVariant? variant;
 }
 
 class MenuModifier {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 import '../config/platform_config.dart';
 import '../l10n/pos_translation_store.dart';
@@ -337,14 +338,34 @@ class PosController extends ChangeNotifier {
     return _flatItemsCache!;
   }
 
-  MenuItem? menuItemForBarcode(String code) {
-    final needle = code.trim().toLowerCase();
+  MenuItem? menuItemForBarcode(String code) => matchBarcode(code)?.item;
+
+  MenuBarcodeMatch? matchBarcode(String code) {
+    final needle = code
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\u0000-\u001F]'), '');
     if (needle.isEmpty) return null;
     for (final item in flatItems) {
-      final barcode = item.barcode?.trim().toLowerCase();
-      if (barcode != null && barcode == needle) return item;
+      if (_sameBarcode(item.barcode, needle) || _sameBarcode(item.sku, needle)) {
+        return MenuBarcodeMatch(item: item);
+      }
+      for (final variant in item.variants) {
+        if (_sameBarcode(variant.barcode, needle)) {
+          return MenuBarcodeMatch(item: item, variant: variant);
+        }
+      }
     }
     return null;
+  }
+
+  static bool _sameBarcode(String? stored, String needle) {
+    final value = stored?.trim().toLowerCase();
+    if (value == null || value.isEmpty) return false;
+    if (value == needle) return true;
+    final compactStored = value.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final compactNeedle = needle.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    return compactStored.isNotEmpty && compactStored == compactNeedle;
   }
 
   List<MenuItem> get popularItems {
@@ -906,6 +927,7 @@ class PosController extends ChangeNotifier {
   }
 
   Future<void> _afterAuth(StaffProfile staffProfile, {bool fromResume = false}) async {
+    _syncService?.configure(session);
     if (staffProfile.needsContextPicker) {
       final preferred = await _preferredLocation(
         staffProfile,
@@ -1031,6 +1053,7 @@ class PosController extends ChangeNotifier {
       }
 
       await _rememberCurrentLocation();
+      _syncService?.configure(session);
       await _loadBootstrap();
       final next = await _resolvePostBootstrapPhase();
       phase = next;
@@ -1772,6 +1795,7 @@ class PosController extends ChangeNotifier {
     }
     await _storage.clearSession();
     session = null;
+    _syncService?.configure(null);
     profile = null;
     bootstrap = null;
     workMode = null;
@@ -2690,6 +2714,7 @@ class PosController extends ChangeNotifier {
     submitting = true;
     notifyListeners();
 
+    String? saleKey;
     final payment = {
       'method': paymentMethod,
       if (cashTendered != null) 'cash_tendered': cashTendered,
@@ -2719,6 +2744,13 @@ class PosController extends ChangeNotifier {
         );
       }
 
+      // Network is already down. Save cash, card, wallet, or other on this
+      // register and print from that saved order. Do not wait on the server.
+      if (isOffline && canOffline && heldId == null) {
+        final offlineOrder = await _createOfflineOrder(payment);
+        return _finishOfflineSale(offlineOrder);
+      }
+
       final PlacedPosOrder order;
       if (heldId != null) {
         final data = await _api.payOrder(
@@ -2743,6 +2775,7 @@ class PosController extends ChangeNotifier {
           if (paymentPayload is Map<String, dynamic>) 'payment': paymentPayload,
         });
       } else {
+        saleKey = const Uuid().v4();
         order = await _api.createOrder(
           current,
           items: cart.map((line) => line.toOrderJson()).toList(),
@@ -2754,6 +2787,7 @@ class PosController extends ChangeNotifier {
           notes: orderNotes,
           discount: _discountPayload,
           payment: payment,
+          idempotencyKey: saleKey,
         );
       }
       lastOrder = order;
@@ -2768,14 +2802,11 @@ class PosController extends ChangeNotifier {
           canOffline &&
           _syncService != null &&
           _canQueueOffline(e)) {
-        final offlineOrder = await _createOfflineOrder(payment);
-        lastOfflineOrder = offlineOrder;
-        lastOrder = PlacedPosOrder(
-          id: 0,
-          orderNumber: offlineOrder.localOrderNumber,
+        final offlineOrder = await _createOfflineOrder(
+          payment,
+          idempotencyKey: saleKey,
         );
-        clearCart();
-        return lastOrder!;
+        return _finishOfflineSale(offlineOrder);
       }
       rethrow;
     } catch (e) {
@@ -2784,14 +2815,11 @@ class PosController extends ChangeNotifier {
           canOffline &&
           _syncService != null &&
           _canQueueOffline(e)) {
-        final offlineOrder = await _createOfflineOrder(payment);
-        lastOfflineOrder = offlineOrder;
-        lastOrder = PlacedPosOrder(
-          id: 0,
-          orderNumber: offlineOrder.localOrderNumber,
+        final offlineOrder = await _createOfflineOrder(
+          payment,
+          idempotencyKey: saleKey,
         );
-        clearCart();
-        return lastOrder!;
+        return _finishOfflineSale(offlineOrder);
       }
       rethrow;
     } finally {
@@ -2848,6 +2876,8 @@ class PosController extends ChangeNotifier {
         return order;
       } on PosApiException catch (e) {
         if (!(canOffline && _isNetworkError(e))) rethrow;
+      } on TimeoutException {
+        if (!canOffline) rethrow;
       }
     }
 
@@ -2860,16 +2890,14 @@ class PosController extends ChangeNotifier {
       );
     }
 
-    final offlineOrder = await _createOfflineOrder(payment);
-    await LocalHeldOrderStore.delete(localUuid);
-    lastOfflineOrder = offlineOrder;
-    lastOrder = PlacedPosOrder(
-      id: 0,
-      orderNumber: offlineOrder.localOrderNumber,
+    final offlineOrder = await _createOfflineOrder(
+      payment,
+      idempotencyKey: localUuid,
     );
-    clearCart();
+    await LocalHeldOrderStore.delete(localUuid);
+    final placed = _finishOfflineSale(offlineOrder);
     unawaited(refreshHeldOrderCount());
-    return lastOrder!;
+    return placed;
   }
 
   /// Settle a local held ticket from the Held sheet without clobbering the cart.
@@ -2959,6 +2987,8 @@ class PosController extends ChangeNotifier {
           return order;
         } on PosApiException catch (e) {
           if (!(canOffline && _isNetworkError(e))) rethrow;
+        } on TimeoutException {
+          if (!canOffline) rethrow;
         }
       }
 
@@ -2981,18 +3011,16 @@ class PosController extends ChangeNotifier {
         customerName: customerName,
         notes: notes,
         discount: discount,
+        idempotencyKey: localUuid,
       );
       await LocalHeldOrderStore.delete(localUuid);
-      if (parkedLocalUuid == localUuid) {
-        clearCart();
-      }
-      lastOfflineOrder = offlineOrder;
-      lastOrder = PlacedPosOrder(
-        id: 0,
-        orderNumber: offlineOrder.localOrderNumber,
+      final wasOpen = parkedLocalUuid == localUuid;
+      final placed = _finishOfflineSale(
+        offlineOrder,
+        clearOpenCart: wasOpen,
       );
       unawaited(refreshHeldOrderCount());
-      return lastOrder!;
+      return placed;
     } finally {
       submitting = false;
       notifyListeners();
@@ -3032,8 +3060,34 @@ class PosController extends ChangeNotifier {
         msg.contains('timeout');
   }
 
-  Future<PendingOrder> _createOfflineOrder(Map<String, dynamic> payment) async {
+  /// Cart clearing wipes lastOrder. Return the placed sale after that clear.
+  PlacedPosOrder _finishOfflineSale(
+    PendingOrder offlineOrder, {
+    bool clearOpenCart = true,
+  }) {
+    final placed = PlacedPosOrder(
+      id: 0,
+      orderNumber: offlineOrder.localOrderNumber,
+    );
+    lastOfflineOrder = offlineOrder;
+    if (clearOpenCart) {
+      clearCart();
+    }
+    lastOrder = placed;
+    return placed;
+  }
+
+  Future<PendingOrder> _createOfflineOrder(
+    Map<String, dynamic> payment, {
+    String? idempotencyKey,
+  }) async {
     final syncService = _syncService;
+    final current = session;
+    if (current == null) {
+      throw PosApiException(
+        PosTranslationStore.instance.text('authNotSignedIn', 'Not signed in'),
+      );
+    }
     if (syncService == null) {
       throw PosApiException(
         PosTranslationStore.instance.text(
@@ -3042,6 +3096,10 @@ class PosController extends ChangeNotifier {
         ),
       );
     }
+
+    // Login does not always reach the startup configure() call. Bind the
+    // signed-in session now so the local queue can store this order.
+    syncService.configure(current);
 
     return syncService.createOfflineOrder(
       cart: cart,
@@ -3053,11 +3111,12 @@ class PosController extends ChangeNotifier {
       customerName: customerName,
       notes: orderNotes,
       discount: _discountPayload,
+      idempotencyKey: idempotencyKey,
     );
   }
 
   Future<void> syncPendingOrders() async {
-    await _syncService?.syncPendingOrders();
+    await _syncService?.syncPendingOrders(includeFailed: true);
     notifyListeners();
   }
 
@@ -3494,6 +3553,7 @@ class PosController extends ChangeNotifier {
         'image_url': item.imageUrl,
         'item_type': item.itemType,
         'barcode': item.barcode,
+        if (item.sku != null) 'sku': item.sku,
         'is_available': item.isAvailable,
         'is_orderable': item.isOrderable,
         'order_type_surcharges': item.orderTypeSurcharges,
@@ -3506,6 +3566,7 @@ class PosController extends ChangeNotifier {
           'id': v.id,
           'name': v.name,
           'price': v.price,
+          if (v.barcode != null) 'barcode': v.barcode,
         }).toList(),
         'modifiers': item.modifiers.map((m) => {
           'id': m.id,
@@ -4124,6 +4185,7 @@ class PosController extends ChangeNotifier {
     if (current == null || (!isRegisterMode && !isWaiterMode) || !isOnline) {
       return;
     }
+    if (PosApi.isRateLimited) return;
 
     try {
       if (!_newOrdersSynced) {
@@ -4515,6 +4577,7 @@ class PosController extends ChangeNotifier {
   Future<void> refreshRegisterBillAlerts({bool silent = false}) async {
     final current = session;
     if (current == null || !isRegisterMode || !isOnline) return;
+    if (PosApi.isRateLimited) return;
 
     var shouldNotify = !silent;
     try {
@@ -4683,6 +4746,7 @@ class PosController extends ChangeNotifier {
   Future<void> refreshWaiterFloor({bool silent = false}) async {
     final current = session;
     if (current == null || !isWaiterMode) return;
+    if (PosApi.isRateLimited) return;
     if (!silent) {
       waiterRefreshing = true;
       notifyListeners();
