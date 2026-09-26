@@ -16,6 +16,7 @@ class PosStorage {
   static const _themeModeKey = 'pos_theme_mode';
   static const _autoLockEnabledKey = 'pos_auto_lock_enabled';
   static const _moreHiddenKey = 'pos_more_hidden_options';
+  static const _moreExpandedKey = 'pos_more_expanded_sections';
 
   static Set<String> _moreHidden = {};
   static bool _moreHiddenLoaded = false;
@@ -74,6 +75,26 @@ class PosStorage {
     _moreHiddenLoaded = true;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_moreHiddenKey, jsonEncode(_moreHidden.toList()));
+  }
+
+  /// Null until the cashier has opened or closed a heading.
+  Future<Set<String>?> getMoreMenuExpandedTitles() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey(_moreExpandedKey)) return null;
+    final raw = prefs.getString(_moreExpandedKey);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final list = jsonDecode(raw);
+      if (list is! List) return {};
+      return list.map((item) => '$item').toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> saveMoreMenuExpandedTitles(Set<String> titles) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_moreExpandedKey, jsonEncode(titles.toList()));
   }
 
   Future<String?> getServerUrl() async {

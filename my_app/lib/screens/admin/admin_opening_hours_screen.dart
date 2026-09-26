@@ -204,12 +204,18 @@ class _AdminOpeningHoursScreenState extends State<AdminOpeningHoursScreen> {
     return Scaffold(
       backgroundColor: PosTheme.canvas,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text(l10n.adminHours),
         actions: [
           IconButton(
             tooltip: l10n.commonRefresh,
             onPressed: _loading || _saving ? null : _load,
             icon: const Icon(Icons.refresh_rounded),
+          ),
+          IconButton(
+            tooltip: l10n.commonClose,
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.close_rounded),
           ),
         ],
       ),

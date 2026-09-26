@@ -261,8 +261,16 @@ class _SetPosPinScreenState extends State<SetPosPinScreen> {
     return Scaffold(
       backgroundColor: PosTheme.canvas,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text(title),
         backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            tooltip: context.l10n.commonClose,
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
       ),
       body: SafeArea(
         child: LayoutBuilder(

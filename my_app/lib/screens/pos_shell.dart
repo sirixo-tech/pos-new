@@ -1058,6 +1058,15 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         bootstrap: bootstrap,
         order: order,
       );
+      try {
+        await PosReceiptPrinter.printOfflineKot(
+          bootstrap: bootstrap,
+          order: order,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        showPosErrorSnackBar(context, e);
+      }
       await PendingOrderStore.markPrinted(order.localUuid);
     } catch (e) {
       if (!mounted) return;

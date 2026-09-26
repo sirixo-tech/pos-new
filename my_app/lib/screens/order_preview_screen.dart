@@ -130,12 +130,16 @@ class OrderPreviewScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: PosTheme.canvas,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Review order'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () =>
-              Navigator.pop(context, OrderPreviewResult.editOrder),
-        ),
+        actions: [
+          IconButton(
+            tooltip: 'Close',
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () =>
+                Navigator.pop(context, OrderPreviewResult.editOrder),
+          ),
+        ],
       ),
       body: Align(
         alignment: Alignment.topCenter,

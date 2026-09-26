@@ -1839,7 +1839,7 @@ class PosController extends ChangeNotifier {
     try {
       final status = await _api.fetchSync(current);
       _dismissedOptionalLatest = null;
-      _applyAppUpdate(status.appUpdate);
+      _applyAppUpdate(status.appUpdate, manual: true);
 
       final needsBootstrap = (status.bootstrapRevision ?? '').isNotEmpty &&
           status.bootstrapRevision != _bootstrapRevision;
@@ -1865,9 +1865,15 @@ class PosController extends ChangeNotifier {
     }
   }
 
-  void _applyAppUpdate(PosAppUpdate update) {
-    appUpdate = update.resolvedAgainstInstalled();
-    if (update.isRequired) {
+  void _applyAppUpdate(PosAppUpdate update, {bool manual = false}) {
+    final resolved = update.resolvedAgainstInstalled();
+    // A newer optional build stays quiet until More → Check for updates.
+    // A minimum version marked required still applies on its own.
+    if (!manual && resolved.isOptional) {
+      return;
+    }
+    appUpdate = resolved;
+    if (resolved.isRequired) {
       _dismissedOptionalLatest = null;
     }
   }
@@ -2761,7 +2767,7 @@ class PosController extends ChangeNotifier {
           parkedLocalUuid == null &&
           canOffline &&
           _syncService != null &&
-          (isOffline || _isNetworkError(e))) {
+          _canQueueOffline(e)) {
         final offlineOrder = await _createOfflineOrder(payment);
         lastOfflineOrder = offlineOrder;
         lastOrder = PlacedPosOrder(
@@ -2777,7 +2783,7 @@ class PosController extends ChangeNotifier {
           parkedLocalUuid == null &&
           canOffline &&
           _syncService != null &&
-          isOffline) {
+          _canQueueOffline(e)) {
         final offlineOrder = await _createOfflineOrder(payment);
         lastOfflineOrder = offlineOrder;
         lastOrder = PlacedPosOrder(
@@ -2993,14 +2999,25 @@ class PosController extends ChangeNotifier {
     }
   }
 
+  bool _canQueueOffline(Object error) {
+    if (isOffline) return true;
+    if (error is PosApiException) return _isNetworkError(error);
+    return _isRawNetworkFailure(error);
+  }
+
   bool _isNetworkError(PosApiException e) {
     final msg = e.message.toLowerCase();
     return msg.contains('connection') ||
         msg.contains('network') ||
         msg.contains('timeout') ||
+        msg.contains('timed out') ||
         msg.contains('cannot reach') ||
+        msg.contains('could not reach') ||
+        msg.contains('check your connection') ||
         msg.contains('cannot connect') ||
-        msg.contains('socketexception');
+        msg.contains('socketexception') ||
+        msg.contains('clientexception') ||
+        msg.contains('failed host lookup');
   }
 
   bool _isRawNetworkFailure(Object error) {

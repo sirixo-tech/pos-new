@@ -63,7 +63,15 @@ class _AdminModifiersScreenState extends State<AdminModifiersScreen> {
     return Scaffold(
       backgroundColor: PosTheme.canvas,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text(context.posText('adminModifiers', 'Modifiers')),
+        actions: [
+          IconButton(
+            tooltip: context.l10n.commonClose,
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
       ),
       body: admin.menuLoading && admin.modifiers.isEmpty
           ? const Center(child: CircularProgressIndicator())

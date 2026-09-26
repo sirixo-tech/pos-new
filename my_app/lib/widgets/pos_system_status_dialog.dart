@@ -17,13 +17,44 @@ import '../theme/pos_theme.dart';
 import 'pos_ui.dart';
 
 /// Header Status control: internet, printer, scanner, and customer QR display.
-class PosSystemStatusButton extends StatelessWidget {
+class PosSystemStatusButton extends StatefulWidget {
   const PosSystemStatusButton({
     super.key,
     this.showLabel = true,
   });
 
   final bool showLabel;
+
+  @override
+  State<PosSystemStatusButton> createState() => _PosSystemStatusButtonState();
+}
+
+class _PosSystemStatusButtonState extends State<PosSystemStatusButton> {
+  Timer? _displayPoll;
+  WindowsCustomerDisplayStatus? _usbDisplay;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_probeDisplay());
+    _displayPoll = Timer.periodic(const Duration(seconds: 15), (_) {
+      unawaited(_probeDisplay());
+    });
+  }
+
+  @override
+  void dispose() {
+    _displayPoll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _probeDisplay() async {
+    try {
+      final status = await CustomerDisplayBroker.instance.hardwareStatus();
+      if (!mounted) return;
+      setState(() => _usbDisplay = status);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +66,10 @@ class PosSystemStatusButton extends StatelessWidget {
     return ListenableBuilder(
       listenable: lan,
       builder: (context, _) {
-        final displayConnected = lan.connections.isNotEmpty;
+        final displayConnected = qrDisplayIsConnected(
+          lanSessions: lan.devices.length,
+          usb: _usbDisplay,
+        );
         final summary = _statusSummary(
           connectivity: connectivity,
           printer: printer.health,
@@ -65,13 +99,13 @@ class PosSystemStatusButton extends StatelessWidget {
               hoverColor: PosTheme.surfaceMuted,
               child: Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: PosTheme.headerPx(showLabel ? 12 : 10),
+                  horizontal: PosTheme.headerPx(widget.showLabel ? 12 : 10),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(icon, size: PosTheme.headerPx(18), color: tone.fg),
-                    if (showLabel) ...[
+                    if (widget.showLabel) ...[
                       SizedBox(width: PosTheme.headerPx(6)),
                       Text(
                         'Status',
@@ -158,27 +192,26 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
     final printer = context.watch<PrinterStatusService>();
     final scanner = context.watch<ScannerConnectionService>();
     final lan = CustomerDisplayLanService.instance;
-    final lanConnected = lan.connections.isNotEmpty;
-    final usbConnected = _display?.connected == true;
-    final displayConnected = usbConnected || lanConnected;
-    final displayDetail = usbConnected
-        ? (_display?.message ?? 'QR display connected.')
-        : lanConnected
-            ? 'LAN customer display paired (${lan.connections.length}).'
-            : 'QR display is not connected.';
-
-    final summary = _statusSummary(
-      connectivity: connectivity,
-      printer: printer.health,
-      printerSupported: PosReceiptPrinter.isSupported,
-      printerChecking: printer.probing,
-      displayConnected: displayConnected,
-      scannerConnected: scanner.connected,
-    );
 
     return ListenableBuilder(
       listenable: lan,
       builder: (context, _) {
+        final displayConnected = qrDisplayIsConnected(
+          lanSessions: lan.devices.length,
+          usb: _display,
+        );
+        final displayDetail = _qrDisplayDetail(
+          lanSessions: lan.devices.length,
+          usb: _display,
+        );
+        final summary = _statusSummary(
+          connectivity: connectivity,
+          printer: printer.health,
+          printerSupported: PosReceiptPrinter.isSupported,
+          printerChecking: printer.probing,
+          displayConnected: displayConnected,
+          scannerConnected: scanner.connected,
+        );
         return PosDialogShell(
           title: 'System status',
           subtitle: summary.ready
@@ -350,6 +383,35 @@ class _StatusRow extends StatelessWidget {
       ),
     );
   }
+}
+
+bool qrDisplayIsConnected({
+  required int lanSessions,
+  required WindowsCustomerDisplayStatus? usb,
+}) {
+  if (lanSessions > 0) return true;
+  final device = usb?.device;
+  if (usb?.connected != true || device == null || device.isEmpty) {
+    return false;
+  }
+  return device == 'dq11' ||
+      device == 'dqr222' ||
+      device == 'dq11+dqr222';
+}
+
+String _qrDisplayDetail({
+  required int lanSessions,
+  required WindowsCustomerDisplayStatus? usb,
+}) {
+  if (lanSessions > 0) {
+    return lanSessions == 1
+        ? 'LAN customer display connected.'
+        : 'LAN customer displays connected ($lanSessions).';
+  }
+  if (qrDisplayIsConnected(lanSessions: 0, usb: usb)) {
+    return usb?.message ?? 'QR display connected.';
+  }
+  return 'QR display is not connected.';
 }
 
 ({bool ready, bool severe}) _statusSummary({

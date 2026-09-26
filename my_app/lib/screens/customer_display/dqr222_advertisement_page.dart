@@ -211,12 +211,18 @@ class _Dqr222AdvertisementPageState extends State<Dqr222AdvertisementPage> {
     return Scaffold(
       backgroundColor: PosTheme.canvas,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('DQR images'),
         actions: [
           IconButton(
             tooltip: 'Read images from the display',
             onPressed: _busy ? null : _refresh,
             icon: const Icon(Icons.refresh_rounded),
+          ),
+          IconButton(
+            tooltip: 'Close',
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.close_rounded),
           ),
         ],
       ),

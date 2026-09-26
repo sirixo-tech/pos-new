@@ -152,7 +152,17 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
 
     return Scaffold(
       backgroundColor: PosTheme.canvas,
-      appBar: AppBar(title: Text(l10n.billingTitle)),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: Text(l10n.billingTitle),
+        actions: [
+          IconButton(
+            tooltip: l10n.commonClose,
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

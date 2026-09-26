@@ -349,6 +349,17 @@ class _RootRouterState extends State<_RootRouter> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Consumer<PosController>(
       builder: (context, pos, _) {
+        final signedIn = pos.phase == PosAppPhase.ready ||
+            pos.phase == PosAppPhase.locked;
+        return _KitchenWhileSignedIn(
+          signedIn: signedIn,
+          child: _signedInShell(context, pos),
+        );
+      },
+    );
+  }
+
+  Widget _signedInShell(BuildContext context, PosController pos) {
         switch (pos.phase) {
           case PosAppPhase.loading:
             return const PosBootstrapScreen();
@@ -493,7 +504,31 @@ class _RootRouterState extends State<_RootRouter> with WidgetsBindingObserver {
               ),
             );
         }
-      },
-    );
   }
+}
+
+class _KitchenWhileSignedIn extends StatefulWidget {
+  const _KitchenWhileSignedIn({
+    required this.signedIn,
+    required this.child,
+  });
+
+  final bool signedIn;
+  final Widget child;
+
+  @override
+  State<_KitchenWhileSignedIn> createState() => _KitchenWhileSignedInState();
+}
+
+class _KitchenWhileSignedInState extends State<_KitchenWhileSignedIn> {
+  @override
+  void didUpdateWidget(covariant _KitchenWhileSignedIn oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.signedIn && !widget.signedIn) {
+      context.read<KitchenController>().stop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

@@ -166,6 +166,7 @@ class _AdminShellState extends State<AdminShell> {
     return Scaffold(
       backgroundColor: PosTheme.canvas,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -181,21 +182,22 @@ class _AdminShellState extends State<AdminShell> {
               ),
           ],
         ),
-        leading: IconButton(
-          icon: Icon(
-            _section == AdminShellSection.hub
-                ? Icons.close_rounded
-                : Icons.arrow_back_rounded,
+        leading: _section == AdminShellSection.hub ||
+                _section == widget.initialSection
+            ? null
+            : IconButton(
+                tooltip: context.posText('commonBack', 'Back'),
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () =>
+                    setState(() => _section = AdminShellSection.hub),
+              ),
+        actions: [
+          IconButton(
+            tooltip: l10n.commonClose,
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => Navigator.of(context).pop(),
           ),
-          onPressed: () {
-            if (_section == AdminShellSection.hub ||
-                _section == widget.initialSection) {
-              Navigator.of(context).pop();
-            } else {
-              setState(() => _section = AdminShellSection.hub);
-            }
-          },
-        ),
+        ],
       ),
       body: switch (_section) {
         AdminShellSection.hub => _AdminHub(

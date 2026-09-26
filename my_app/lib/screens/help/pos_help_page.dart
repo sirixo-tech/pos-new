@@ -38,7 +38,15 @@ class _PosHelpPageState extends State<PosHelpPage> {
     return Scaffold(
       backgroundColor: PosTheme.canvas,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Help & guide'),
+        actions: [
+          IconButton(
+            tooltip: 'Close',
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {

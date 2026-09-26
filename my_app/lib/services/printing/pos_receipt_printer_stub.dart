@@ -85,6 +85,13 @@ class PosReceiptPrinter {
     throw UnsupportedError(unsupportedMessage);
   }
 
+  static Future<void> printOfflineKot({
+    required PosBootstrap bootstrap,
+    required PendingOrder order,
+  }) async {
+    throw UnsupportedError(unsupportedMessage);
+  }
+
   static Future<void> printPaymentQrSlip({
     required PosSession session,
     required String serverUrl,

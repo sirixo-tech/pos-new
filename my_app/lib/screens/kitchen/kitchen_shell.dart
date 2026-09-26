@@ -54,7 +54,8 @@ class _KitchenShellState extends State<KitchenShell> {
 
   @override
   void dispose() {
-    _kitchenController?.stop();
+    // The register dock uses this same controller. Stopping here makes the
+    // minimized board reload from scratch.
     super.dispose();
   }
 
@@ -119,12 +120,6 @@ class _KitchenShellState extends State<KitchenShell> {
                   padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
                   child: Row(
                     children: [
-                      if (canGoBack)
-                        IconButton(
-                          tooltip: context.posText('commonBack', 'Back'),
-                          onPressed: _backFromKitchen,
-                          icon: const Icon(Icons.arrow_back_rounded),
-                        ),
                       Expanded(
                         child: Row(
                           children: [

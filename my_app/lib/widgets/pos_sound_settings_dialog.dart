@@ -252,7 +252,6 @@ class _TonePane extends StatelessWidget {
               ),
             ),
             value: enabled,
-            activeThumbColor: accent,
             onChanged: onEnabled,
           ),
         ),
@@ -408,7 +407,6 @@ class _KitchenSoundSettingsDialogState
                   ),
                 ),
                 value: sound.kitchenAlertEnabled,
-                activeThumbColor: accent,
                 onChanged: (value) async {
                   await sound.setKitchenAlertEnabled(value);
                   if (mounted) setState(() {});

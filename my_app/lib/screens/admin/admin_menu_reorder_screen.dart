@@ -131,9 +131,17 @@ class _AdminMenuReorderScreenState extends State<AdminMenuReorderScreen> {
     return Scaffold(
       backgroundColor: PosTheme.canvas,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text(
           context.posText('adminMenuReorderTitle', 'Reorder menu'),
         ),
+        actions: [
+          IconButton(
+            tooltip: context.l10n.commonClose,
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
       ),
       body: admin.categories.isEmpty
           ? Center(

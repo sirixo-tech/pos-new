@@ -37,7 +37,7 @@ class _KitchenDockPanelState extends State<KitchenDockPanel> {
   Widget build(BuildContext context) {
     return Consumer<KitchenController>(
       builder: (context, kitchen, _) {
-        if (kitchen.loading) {
+        if (kitchen.loading && kitchen.lastRefresh == null) {
           return ColoredBox(
             color: PosTheme.canvas,
             child: const Center(child: CircularProgressIndicator()),

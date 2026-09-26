@@ -17,7 +17,7 @@ class KitchenBoardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<KitchenController>(
       builder: (context, kitchen, _) {
-        if (kitchen.loading) {
+        if (kitchen.loading && kitchen.lastRefresh == null) {
           return const Center(child: CircularProgressIndicator());
         }
 

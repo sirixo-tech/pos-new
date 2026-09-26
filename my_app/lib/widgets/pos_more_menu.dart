@@ -88,6 +88,7 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
   final _storage = PosStorage();
   bool _customizing = false;
   Set<String> _hidden = {};
+  Set<String>? _expanded;
 
   @override
   void initState() {
@@ -97,8 +98,23 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
 
   Future<void> _loadHidden() async {
     final ids = await _storage.getMoreMenuHiddenIds();
+    final expanded = await _storage.getMoreMenuExpandedTitles();
     if (!mounted) return;
-    setState(() => _hidden = ids);
+    setState(() {
+      _hidden = ids;
+      _expanded = expanded;
+    });
+  }
+
+  Future<void> _toggleSection(String title, List<String> titles) async {
+    final next = Set<String>.from(_expanded ?? titles);
+    if (next.contains(title)) {
+      next.remove(title);
+    } else {
+      next.add(title);
+    }
+    setState(() => _expanded = next);
+    await _storage.saveMoreMenuExpandedTitles(next);
   }
 
   Future<void> _toggleHidden(String id) async {
@@ -134,8 +150,10 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
             sections: widget.sections,
             customizing: _customizing,
             hidden: _hidden,
+            expanded: _customizing ? null : _expanded,
             isShown: _isShown,
             onToggleHidden: _toggleHidden,
+            onToggleSection: _toggleSection,
             onSelect: widget.onSelect,
           ),
         ),
@@ -246,16 +264,20 @@ class _PosMoreMenuBody extends StatelessWidget {
     required this.sections,
     required this.customizing,
     required this.hidden,
+    required this.expanded,
     required this.isShown,
     required this.onToggleHidden,
+    required this.onToggleSection,
     required this.onSelect,
   });
 
   final List<PosMoreMenuSection> sections;
   final bool customizing;
   final Set<String> hidden;
+  final Set<String>? expanded;
   final bool Function(String id) isShown;
   final ValueChanged<String> onToggleHidden;
+  final void Function(String title, List<String> titles) onToggleSection;
   final ValueChanged<String> onSelect;
 
   @override
@@ -267,6 +289,12 @@ class _PosMoreMenuBody extends StatelessWidget {
       if (items.isEmpty) continue;
       visible.add(PosMoreMenuSection(title: section.title, items: items));
     }
+
+    final titles = [
+      for (final section in visible)
+        if (section.title != null && section.title!.trim().isNotEmpty)
+          section.title!,
+    ];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
@@ -304,18 +332,15 @@ class _PosMoreMenuBody extends StatelessWidget {
         for (var s = 0; s < visible.length; s++) ...[
           if (s > 0) const SizedBox(height: 8),
           if (visible[s].title != null && visible[s].title!.trim().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
-              child: Text(
-                visible[s].title!.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.7,
-                  color: PosTheme.inkFaint,
-                ),
-              ),
+            _MoreSectionHeading(
+              title: visible[s].title!,
+              expanded: expanded == null || expanded!.contains(visible[s].title),
+              onTap: () => onToggleSection(visible[s].title!, titles),
             ),
+          if (visible[s].title == null ||
+              visible[s].title!.trim().isEmpty ||
+              expanded == null ||
+              expanded!.contains(visible[s].title))
           DecoratedBox(
             decoration: BoxDecoration(
               color: PosTheme.surface,
@@ -348,6 +373,57 @@ class _PosMoreMenuBody extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _MoreSectionHeading extends StatelessWidget {
+  const _MoreSectionHeading({
+    required this.title,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.7,
+                      color: PosTheme.inkFaint,
+                    ),
+                  ),
+                ),
+                Icon(
+                  expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: PosTheme.inkFaint,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

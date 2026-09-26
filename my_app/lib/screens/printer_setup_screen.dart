@@ -467,14 +467,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
     return Scaffold(
       backgroundColor: PosTheme.canvas,
       appBar: AppBar(
-        automaticallyImplyLeading: !widget.embedded,
-        leading: widget.embedded
-            ? IconButton(
-                tooltip: l10n.commonClose,
-                icon: const Icon(Icons.close_rounded),
-                onPressed: () => Navigator.of(context).pop(),
-              )
-            : null,
+        automaticallyImplyLeading: false,
         title: Text(
           widget.embedded ? 'Receipt printer' : l10n.printerSetupTitle,
         ),
@@ -492,6 +485,11 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
             label: Text(
               _onBluetooth ? l10n.printerScan : l10n.commonRefresh,
             ),
+          ),
+          IconButton(
+            tooltip: l10n.commonClose,
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
           const SizedBox(width: 4),
         ],
@@ -843,7 +841,6 @@ class _AutoPrintKotOptionsCard extends StatelessWidget {
           ),
           Switch.adaptive(
             value: enabled,
-            activeThumbColor: accent,
             onChanged: onChanged,
           ),
         ],
