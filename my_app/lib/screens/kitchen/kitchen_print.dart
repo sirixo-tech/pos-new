@@ -6,6 +6,7 @@ import '../../models/kitchen_models.dart';
 import '../../providers/pos_controller.dart';
 import '../../services/pos_api.dart';
 import '../../services/printing/pos_receipt_printer.dart';
+import '../../services/printing/print_job_coordinator.dart';
 import '../../widgets/pos_ui.dart';
 
 /// Print kitchen KOT slips for a board order on the local POS printer.
@@ -31,10 +32,17 @@ Future<void> printKitchenKot(
     return;
   }
 
+  final jobs = context.read<PrintJobCoordinator>();
   try {
     await PosReceiptPrinter.printKotByOrderNumber(
       session: session,
       orderNumber: orderNumber,
+    );
+    if (!context.mounted) return;
+    await jobs.completeHandPrinted(
+      kind: PrintJobKind.kot,
+      orderNumber: orderNumber,
+      orderId: order.id,
     );
     if (!context.mounted) return;
     showPosSnackBar(context, context.l10n.printKotPrinted(orderNumber));

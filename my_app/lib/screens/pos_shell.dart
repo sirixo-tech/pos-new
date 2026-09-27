@@ -1025,6 +1025,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       return;
     }
 
+    final jobs = context.read<PrintJobCoordinator>();
     setState(() => _scanPrintBusy = true);
     try {
       final handoff = await ScanToPrintSettings.clearHandoffOnScanPrint();
@@ -1035,6 +1036,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       );
       await ScanToPrintHistory.markPrinted(
         branchId: session.branchId,
+        orderNumber: orderNumber,
+      );
+      await jobs.completeHandPrinted(
+        kind: PrintJobKind.receipt,
         orderNumber: orderNumber,
       );
       var handoffCleared = false;

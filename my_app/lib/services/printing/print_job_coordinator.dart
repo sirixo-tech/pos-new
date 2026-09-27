@@ -231,7 +231,31 @@ class PrintJobCoordinator extends ChangeNotifier {
     );
   }
 
-  Future<void> retryFailed({bool includeMayHavePrinted = true}) async {
+  /// Drop a bill the cashier already printed, so a delayed automatic copy
+  /// of that same document is not sent.
+  Future<void> completeHandPrinted({
+    required PrintJobKind kind,
+    required String orderNumber,
+    int orderId = 0,
+  }) async {
+    final number = orderNumber.trim();
+    if (number.isEmpty && orderId <= 0) return;
+    final key = _PrintJob(
+      kind: kind,
+      orderId: orderId,
+      orderNumber: number,
+    ).jobKey;
+    if (key.isEmpty) return;
+    _failed.remove(key);
+    _queue.removeWhere((job) => job.jobKey == key);
+    ackFailure(key);
+    _remember(key);
+    await PendingPrintJobStore.markDone(key);
+    if (_failed.isEmpty) _healthWatch?.cancel();
+    notifyListeners();
+  }
+
+  Future<void> retryFailed({bool includeMayHavePrinted = false}) async {
     final inFlight = _retryFlight;
     if (inFlight != null) {
       await inFlight;
@@ -261,10 +285,12 @@ class PrintJobCoordinator extends ChangeNotifier {
       });
     if (jobs.isEmpty) return;
     for (final job in jobs) {
-      if (_queued.contains(job.jobKey)) continue;
+      if (_queued.contains(job.jobKey) || _completed.contains(job.jobKey)) {
+        if (_completed.contains(job.jobKey)) _failed.remove(job.jobKey);
+        continue;
+      }
       _failed.remove(job.jobKey);
       job.forceAttempt = true;
-      _completed.remove(job.jobKey);
       await _enqueue(job, append: true);
     }
   }
@@ -328,7 +354,11 @@ class PrintJobCoordinator extends ChangeNotifier {
   Future<void> _enqueue(_PrintJob job, {bool append = false}) async {
     final key = job.jobKey;
     if (key.isEmpty) return;
-    if (_completed.contains(key) || _queued.contains(key)) return;
+    if (_completed.contains(key) ||
+        _queued.contains(key) ||
+        _failed.containsKey(key)) {
+      return;
+    }
 
     _queued.add(key);
     if (!append && job.kind == PrintJobKind.kot) {
@@ -377,6 +407,9 @@ class PrintJobCoordinator extends ChangeNotifier {
             debugPrint(
               '[PRINT] skipped ${job.kind.name} ${job.orderNumber} $error',
             );
+          } else if (_completed.contains(job.jobKey)) {
+            _failed.remove(job.jobKey);
+            await PendingPrintJobStore.markDone(job.jobKey);
           } else {
             job.mayHavePrinted = _printMayHaveStarted(error);
             _failed[job.jobKey] = job;

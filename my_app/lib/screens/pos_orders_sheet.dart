@@ -8,6 +8,7 @@ import '../models/pos_models.dart';
 import '../providers/pos_controller.dart';
 import '../services/pos_api.dart';
 import '../services/printing/pos_receipt_printer.dart';
+import '../services/printing/print_job_coordinator.dart';
 import '../theme/pos_theme.dart';
 import '../utils/format.dart';
 import '../utils/marketplace_platform_ui.dart';
@@ -477,10 +478,17 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
       return;
     }
 
+    final jobs = context.read<PrintJobCoordinator>();
     try {
       await PosReceiptPrinter.printOrderByNumber(
         session: session,
         orderNumber: orderNumber,
+      );
+      if (!mounted) return;
+      await jobs.completeHandPrinted(
+        kind: PrintJobKind.receipt,
+        orderNumber: orderNumber,
+        orderId: (order['id'] as num?)?.toInt() ?? 0,
       );
       if (!mounted) return;
       showPosSnackBar(context, context.l10n.printPrinted(orderNumber));
@@ -522,10 +530,17 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
       return;
     }
 
+    final jobs = context.read<PrintJobCoordinator>();
     try {
       await PosReceiptPrinter.printKotByOrderNumber(
         session: session,
         orderNumber: orderNumber,
+      );
+      if (!mounted) return;
+      await jobs.completeHandPrinted(
+        kind: PrintJobKind.kot,
+        orderNumber: orderNumber,
+        orderId: (order['id'] as num?)?.toInt() ?? 0,
       );
       if (!mounted) return;
       showPosSnackBar(context, context.l10n.printKotPrinted(orderNumber));

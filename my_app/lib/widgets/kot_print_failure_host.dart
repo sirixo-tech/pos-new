@@ -66,13 +66,15 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
       builder: (ctx) => _PrintFailureDialog(
         event: event,
         onRetry: () async {
-          await coordinator.retryFailed();
+          await coordinator.retryFailed(includeMayHavePrinted: false);
         },
         onPrinterReady: () {
           coordinator.onHealthChanged(
             overlayContext.read<PrinterStatusService>().health,
           );
-          unawaited(coordinator.retryFailed());
+          unawaited(
+            coordinator.retryFailed(includeMayHavePrinted: false),
+          );
         },
       ),
     ).whenComplete(() {
