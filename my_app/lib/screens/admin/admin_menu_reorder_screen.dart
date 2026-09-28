@@ -63,6 +63,7 @@ class _AdminMenuReorderScreenState extends State<AdminMenuReorderScreen> {
   }
 
   void _onReorderCategories(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
     setState(() {
       final item = _categories.removeAt(oldIndex);
       _categories.insert(newIndex, item);
@@ -71,6 +72,7 @@ class _AdminMenuReorderScreenState extends State<AdminMenuReorderScreen> {
   }
 
   void _onReorderItems(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
     setState(() {
       final item = _items.removeAt(oldIndex);
       _items.insert(newIndex, item);
@@ -210,7 +212,7 @@ class _AdminMenuReorderScreenState extends State<AdminMenuReorderScreen> {
                                   ),
                                   buildDefaultDragHandles: false,
                                   itemCount: _categories.length,
-                                  onReorderItem: canCategories
+                                  onReorder: canCategories
                                       ? _onReorderCategories
                                       : (_, _) {},
                                   itemBuilder: (context, index) {
@@ -301,7 +303,7 @@ class _AdminMenuReorderScreenState extends State<AdminMenuReorderScreen> {
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                     buildDefaultDragHandles: false,
                     itemCount: _categories.length,
-                    onReorderItem:
+                    onReorder:
                         canCategories ? _onReorderCategories : (_, _) {},
                     itemBuilder: (context, index) {
                       final cat = _categories[index];
@@ -388,7 +390,7 @@ class _AdminMenuReorderScreenState extends State<AdminMenuReorderScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                   buildDefaultDragHandles: false,
                   itemCount: _items.length,
-                  onReorderItem: canItems ? _onReorderItems : (_, _) {},
+                  onReorder: canItems ? _onReorderItems : (_, _) {},
                   itemBuilder: (context, index) {
                     final item = _items[index];
                     return _ReorderTile(

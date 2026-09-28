@@ -98,6 +98,10 @@ jobs:
         run: |
           flutter pub get
           flutter build windows --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }}
+      - name: Build Inno Setup installer
+        working-directory: ${{ needs.version.outputs.app_dir }}
+        shell: pwsh
+        run: ./scripts/build-windows-installer.ps1 -SkipBuild
       - name: Zip Windows build
         working-directory: ${{ needs.version.outputs.app_dir }}
         shell: pwsh
@@ -110,6 +114,8 @@ jobs:
           path: |
             ${{ needs.version.outputs.app_dir }}/SELFX-POS-${{ needs.version.outputs.version }}-windows.zip
             ${{ needs.version.outputs.app_dir }}/windows.sha256
+            ${{ needs.version.outputs.app_dir }}/build/installer/*.exe
+            ${{ needs.version.outputs.app_dir }}/build/installer/*.sha256
           retention-days: 14
 
   publish-release:
@@ -130,7 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           APK=$(find dist -name 'SELFX-POS-*-arm64-v8a.apk' | head -n1)
-          WIN=$(find dist -name 'SELFX-POS-*-windows.zip' | head -n1)
+          WIN=$(find dist -name 'SELFX-POS-*-windows-setup.exe' | head -n1)
           APK_SHA=$(sha256sum "$APK" | awk '{print $1}')
           WIN_SHA=$(sha256sum "$WIN" | awk '{print $1}')
           cat > latest.json <<EOF
@@ -155,6 +161,8 @@ jobs:
           files: |
             dist/**/*.apk
             dist/**/*.zip
+            dist/**/*.exe
+            dist/**/*.sha256
             latest.json
 
   notify-api:
