@@ -69,6 +69,9 @@ class CustomerDisplayBroker {
   void showIdleHome() {
     if (_paymentActive) return;
     CustomerDisplayLanService.instance.clear(reason: 'idle');
+    // Cart updates talk to the DQR directly. Idle must use that same path,
+    // otherwise a display that just showed a bill is left on the last cart.
+    unawaited(_safe(showDqr222HomeIfIdle));
     unawaited(_safe(() => showSmartPosIdleCustomerDisplay(
           restaurantName: restaurantName,
           restaurantLogoUrl: restaurantLogoUrl,

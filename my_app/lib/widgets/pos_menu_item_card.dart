@@ -105,7 +105,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     final unavailable = widget.item.isManuallyUnavailable;
     final outsideSchedule = widget.item.isOutsideSchedule;
 
-    if (!widget.showImage) {
+    if (!widget.showImage || showPlaceholder) {
       return _buildColorCard(
         itemName: itemName,
         showStepper: showStepper,
@@ -383,6 +383,27 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
 
   static const _colorCardPrice = Color(0xFFFF5C1F);
 
+  Widget _colorMonogram(String itemName, double circle) {
+    return Container(
+      width: circle,
+      height: circle,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        _initials(itemName),
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: circle > 60 ? 22 : (widget.compact ? 16 : 18),
+          color: const Color(0xFF1F2937),
+          height: 1,
+        ),
+      ),
+    );
+  }
+
   Color _colorCardFill() {
     final index = widget.item.id.abs() % _colorCardPalette.length;
     return _colorCardPalette[index];
@@ -396,7 +417,6 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     required bool outsideSchedule,
   }) {
     final fill = _colorCardFill();
-    final circle = widget.compact ? 48.0 : 56.0;
     return Opacity(
       opacity: unavailable ? 0.78 : 1,
       child: DecoratedBox(
@@ -413,6 +433,9 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final bounded = constraints.maxHeight.isFinite;
+                final circle = bounded
+                    ? (widget.compact ? 64.0 : 72.0)
+                    : (widget.compact ? 48.0 : 56.0);
                 return SizedBox(
                   height: bounded ? constraints.maxHeight : null,
                   child: Stack(
@@ -440,29 +463,15 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                               ),
                       ),
                       if (bounded)
-                        const Spacer()
-                      else
+                        Expanded(
+                          child: Center(
+                            child: _colorMonogram(itemName, circle),
+                          ),
+                        )
+                      else ...[
                         const SizedBox(height: 8),
-                      Center(
-                        child: Container(
-                          width: circle,
-                          height: circle,
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            _initials(itemName),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: widget.compact ? 16 : 18,
-                              color: const Color(0xFF1F2937),
-                              height: 1,
-                            ),
-                          ),
-                        ),
-                      ),
+                        Center(child: _colorMonogram(itemName, circle)),
+                      ],
                       SizedBox(height: widget.compact ? 8 : 10),
                       Text(
                         itemName,
@@ -471,7 +480,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: widget.compact ? 13 : 14,
+                          fontSize: widget.compact ? 14.3 : 15.4,
                           height: 1.15,
                           color: const Color(0xFF1F2937),
                         ),
@@ -509,7 +518,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                               style: TextStyle(
                                 color: _colorCardPrice,
                                 fontWeight: FontWeight.w700,
-                                fontSize: widget.compact ? 13 : 14,
+                                fontSize: widget.compact ? 14.3 : 15.4,
                                 height: 1,
                               ),
                             ),
@@ -604,11 +613,11 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     required String itemName,
   }) {
     // 15px semi-bold price — readable without overpowering the card.
-    final actionHeight = widget.compact ? 26.0 : 30.0;
+    final actionHeight = widget.compact ? 28.6 : 33.0;
     final priceStyle = GoogleFonts.inter(
       color: primary,
       fontWeight: FontWeight.w600,
-      fontSize: widget.compact ? 13 : 14,
+      fontSize: widget.compact ? 14.3 : 15.4,
       height: 1.0,
       letterSpacing: -0.025 * 14,
       fontFeatures: const [FontFeature.tabularFigures()],
@@ -644,7 +653,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: widget.compact ? 12.75 : 13.77,
+                    fontSize: widget.compact ? 14.03 : 15.15,
                     height: 1.25,
                     letterSpacing: -0.15,
                     color: PosTheme.ink,
@@ -683,7 +692,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
           ],
           const SizedBox(height: 4),
           SizedBox(
-            height: showFromPrice && !widget.compact ? 36 : actionHeight,
+            height: showFromPrice && !widget.compact ? 39.6 : actionHeight,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [

@@ -13,7 +13,7 @@ class CustomerVoiceService {
   static const _enabledKey = 'customer_voice_announcements_enabled';
 
   bool _isCustomerScreenActive = false;
-  bool _isEnabled = false;
+  bool _isEnabled = true;
   bool _isProcessing = false;
   final List<String> _queue = [];
 
@@ -23,7 +23,7 @@ class CustomerVoiceService {
   Future<void> loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _isEnabled = prefs.getBool(_enabledKey) ?? false;
+      _isEnabled = prefs.getBool(_enabledKey) ?? true;
     } catch (_) {}
   }
 

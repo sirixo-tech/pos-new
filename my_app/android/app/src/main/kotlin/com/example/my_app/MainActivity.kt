@@ -1,6 +1,7 @@
 package com.example.my_app
 
 import android.Manifest
+import android.bluetooth.BluetoothManager
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.RingtoneManager
@@ -198,6 +199,7 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "ensurePermissions" -> ensureBluetoothPermissions(result)
+                "isRadioOn" -> result.success(isBluetoothRadioOn())
                 else -> result.notImplemented()
             }
         }
@@ -431,6 +433,17 @@ class MainActivity : FlutterActivity() {
         return bluetoothPermissions().all { permission ->
             ContextCompat.checkSelfPermission(this, permission) ==
                 PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun isBluetoothRadioOn(): Boolean {
+        val manager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            ?: return false
+        val adapter = manager.adapter ?: return false
+        return try {
+            adapter.isEnabled
+        } catch (_: SecurityException) {
+            true
         }
     }
 

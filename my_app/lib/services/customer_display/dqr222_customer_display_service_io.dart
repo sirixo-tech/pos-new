@@ -447,9 +447,19 @@ Future<void> showDqr222HomeIfIdle({
       return;
     }
     final key = _readyKey(port);
-    if (_readyScreenKey == key) return;
-    await _writeReady(port, generation);
-    if (generation == _displayGeneration) {
+    // A bill on screen uses the same ready key as the home screen. Treating
+    // that as "already home" left the last cart up after a line was removed
+    // or the cart was cleared.
+    final cartOnScreen = _cartCommand != null;
+    if (!cartOnScreen && _readyScreenKey == key) return;
+    if (cartOnScreen) {
+      _cartCommand = null;
+      _readyScreenKey = null;
+      _displayGeneration++;
+    }
+    final homeGeneration = _displayGeneration;
+    await _writeReady(port, homeGeneration);
+    if (homeGeneration == _displayGeneration) {
       developer.log('Home screen displayed on $port', name: 'SELFX.DQR222');
     }
   } on Object catch (error) {

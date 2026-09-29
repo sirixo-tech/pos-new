@@ -72,6 +72,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
   late String _filter;
   String? _statusFilter;
   String? _sourceFilter;
+  bool _onlineOnly = false;
   final _search = TextEditingController();
   bool _loading = true;
   String? _error;
@@ -114,6 +115,21 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
     return platforms.any((platform) => platform.provider.toLowerCase() == source);
   }
 
+  bool _isOnlineChannelOrder(Map<String, dynamic> order) {
+    final raw = '${order['source'] ?? order['channel'] ?? order['order_source'] ?? ''}'
+        .trim()
+        .toLowerCase();
+    if (raw.isEmpty) return false;
+    return raw == 'online' ||
+        raw == 'website' ||
+        raw == 'web' ||
+        raw == 'pwa' ||
+        raw == 'qr' ||
+        raw == 'storefront' ||
+        raw == 'zomato' ||
+        raw == 'swiggy';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -125,7 +141,10 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
     } else {
       _tab = 'held';
     }
-    if (_coreFilters.contains(widget.initialFilter)) {
+    if (widget.initialFilter == 'online') {
+      _filter = 'today';
+      _onlineOnly = true;
+    } else if (_coreFilters.contains(widget.initialFilter)) {
       _filter = widget.initialFilter;
     } else if (_isAllowedFilter(widget.initialFilter)) {
       _filter = 'today';
@@ -193,6 +212,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
         status: _isCancelledTab ? 'cancelled' : _statusFilter,
         source: widget.deliveryOnly ? null : _sourceFilter,
         page: nextPage,
+        perPage: _onlineOnly ? 50 : 10,
       );
       if (!mounted) return;
       var orders = (data['orders'] as List?)
@@ -202,6 +222,9 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
           const [];
       if (widget.deliveryOnly) {
         orders = orders.where(_isMarketplaceDeliveryOrder).toList();
+      }
+      if (_onlineOnly) {
+        orders = orders.where(_isOnlineChannelOrder).toList();
       }
       orders = orders.where((order) {
         final status = '${order['status'] ?? ''}'.toLowerCase();
@@ -914,16 +937,22 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: _FilterPills(
-              selected: _filter,
+              selected: _onlineOnly ? 'online' : _filter,
               onChanged: (id) {
                 if (id == null) return;
                 setState(() {
-                  _filter = id;
+                  _onlineOnly = id == 'online';
+                  _filter = id == 'online' ? 'today' : id;
                   _page = 1;
                 });
                 _load(page: 1);
               },
               options: [
+                (
+                  id: 'online',
+                  label: context.posText('kitchenChannelOnline', 'Online'),
+                  color: Colors.indigo.shade600,
+                ),
                 (
                   id: 'today',
                   label: l10n.ordersFilterToday,
@@ -971,7 +1000,9 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
                               : Icons.receipt_long_outlined,
                           title: _isHeldTab
                               ? l10n.ordersNoHeldTitle
-                              : () {
+                              : _onlineOnly
+                                  ? 'No online orders'
+                                  : () {
                                   final platforms = context
                                           .read<PosController>()
                                           .bootstrap

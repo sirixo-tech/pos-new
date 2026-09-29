@@ -246,7 +246,6 @@ class PosReceiptPrinter {
   static bool bleLinkIsLive = false;
   static Future<void> _bluetoothChain = Future<void>.value();
   static String? _warmBluetoothAddress;
-  static Timer? _warmBluetoothTimer;
 
   static Future<PrinterHealth> _probeDevice({
     bool allowBluetoothScan = false,
@@ -526,6 +525,11 @@ class PosReceiptPrinter {
     if (printer == null) {
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
+    final radioOn = await _bluetoothRadioOn();
+    if (radioOn == false) {
+      await _withBluetooth(() => _dropBluetooth(printer));
+      return _disconnectedHealth(config, checkedAt, bluetooth: true);
+    }
     final address = printer.address?.trim() ?? '';
     if (address.isNotEmpty && _warmBluetoothAddress == address) {
       bleLinkIsLive = true;
@@ -539,7 +543,7 @@ class PosReceiptPrinter {
 
     try {
       if (await PrinterManager.instance.isConnected(printer)) {
-        _markBluetoothWarm(printer);
+        _rememberBluetooth(printer);
         return PrinterHealth(
           state: PrinterHealthState.ready,
           config: config,
@@ -561,7 +565,7 @@ class PosReceiptPrinter {
       bleLinkIsLive = false;
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
-    _markBluetoothWarm(printer);
+    _rememberBluetooth(printer);
     return PrinterHealth(
       state: PrinterHealthState.ready,
       config: config,
@@ -1172,21 +1176,34 @@ class PosReceiptPrinter {
         .whenComplete(gate.complete);
   }
 
-  static void _markBluetoothWarm(Printer printer) {
+  /// True when the Android radio is on, false when it is off, null when this
+  /// device cannot tell. A live printer stays up until the radio is off.
+  static Future<bool?> _bluetoothRadioOn() async {
+    if (kIsWeb || !Platform.isAndroid) return null;
+    try {
+      return await _bluetoothChannel.invokeMethod<bool>('isRadioOn');
+    } on MissingPluginException {
+      return null;
+    } catch (error) {
+      debugPrint('[PRINT] bluetooth radio check failed: $error');
+      return null;
+    }
+  }
+
+  static Future<void> _dropBluetooth(Printer printer) async {
+    _warmBluetoothAddress = null;
+    bleLinkIsLive = false;
+    try {
+      await _thermal.disconnect(printer);
+    } catch (_) {}
+  }
+
+  static void _rememberBluetooth(Printer printer) {
     final address = printer.address?.trim() ?? '';
     _lastResolvedPrinter = printer;
     bleLinkIsLive = true;
     if (address.isEmpty) return;
     _warmBluetoothAddress = address;
-    _warmBluetoothTimer?.cancel();
-    _warmBluetoothTimer = Timer(const Duration(seconds: 90), () {
-      if (_warmBluetoothAddress != address) return;
-      _warmBluetoothAddress = null;
-      bleLinkIsLive = false;
-      unawaited(
-        _thermal.disconnect(printer).catchError((Object _) {}),
-      );
-    });
   }
 
   /// Connect the saved BLE address. Does not scan.
@@ -1226,10 +1243,9 @@ class PosReceiptPrinter {
       final address = printer.address?.trim() ?? '';
       final warm = address.isNotEmpty && _warmBluetoothAddress == address;
       if (warm) {
-        _warmBluetoothTimer?.cancel();
         try {
           await _thermal.printData(printer, bytes, longData: true);
-          _markBluetoothWarm(printer);
+          _rememberBluetooth(printer);
           return;
         } catch (error) {
           debugPrint('Bluetooth warm print failed, reconnecting: $error');
@@ -1244,7 +1260,7 @@ class PosReceiptPrinter {
         );
       }
       await _thermal.printData(printer, bytes, longData: true);
-      _markBluetoothWarm(printer);
+      _rememberBluetooth(printer);
     });
   }
 

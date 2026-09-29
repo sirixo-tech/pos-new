@@ -352,12 +352,12 @@ const _articles = <_HelpArticle>[
         'Discount is the small control on the left, above Subtotal.',
       ]),
       _HelpSection('How to use it', [
-        'More → Item images chooses photos, plain color cards, or category photos with plain item cards. That choice stays on this register only.',
+        'More → Item images shows the item photo on the card when the item has one. An item without a photo uses a color tile. That choice stays on this register only.',
         'More → Refresh menu reloads categories and items from the server.',
         'More → Menu edits categories, items, and whether something is available. More → Administration opens the rest of the back office this user is allowed to see.',
       ]),
       _HelpSection('If something is wrong', [
-        'An item with no photo is still sellable. Turn images back on from More → Item images if the cards should show photos again.',
+        'An item with no photo is still sellable. That card uses the color tile with initials.',
         'If a variant does not appear, open the item. Variants and modifiers are different. An unchecked modifier group is not offered.',
         'If the menu looks old, use Refresh menu. If the network is down, the last loaded menu stays on screen until the connection returns.',
       ]),

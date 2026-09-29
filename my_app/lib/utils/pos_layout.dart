@@ -103,9 +103,10 @@ double posMenuGridChildAspectRatio(
   final cellWidth =
       (width - horizontalPadding - spacing * (crossAxisCount - 1)) /
       crossAxisCount;
-  final imageHeight = images ? cellWidth * 0.72 : 0.0;
+  final fullImageHeight = cellWidth * 0.72;
+  final imageHeight = images ? fullImageHeight * 0.9 : 0.0;
   final footerHeight = images
-      ? (compact ? 70.0 : 92.0)
+      ? (compact ? 70.0 : 92.0) + fullImageHeight * 0.1
       : cellWidth * 0.9;
   return cellWidth / (imageHeight + footerHeight);
 }

@@ -22,7 +22,7 @@ Future<void> showPosCatalogLayoutPicker(BuildContext context) {
                   PosCatalogLayout.images,
                   Icons.image_outlined,
                   'Images',
-                  'Item photos on the center cards',
+                  'Item photos on the cards. Items without a photo use color tiles',
                 ),
                 (
                   PosCatalogLayout.colorCards,
