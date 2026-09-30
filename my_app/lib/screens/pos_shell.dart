@@ -675,6 +675,12 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       }
 
       final isOfflineOrder = pos.lastOfflineOrder != null;
+      if (payment.method == 'cash') {
+        CustomerDisplayBroker.instance.showCashPaymentSuccess(
+          amount: pos.cartTotal,
+          orderNumber: order.orderNumber,
+        );
+      }
       _closeCart();
       pos.showCashierPlacedNotice(
         orderNumber: order.orderNumber,
@@ -814,6 +820,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
             await PosReceiptPrinter.openCashDrawer();
           } catch (_) {}
         }());
+        CustomerDisplayBroker.instance.showCashPaymentSuccess(
+          amount: placed.chargeAmount,
+          orderNumber: placed.orderNumber,
+        );
       }
       _closeCart();
       if (placed.id > 0) {
@@ -1999,7 +2009,7 @@ class _ViewCartPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       elevation: 8,
-      shadowColor: accent.withOpacity(0.35),
+      shadowColor: accent.withValues(alpha: 0.35),
       borderRadius: BorderRadius.circular(999),
       color: accent,
       child: InkWell(
@@ -2024,7 +2034,7 @@ class _ViewCartPill extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.22),
+                  color: Colors.white.withValues(alpha: 0.22),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -2946,4 +2956,4 @@ Future<void> showCustomerDisplayStatusDialog(BuildContext context) async {
     },
   );
 }
-
+  

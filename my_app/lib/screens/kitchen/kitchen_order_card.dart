@@ -395,6 +395,7 @@ class _KotOrderContext extends StatelessWidget {
     final typeColor = kitchenOrderTypeColor(orderType);
     final typeLabel = kitchenOrderTypeLabel(context, orderType);
     final typeIcon = kitchenOrderTypeIcon(orderType);
+    final tokenBesideTable = table != null && token != null;
     final primaryKind = table != null
         ? _KotPrimaryKind.table
         : (token != null ? _KotPrimaryKind.token : _KotPrimaryKind.order);
@@ -415,14 +416,33 @@ class _KotOrderContext extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _KotPrimaryMark(
-            value: primaryValue,
-            kind: primaryKind,
-            color: typeColor,
-            compact: compact,
-            spacious: spacious,
-            slim: slim,
-          ),
+          if (tokenBesideTable) ...[
+            _KotPrimaryMark(
+              value: token!,
+              kind: _KotPrimaryKind.token,
+              color: typeColor,
+              compact: compact,
+              spacious: spacious,
+              slim: slim,
+            ),
+            SizedBox(width: slim ? 6 : 8),
+            _KotPrimaryMark(
+              value: table!,
+              kind: _KotPrimaryKind.table,
+              color: typeColor,
+              compact: compact,
+              spacious: spacious,
+              slim: slim,
+            ),
+          ] else
+            _KotPrimaryMark(
+              value: primaryValue,
+              kind: primaryKind,
+              color: typeColor,
+              compact: compact,
+              spacious: spacious,
+              slim: slim,
+            ),
           SizedBox(width: slim ? 8 : (compact ? 10 : 12)),
           Expanded(
             child: Column(
@@ -465,16 +485,6 @@ class _KotOrderContext extends StatelessWidget {
                       ),
                   ],
                 ),
-                if (table != null && token != null) ...[
-                  SizedBox(height: compact ? 6 : 8),
-                  _KotInlineFact(
-                    icon: Icons.confirmation_number_outlined,
-                    label: context.posText('newOrderAlertToken', 'Token'),
-                    value: token!,
-                    color: typeColor,
-                    compact: compact,
-                  ),
-                ],
                 if (orderNumber.isNotEmpty) ...[
                   SizedBox(height: compact ? 5 : 6),
                   Text(
@@ -520,26 +530,23 @@ class _KotPrimaryMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = slim ? 48.0 : (compact ? 56.0 : (spacious ? 68.0 : 62.0));
-    final isTable = kind == _KotPrimaryKind.table;
-    final showTokenLabel = kind == _KotPrimaryKind.token;
-    final numberSize = isTable
-        ? (compact ? 11.0 : 12.0)
-        : (slim ? 22.0 : (compact ? 24.0 : (spacious ? 32.0 : 28.0)));
+    final caption = switch (kind) {
+      _KotPrimaryKind.token =>
+        context.posText('newOrderAlertToken', 'Token').toUpperCase(),
+      _KotPrimaryKind.table =>
+        context.posText('kitchenTableLabel', 'Table').toUpperCase(),
+      _KotPrimaryKind.order => null,
+    };
+    final numberSize =
+        slim ? 22.0 : (compact ? 24.0 : (spacious ? 32.0 : 28.0));
 
     final mark = Column(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        if (isTable)
-          Icon(
-            Icons.table_restaurant_rounded,
-            color: color,
-            size: compact ? 14 : 16,
-          ),
-        if (isTable) const SizedBox(height: 2),
-        if (showTokenLabel)
+        if (caption != null)
           Text(
-            context.posText('newOrderAlertToken', 'Token').toUpperCase(),
+            caption,
             style: TextStyle(
               color: color.withValues(alpha: 0.75),
               fontWeight: FontWeight.w800,
@@ -547,18 +554,16 @@ class _KotPrimaryMark extends StatelessWidget {
               letterSpacing: 0.45,
             ),
           ),
-        if (showTokenLabel) const SizedBox(height: 1),
+        if (caption != null) const SizedBox(height: 1),
         Text(
           value,
           textAlign: TextAlign.center,
-          maxLines: isTable ? 2 : 1,
-          softWrap: isTable,
-          overflow: isTable ? TextOverflow.ellipsis : TextOverflow.visible,
+          maxLines: 1,
           style: TextStyle(
             fontSize: numberSize,
             fontWeight: FontWeight.w900,
             height: 1.0,
-            letterSpacing: isTable ? -0.2 : -0.4,
+            letterSpacing: -0.4,
             color: color,
           ),
         ),
@@ -566,81 +571,21 @@ class _KotPrimaryMark extends StatelessWidget {
     );
 
     return Container(
-      width: isTable ? size : null,
-      constraints: BoxConstraints(
-        minWidth: size,
-        minHeight: size,
-        maxHeight: size,
-      ),
-      padding: EdgeInsets.symmetric(
-        horizontal: slim ? 6 : (compact ? 6 : 8),
-        vertical: slim ? 4 : (compact ? 5 : 6),
-      ),
+      width: size,
+      height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: isTable ? 0.08 : 0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: color.withValues(alpha: isTable ? 0.2 : 0.28),
-          width: isTable ? 1 : 1.5,
+          color: color.withValues(alpha: 0.28),
+          width: 1.5,
         ),
       ),
-      child: isTable
-          ? FittedBox(fit: BoxFit.scaleDown, child: mark)
-          : mark,
-    );
-  }
-}
-
-class _KotInlineFact extends StatelessWidget {
-  const _KotInlineFact({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.compact,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: compact ? 13 : 14, color: color),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: TextStyle(
-            color: PosTheme.inkMuted,
-            fontWeight: FontWeight.w700,
-            fontSize: compact ? 10.5 : 11,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 7 : 8,
-            vertical: compact ? 2 : 3,
-          ),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w900,
-              fontSize: compact ? 12 : 12.5,
-            ),
-          ),
-        ),
-      ],
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: mark,
+      ),
     );
   }
 }

@@ -61,6 +61,18 @@ List<DayEndReportType> dayEndReportTypes(AppLocalizations l10n) => [
         description: l10n.reportsTaxSummaryDesc,
         icon: Icons.sell_outlined,
       ),
+      DayEndReportType(
+        value: 'staff',
+        label: 'Staff',
+        description: 'Staff sales for today',
+        icon: Icons.badge_outlined,
+      ),
+      DayEndReportType(
+        value: 'voids',
+        label: 'Voids & cancellations',
+        description: 'Voided and cancelled orders for today',
+        icon: Icons.block_outlined,
+      ),
     ];
 
 /// Day-end reports for today’s branch sales (side panel on desktop).

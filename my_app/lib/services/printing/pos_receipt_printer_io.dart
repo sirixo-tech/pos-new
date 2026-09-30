@@ -1372,6 +1372,14 @@ class PosReceiptPrinter {
     if (dateTo != null && dateTo.isNotEmpty) {
       params['date_to'] = dateTo;
     }
+    // Same thermal-print call as the other slips. Staff and voids include
+    // cancelled and incomplete tickets, which the default query leaves out.
+    if (type == 'staff' || type == 'voids') {
+      params['status'] = 'all';
+      params['include_incomplete'] = '1';
+      params['include_drafts'] = '1';
+      params['include_cancelled'] = '1';
+    }
 
     final uri = Uri.parse('$serverUrl/api/v1/pos/reports/thermal-print')
         .replace(queryParameters: params);
@@ -1400,7 +1408,10 @@ class PosReceiptPrinter {
     }
 
     final data = body?['data'] as Map<String, dynamic>? ?? body ?? const {};
-    final commands = PrintObjectExecutor.commandsFromPayload(data);
+    var commands = PrintObjectExecutor.commandsFromPayload(data);
+    if (commands.isEmpty && (type == 'staff' || type == 'voids')) {
+      commands = _slipCommandsForReport(data, type);
+    }
     if (commands.isEmpty) {
       throw StateError('Report has no printable content.');
     }
@@ -1435,6 +1446,91 @@ class PosReceiptPrinter {
       }
       rethrow;
     }
+  }
+
+  /// Staff and voids replies sometimes arrive as rows instead of print commands.
+  /// Turn those rows into the same text commands the other reports already print.
+  static List<Map<String, dynamic>> _slipCommandsForReport(
+    Map<String, dynamic> data,
+    String type,
+  ) {
+    final document = data['document'] is Map
+        ? Map<String, dynamic>.from(data['document'] as Map)
+        : data;
+    final rows = _reportRows(document);
+    if (rows.isEmpty) return const [];
+
+    final title = _reportText(
+      document['title'] ?? data['title'],
+      fallback: type == 'staff' ? 'STAFF' : 'VOIDS & CANCELLATIONS',
+    ).toUpperCase();
+    final commands = <Map<String, dynamic>>[
+      {'type': 'init'},
+      {'type': 'text', 'text': title, 'align': 'center', 'style': 'bold'},
+      {'type': 'divider'},
+    ];
+    for (final row in rows) {
+      final left = _reportText(
+        row['name'] ??
+            row['staff_name'] ??
+            row['staff'] ??
+            row['order_number'] ??
+            row['order_no'] ??
+            row['description'] ??
+            row['label'],
+      );
+      final right = _reportText(
+        row['amount'] ??
+            row['total'] ??
+            row['sales'] ??
+            row['revenue'] ??
+            row['lost_revenue'] ??
+            row['value'],
+      );
+      if (left.isEmpty && right.isEmpty) continue;
+      commands.add({
+        'type': 'row',
+        'left': left,
+        'right': right,
+        'style': 'bold',
+      });
+      final detail = _reportText(
+        row['reason'] ?? row['cancel_reason'] ?? row['status'] ?? row['orders'],
+      );
+      if (detail.isNotEmpty && detail != left && detail != right) {
+        commands.add({'type': 'text', 'text': detail});
+      }
+    }
+    commands.addAll([
+      {'type': 'feed', 'lines': 2},
+      {'type': 'cut'},
+    ]);
+    return commands.length > 4 ? commands : const [];
+  }
+
+  static List<Map<String, dynamic>> _reportRows(Map<String, dynamic> source) {
+    for (final key in const [
+      'rows',
+      'lines',
+      'staff',
+      'voids',
+      'orders',
+      'items',
+    ]) {
+      final raw = source[key];
+      if (raw is List && raw.isNotEmpty) {
+        return raw
+            .whereType<Map>()
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
+      }
+    }
+    return const [];
+  }
+
+  static String _reportText(Object? value, {String fallback = ''}) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
   }
 
   static Future<List<int>> _buildOfflineReceiptBytes({

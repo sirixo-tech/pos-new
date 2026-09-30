@@ -134,6 +134,31 @@ class CustomerDisplayBroker {
     unawaited(_safe(clearSmartPosCustomerDisplay));
   }
 
+  /// Cash never opens the UPI QR, so the success screen has to be requested
+  /// on its own. The following cart clear must not replace that screen.
+  void showCashPaymentSuccess({
+    required double amount,
+    String? orderNumber,
+  }) {
+    _paymentActive = true;
+    final number = orderNumber?.trim();
+    _displayOrderNumber = (number == null || number.isEmpty) ? null : number;
+    unawaited(_safe(() async {
+      try {
+        await showSmartPosPaymentSuccess(
+          amount: amount,
+          orderNumber: number,
+          paidAt: DateTime.now(),
+          restaurantName: restaurantName,
+          restaurantLogoUrl: restaurantLogoUrl,
+        );
+      } finally {
+        _paymentActive = false;
+        _displayOrderNumber = null;
+      }
+    }));
+  }
+
   void paymentSuccess({
     required double amount,
     String? orderNumber,

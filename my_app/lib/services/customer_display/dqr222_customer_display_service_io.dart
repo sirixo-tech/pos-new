@@ -28,6 +28,8 @@ bool _mediaRestoreSuppressed = false;
 String? _readyScreenKey;
 String? _cartCommand;
 String? _cancelledCartCommand;
+bool _cartWriteInFlight = false;
+int _cartWrittenGeneration = -1;
 bool _useCartImage = false;
 String? _lastDetectedPort;
 String? _welcomedPort;
@@ -482,19 +484,54 @@ Future<void> showDqr222Cart(Map<String, dynamic> cart) async {
   _readyScreenKey = null;
   // Remember edits during payment, but let QR/results retain screen ownership.
   if (_paymentScreenActive || _mediaRestoreSuppressed) return;
-  final generation = ++_displayGeneration;
-  final port = await _findDqr222Port();
-  if (port == null || generation != _displayGeneration) return;
+  ++_displayGeneration;
+  // A burst of item taps must not stack a full serial write per tap.
+  // The in-flight write finishes, then one write sends the latest cart.
+  if (_cartWriteInFlight) return;
+  await _drainCartDisplay();
+}
+
+Future<void> _drainCartDisplay() async {
+  if (_cartWriteInFlight || _paymentScreenActive || _mediaRestoreSuppressed) {
+    return;
+  }
+  _cartWriteInFlight = true;
+  var followUp = false;
   try {
-    await _writeReady(port, generation);
-  } on Object catch (error) {
-    // A write failure likely means the device was disconnected. Clear the
-    // cached port so the next update rediscovers the device.
-    if (generation == _displayGeneration) {
-      _lastDetectedPort = null;
-      _readyScreenKey = null;
+    while (!_paymentScreenActive && !_mediaRestoreSuppressed) {
+      final generation = _displayGeneration;
+      final port = await _findDqr222Port();
+      if (port == null || _paymentScreenActive || _mediaRestoreSuppressed) {
+        return;
+      }
+      if (generation != _displayGeneration) continue;
+      try {
+        await _writeReady(port, generation);
+      } on Object catch (error) {
+        if (generation == _displayGeneration) {
+          _lastDetectedPort = null;
+          _readyScreenKey = null;
+        }
+        developer.log(
+          'Cart display failed on $port: $error',
+          name: 'SELFX.DQR222',
+        );
+        return;
+      }
+      if (generation == _displayGeneration) {
+        _cartWrittenGeneration = generation;
+        followUp = true;
+        return;
+      }
     }
-    developer.log('Cart display failed on $port: $error', name: 'SELFX.DQR222');
+  } finally {
+    _cartWriteInFlight = false;
+    if (followUp &&
+        !_paymentScreenActive &&
+        !_mediaRestoreSuppressed &&
+        _displayGeneration != _cartWrittenGeneration) {
+      unawaited(_drainCartDisplay());
+    }
   }
 }
 
