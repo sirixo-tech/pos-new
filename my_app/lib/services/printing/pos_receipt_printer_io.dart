@@ -1373,61 +1373,154 @@ class PosReceiptPrinter {
     String? dateFrom,
     String? dateTo,
   }) async {
-    final params = <String, String>{'type': type};
-    if (dateFrom != null && dateFrom.isNotEmpty) {
-      params['date_from'] = dateFrom;
-    }
-    if (dateTo != null && dateTo.isNotEmpty) {
-      params['date_to'] = dateTo;
-    }
-    // Same thermal-print call as the other slips. Staff and voids include
-    // cancelled and incomplete tickets, which the default query leaves out.
-    if (type == 'staff' || type == 'voids') {
-      params['status'] = 'all';
-      params['include_incomplete'] = '1';
-      params['include_drafts'] = '1';
-      params['include_cancelled'] = '1';
+    // Same thermal-print call as the slips that already print: type and dates
+    // only. Staff and voids retry when the server rejects the type code.
+    // Status and include filters stay off, matching the reports that print.
+    String? failure;
+    for (final reportType in _thermalReportTypeAttempts(type)) {
+      final params = <String, String>{'type': reportType};
+      if (dateFrom != null && dateFrom.isNotEmpty) {
+        params['date_from'] = dateFrom;
+      }
+      if (dateTo != null && dateTo.isNotEmpty) {
+        params['date_to'] = dateTo;
+      }
+
+      final uri = Uri.parse(
+        '$serverUrl/api/v1/pos/reports/thermal-print',
+      ).replace(queryParameters: params);
+      final response = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ${session.token}',
+          'X-Restaurant-Id': '${session.restaurantId}',
+          'X-Branch-Id': '${session.branchId}',
+        },
+      );
+
+      final body = _jsonObject(response.body);
+      if (response.statusCode != 200) {
+        failure = _thermalReportError(body, response.statusCode);
+        const retryable = {400, 404, 405, 422};
+        if (retryable.contains(response.statusCode)) continue;
+        throw StateError(failure);
+      }
+
+      final data = _thermalReportDocument(body);
+      var commands = PrintObjectExecutor.commandsFromPayload(data);
+      if (commands.isEmpty && (type == 'staff' || type == 'voids')) {
+        commands = _slipCommandsForReport(data, type);
+      }
+      if (commands.isEmpty) {
+        throw StateError('Report has no printable content.');
+      }
+
+      final executor = PrintObjectExecutor.fromPayload(data);
+      return executor.buildBytes(commands);
     }
 
-    final uri = Uri.parse(
-      '$serverUrl/api/v1/pos/reports/thermal-print',
-    ).replace(queryParameters: params);
-    final response = await http.get(
-      uri,
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer ${session.token}',
-        'X-Restaurant-Id': '${session.restaurantId}',
-        'X-Branch-Id': '${session.branchId}',
-      },
-    );
+    throw StateError(failure ?? 'Failed to fetch report');
+  }
 
-    Map<String, dynamic>? body;
-    if (response.body.isNotEmpty) {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) {
-        body = decoded;
+  /// Type codes for the existing thermal-print endpoint. The other reports
+  /// send one code. Staff and voids try the code on the card first, then the
+  /// names this API uses when that code is rejected.
+  static List<String> _thermalReportTypeAttempts(String type) {
+    return switch (type) {
+      'staff' => const ['staff', 'staff_wise', 'staff_sales'],
+      'voids' => const [
+        'voids',
+        'voids_and_cancellations',
+        'cancellations',
+      ],
+      _ => [type],
+    };
+  }
+
+  static Map<String, dynamic>? _jsonObject(String raw) {
+    if (raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      if (decoded is List) return {'data': decoded};
+    } on FormatException {
+      return null;
+    }
+    return null;
+  }
+
+  /// A staff or voids reply may be a map of commands or a list of rows.
+  /// A list must not be cast to a map — that is the type error on these two.
+  static Map<String, dynamic> _thermalReportDocument(
+    Map<String, dynamic>? body,
+  ) {
+    final payload = body?['data'] ?? body;
+    if (payload is Map) return Map<String, dynamic>.from(payload);
+    if (payload is List) {
+      if (_listIsPrintCommands(payload)) return {'commands': payload};
+      return {'rows': payload};
+    }
+    return const {};
+  }
+
+  static bool _listIsPrintCommands(List<dynamic> rows) {
+    if (rows.isEmpty) return false;
+    const commandTypes = {
+      'init',
+      'text',
+      'row',
+      'divider',
+      'separator',
+      'columns',
+      'cut',
+      'feed',
+      'feedline',
+      'space',
+      'blank',
+    };
+    for (final row in rows) {
+      if (row is! Map) return false;
+      final type = row['type']?.toString().toLowerCase() ?? '';
+      if (!commandTypes.contains(type)) return false;
+    }
+    return true;
+  }
+
+  static String _thermalReportError(Map<String, dynamic>? body, int status) {
+    final fromErrors = _firstText(body?['errors'], preferredKey: 'type');
+    if (fromErrors != null) return fromErrors;
+    final message = body?['message'];
+    if (message is String && message.trim().isNotEmpty) return message.trim();
+    final fromMessage = _firstText(message, preferredKey: 'type');
+    if (fromMessage != null) return fromMessage;
+    return 'Failed to fetch report ($status)';
+  }
+
+  static String? _firstText(Object? value, {String? preferredKey}) {
+    if (value is String) {
+      final text = value.trim();
+      return text.isEmpty ? null : text;
+    }
+    if (value is List) {
+      for (final entry in value) {
+        final text = _firstText(entry);
+        if (text != null) return text;
+      }
+      return null;
+    }
+    if (value is Map) {
+      if (preferredKey != null && value.containsKey(preferredKey)) {
+        final preferred = _firstText(value[preferredKey]);
+        if (preferred != null) return preferred;
+      }
+      for (final entry in value.values) {
+        final text = _firstText(entry);
+        if (text != null) return text;
       }
     }
-
-    if (response.statusCode != 200) {
-      final message =
-          body?['message'] as String? ??
-          'Failed to fetch report (${response.statusCode})';
-      throw StateError(message);
-    }
-
-    final data = body?['data'] as Map<String, dynamic>? ?? body ?? const {};
-    var commands = PrintObjectExecutor.commandsFromPayload(data);
-    if (commands.isEmpty && (type == 'staff' || type == 'voids')) {
-      commands = _slipCommandsForReport(data, type);
-    }
-    if (commands.isEmpty) {
-      throw StateError('Report has no printable content.');
-    }
-
-    final executor = PrintObjectExecutor.fromPayload(data);
-    return executor.buildBytes(commands);
+    return null;
   }
 
   static Future<List<int>> _buildReceiptBytesFromServer({

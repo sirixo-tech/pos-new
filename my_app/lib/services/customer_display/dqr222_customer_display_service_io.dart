@@ -775,6 +775,9 @@ Future<void> showDqr222PaymentSuccess({
 }) async {
   if (!_dqr222PlatformSupported) return;
   _activePaymentOrderNumber = null;
+  // The paid bill must not be written again when the success screen ends.
+  _cartCommand = null;
+  _cancelledCartCommand = null;
   final generation = ++_displayGeneration;
   _paymentScreenActive = true;
   _readyScreenKey = null;
@@ -802,10 +805,20 @@ Future<void> showDqr222PaymentSuccess({
       'stoprotation',
     ], generation: generation);
     if (generation != _displayGeneration) return;
-    unawaited(_returnHomeAfterResult(port, generation, duration: const Duration(seconds: 4)));
+    unawaited(_returnHomeAfterResult(
+      port,
+      generation,
+      duration: Duration.zero,
+      clearCart: true,
+    ));
   } on Object catch (error) {
     if (generation == _displayGeneration) {
-      unawaited(_returnHomeAfterResult(port, generation, duration: const Duration(seconds: 4)));
+      unawaited(_returnHomeAfterResult(
+        port,
+        generation,
+        duration: Duration.zero,
+        clearCart: true,
+      ));
     }
     developer.log('Success screen/audio failed: $error', name: 'SELFX.DQR222');
   }
@@ -840,9 +853,16 @@ Future<void> _returnHomeAfterResult(
   String port,
   int generation, {
   Duration duration = _dqr222ResultDuration,
+  bool clearCart = false,
 }) async {
-  await Future<void>.delayed(duration);
+  if (duration > Duration.zero) {
+    await Future<void>.delayed(duration);
+  }
   if (generation != _displayGeneration) return;
+  if (clearCart) {
+    _cartCommand = null;
+    _cancelledCartCommand = null;
+  }
   _paymentScreenActive = false;
   try {
     await _writeReady(port, generation);
@@ -1502,6 +1522,14 @@ Future<void> _queueCommandWrite(
   final queuedAt = Stopwatch()..start();
   final operation = (_dqr222WriteQueue ?? Future<void>.value()).then((_) async {
     if (generation != null && generation != _displayGeneration) return;
+    if (_paymentScreenActive &&
+        commands.any(
+          (command) =>
+              command.startsWith('billjson**') ||
+              command.startsWith('__cartjpeg**'),
+        )) {
+      return;
+    }
     if (_mediaRestoreSuppressed && commands.contains('startrotation')) return;
     debugPrint('[DQR222][TIMING] queueWaitMs=${queuedAt.elapsedMilliseconds}');
     await _writeCommands(port, commands);
@@ -1596,6 +1624,7 @@ try {
   $timer = [System.Diagnostics.Stopwatch]::StartNew()
   $qrWriteMs = $null
   $cartImageSent = $false
+  $firmwareWait = $false
   try {
   $serial.DiscardInBuffer()
   # Explicit array cast is required for Windows PowerShell 5.1.
@@ -1633,23 +1662,26 @@ try {
       # a little margin without holding a payment request behind a long idle
       # screen write.
       Start-Sleep -Milliseconds 1500
+      $firmwareWait = $true
     } elseif ([string]$command -match '^Display.*Screen\*\*') {
       # Screen rendering/audio is synchronous on firmware 1.0. Commands sent
       # during this window are silently dropped, including stoprotation.
       # 1200 ms is enough for the device to render the QR and play the beep;
       # the previous 3000 ms caused the visible ~3-second delay on screen.
       Start-Sleep -Milliseconds 1200
+      $firmwareWait = $true
     } elseif ([string]$command -match '^(delete|billjson)\*\*') {
       Start-Sleep -Milliseconds 1200
+      $firmwareWait = $true
     } else {
       Start-Sleep -Milliseconds 200
     }
   }
   $serial.BaseStream.Flush()
-  # Screen commands already receive their render wait above. This short tail
-  # only collects the final acknowledgement and avoids an extra three-second
-  # block before the next serial update.
-  if (-not $cartImageSent) { Start-Sleep -Milliseconds 500 }
+  # A screen or bill command already waited for the firmware to finish
+  # drawing. The 500 ms tail is only for short commands that still need an
+  # acknowledgement before the next update.
+  if (-not $cartImageSent -and -not $firmwareWait) { Start-Sleep -Milliseconds 500 }
   $response = ''
   if ($serial.BytesToRead -gt 0) { $response = $serial.ReadExisting() }
   [Console]::Out.WriteLine((@{id=$request.id; response=$response; qrWriteMs=$qrWriteMs; elapsedMs=$timer.ElapsedMilliseconds} | ConvertTo-Json -Compress))

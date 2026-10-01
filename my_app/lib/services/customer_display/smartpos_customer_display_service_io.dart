@@ -102,7 +102,7 @@ Future<String?> showSmartPosUpiQr({
         'dqr222Known=$dqr222Known dq11Known=$dq11Known',
       );
       if (Platform.isWindows) return usbMode;
-    } else {
+    } else if (Platform.isWindows) {
       // No display was previously seen — await the full write so we can detect
       // a newly connected device that appeared after the last status poll.
       final results = await writeFuture;
@@ -110,7 +110,14 @@ Future<String?> showSmartPosUpiQr({
         ..clear()
         ..addAll([if (results[0]) 'dq11', if (results[1]) 'dqr222']);
       final usbMode = _displayMode(_activeWindowsUsbDisplays);
-      if (Platform.isWindows) return usbMode;
+      return usbMode;
+    } else {
+      // Android built-in screens must not wait for a DQR port search.
+      unawaited(writeFuture.then((results) {
+        _activeWindowsUsbDisplays
+          ..clear()
+          ..addAll([if (results[0]) 'dq11', if (results[1]) 'dqr222']);
+      }));
     }
   }
   if (!Platform.isAndroid) {

@@ -1,6 +1,8 @@
+-keep class com.imin.** { *; }
 -keep class com.zcs.** { *; }
 -keep class com.smartpos.** { *; }
 -keep class com.google.zxing.** { *; }
+-dontwarn com.imin.**
 -dontwarn com.zcs.**
 -dontwarn com.smartpos.**
 -dontwarn com.google.zxing.**

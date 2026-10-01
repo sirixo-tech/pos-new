@@ -101,6 +101,7 @@ private fun handleUsbCustomerDisplayCall(
                     // Discard previous batch diagnostics on the warm session.
                     readDqr222Serial(port, 20) { false }
                     var cartImageSent = false
+                    var firmwareWait = false
                     val readBuffer = ByteArray(4096)
                     commands.forEach { command ->
                         if (command.startsWith("__cartjpeg**")) {
@@ -122,8 +123,14 @@ private fun handleUsbCustomerDisplayCall(
                         port.write((command + "\n").toByteArray(Charsets.UTF_8), USB_WRITE_TIMEOUT_MS)
                         when {
                             command == "play**welcome.mp3" -> Thread.sleep(1800)
-                            command.startsWith("WelcomeScreen**") -> Thread.sleep(1800)
-                            command.matches(Regex("^Display.*Screen\\*\\*.*")) -> Thread.sleep(1200)
+                            command.startsWith("WelcomeScreen**") -> {
+                                Thread.sleep(1800)
+                                firmwareWait = true
+                            }
+                            command.matches(Regex("^Display.*Screen\\*\\*.*")) -> {
+                                Thread.sleep(1200)
+                                firmwareWait = true
+                            }
                             else -> Thread.sleep(200)
                         }
                         try {
@@ -135,7 +142,7 @@ private fun handleUsbCustomerDisplayCall(
                             // still means the display accepted the frame.
                         }
                     }
-                    if (!cartImageSent) try {
+                    if (!cartImageSent && !firmwareWait) try {
                         val count = port.read(readBuffer, 500)
                         if (count > 0) response.write(readBuffer, 0, count)
                     } catch (_: Throwable) {

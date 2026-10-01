@@ -2,8 +2,12 @@ package com.example.my_app
 
 import android.app.Presentation
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.hardware.display.DisplayManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.util.Log
@@ -16,6 +20,7 @@ import android.widget.TextView
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
+import com.imin.image.ILcdManager
 import com.zcs.base.SmartPosJni
 import com.zcs.sdk.DriverManager
 import com.zcs.sdk.SdkResult
@@ -58,6 +63,7 @@ class SmartPosCustomerDisplayHandler(
             "getCustomerDisplayStatus" -> {
                 val mode = when {
                     findCustomerDisplay() != null -> "secondary_display"
+                    isIminDevice() -> "imin_lcd"
                     else -> "none"
                 }
                 result.success(mode)
@@ -103,6 +109,18 @@ class SmartPosCustomerDisplayHandler(
         }
         Thread {
             try {
+                if (isIminDevice()) {
+                    showIminUpiQr(
+                        qr,
+                        orderNumber,
+                        amount,
+                        payeeName,
+                        upiId,
+                        timeoutSeconds,
+                        result,
+                    )
+                    return@Thread
+                }
                 if (findCustomerDisplay() != null) {
                     val qrBitmap = createQrBitmap(qr, 520)
                     mainHandler.post {
@@ -162,7 +180,9 @@ class SmartPosCustomerDisplayHandler(
             customerPresentation = null
             Thread {
                 try {
-                    if (ensureSdkReady() == SdkResult.SDK_OK) {
+                    if (isIminDevice()) {
+                        tryShowOnIminLcd(createIminBlankBitmap())
+                    } else if (ensureSdkReady() == SdkResult.SDK_OK) {
                         driverManager.getBaseSysDevice().showLcdMainScreen()
                     }
                 } catch (_: Throwable) {
@@ -205,6 +225,133 @@ class SmartPosCustomerDisplayHandler(
             )
         }
         return status
+    }
+
+    private fun showIminUpiQr(
+        qr: String,
+        orderNumber: String?,
+        amount: Double?,
+        payeeName: String?,
+        upiId: String?,
+        timeoutSeconds: Int?,
+        result: MethodChannel.Result,
+    ) {
+        val qrBitmap = createQrBitmap(qr, 520)
+        val iminBitmap = createIminCustomerDisplayBitmap(
+            qr,
+            orderNumber,
+            amount,
+            payeeName,
+            timeoutSeconds,
+        )
+        mainHandler.post {
+            if (showOnSecondaryDisplay(
+                    qrBitmap,
+                    orderNumber,
+                    amount,
+                    payeeName,
+                    upiId,
+                    timeoutSeconds,
+                )
+            ) {
+                result.success("secondary_display")
+                return@post
+            }
+            Thread {
+                if (tryShowOnIminLcd(iminBitmap)) {
+                    finishSuccess(result, "imin_lcd")
+                } else {
+                    finishError(
+                        result,
+                        "IMIN_DISPLAY_FAILED",
+                        "iMin customer display is unavailable.",
+                    )
+                }
+            }.start()
+        }
+    }
+
+    private fun isIminDevice(): Boolean {
+        val identity = listOf(
+            Build.MANUFACTURER,
+            Build.BRAND,
+            Build.MODEL,
+            Build.DEVICE,
+            Build.PRODUCT,
+        ).joinToString(" ").lowercase(Locale.US)
+        val hasIminService = try {
+            activity.getSystemService("iminservice") != null
+        } catch (_: Throwable) {
+            false
+        }
+        return identity.contains("imin") || hasIminService
+    }
+
+    private fun tryShowOnIminLcd(bitmap: Bitmap): Boolean {
+        if (!isIminDevice()) return false
+        return try {
+            val lcdManager = ILcdManager.getInstance(activity)
+            lcdManager.sendLCDCommand(1)
+            lcdManager.sendLCDCommand(2)
+            lcdManager.sendLCDCommand(4)
+            lcdManager.sendLCDBitmap(bitmap)
+            true
+        } catch (error: Throwable) {
+            Log.e(logTag, "iMin ScreenSDK display failed", error)
+            false
+        }
+    }
+
+    private fun createIminCustomerDisplayBitmap(
+        qr: String,
+        orderNumber: String?,
+        amount: Double?,
+        payeeName: String?,
+        timeoutSeconds: Int?,
+    ): Bitmap {
+        val width = 240
+        val height = 320
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        paint.textSize = 18f
+        canvas.drawText("SCAN UPI QR", width / 2f, 22f, paint)
+        amount?.let {
+            paint.textSize = 24f
+            canvas.drawText(
+                "Rs ${String.format(Locale.US, "%.2f", it)}",
+                width / 2f,
+                49f,
+                paint,
+            )
+        }
+        val qrSize = 190
+        val qrBitmap = createQrBitmap(qr, qrSize)
+        canvas.drawBitmap(qrBitmap, ((width - qrSize) / 2).toFloat(), 57f, null)
+        paint.textSize = 14f
+        payeeName?.takeIf { it.isNotEmpty() }?.let {
+            canvas.drawText(it.take(28), width / 2f, 269f, paint)
+        }
+        paint.typeface = Typeface.DEFAULT
+        paint.textSize = 12f
+        orderNumber?.takeIf { it.isNotEmpty() }?.let {
+            canvas.drawText("Order ${it.take(24)}", width / 2f, 293f, paint)
+        }
+        timeoutSeconds?.takeIf { it > 0 }?.let {
+            canvas.drawText("Valid for ${it}s", width / 2f, 312f, paint)
+        }
+        return bitmap
+    }
+
+    private fun createIminBlankBitmap(): Bitmap {
+        val bitmap = Bitmap.createBitmap(240, 320, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.WHITE)
+        return bitmap
     }
 
     private fun showOnSecondaryDisplay(
