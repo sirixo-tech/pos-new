@@ -77,8 +77,14 @@ class ThermalTextEncoder {
     return RegExp(r'\bRs\.?\s?', caseSensitive: false).hasMatch(value);
   }
 
-  static List<int> encodeText(String value) {
-    final normalized = _normalize(value);
+  static List<int> encodeText(
+    String value, {
+    bool enableCurrencyGlyphs = true,
+  }) {
+    final normalized = normalizeText(
+      value,
+      enableCurrencyGlyphs: enableCurrencyGlyphs,
+    );
     final bytes = <int>[];
     for (final rune in normalized.runes) {
       if (rune == _rupeeRune) {
@@ -92,13 +98,21 @@ class ThermalTextEncoder {
     return bytes;
   }
 
-  static String _normalize(String value) {
+  /// Normalize before wrapping so the ASCII currency fallback counts toward
+  /// the paper's available columns, including right-aligned amounts.
+  static String normalizeText(
+    String value, {
+    bool enableCurrencyGlyphs = true,
+  }) {
+    final rupee = enableCurrencyGlyphs
+        ? String.fromCharCode(rupeeCharCode)
+        : 'Rs ';
     return value
         .replaceAllMapped(
           RegExp(r'\bRs\.?\s?', caseSensitive: false),
-          (_) => String.fromCharCode(rupeeCharCode),
+          (_) => rupee,
         )
-        .replaceAll('₹', String.fromCharCode(rupeeCharCode))
+        .replaceAll('₹', rupee)
         .replaceAll('€', 'EUR ')
         .replaceAll('£', 'GBP ')
         .replaceAll('¥', 'JPY ')

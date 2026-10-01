@@ -1,23 +1,25 @@
 /// Line widths and ESC/POS sizing for thermal receipt printers.
 class ReceiptTypography {
-  ReceiptTypography({
-    required this.receiptWidth,
-    required this.fontSize,
-  });
+  ReceiptTypography({required this.receiptWidth, required this.fontSize});
 
   final String receiptWidth;
   final String fontSize;
 
   static String normalizeReceiptWidth(String? width) {
-    switch (width) {
+    switch ((width ?? '').trim().toLowerCase().replaceAll(' ', '')) {
+      case '56':
+      case '58':
       case '56mm':
       case '58mm':
         return '56mm';
+      case '72':
       case '72mm':
         return '72mm';
+      case '112':
       case '112mm':
       case 'full':
         return '112mm';
+      case '80':
       case '80mm':
         return '80mm';
       default:
@@ -82,7 +84,7 @@ class ReceiptTypography {
   int get paperWidthDots {
     switch (_paper) {
       case '56mm':
-        return 403;
+        return 384;
       case '72mm':
         return 512;
       case '112mm':
@@ -118,7 +120,7 @@ class ReceiptTypography {
 
   static int logoMaxWidthDotsFor(String paper, String logoSize) {
     final base = switch (normalizeReceiptWidth(paper)) {
-      '56mm' => 403,
+      '56mm' => 384,
       '72mm' => 512,
       '112mm' => 806,
       _ => 576,
@@ -139,12 +141,11 @@ class ReceiptTypography {
   int logoMaxWidthDotsForToken({
     required String receiptLogoSize,
     String? tokenLogoSize,
-  }) =>
-      logoMaxWidthDotsFor(
-        _paper,
-        effectiveLogoSize(
-          receiptLogoSize: receiptLogoSize,
-          tokenLogoSize: tokenLogoSize,
-        ),
-      );
+  }) => logoMaxWidthDotsFor(
+    _paper,
+    effectiveLogoSize(
+      receiptLogoSize: receiptLogoSize,
+      tokenLogoSize: tokenLogoSize,
+    ),
+  );
 }

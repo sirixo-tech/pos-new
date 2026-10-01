@@ -55,7 +55,7 @@ class ReceiptTemplateRenderer {
   }) async {
     final esc = EscPosBuilder(
       typography: _typography,
-      enableCurrencyGlyphs: settings.showCurrencySymbol,
+      enableCurrencyGlyphs: settings.showCurrencySymbol ? null : false,
     );
     esc.initialize();
 

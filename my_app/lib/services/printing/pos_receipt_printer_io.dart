@@ -87,8 +87,9 @@ class PosReceiptPrinter {
 
   static Future<List<UsbPrinterDevice>> _listViaThermalPluginChannel() async {
     try {
-      final result =
-          await _thermalChannel.invokeMethod<List<dynamic>>('getUsbDevicesList');
+      final result = await _thermalChannel.invokeMethod<List<dynamic>>(
+        'getUsbDevicesList',
+      );
       if (result == null) {
         return [];
       }
@@ -128,8 +129,9 @@ class PosReceiptPrinter {
   static Future<void> ensureBluetoothPermissions() async {
     if (kIsWeb || !Platform.isAndroid) return;
     try {
-      final granted =
-          await _bluetoothChannel.invokeMethod<bool>('ensurePermissions');
+      final granted = await _bluetoothChannel.invokeMethod<bool>(
+        'ensurePermissions',
+      );
       if (granted == true) return;
     } on MissingPluginException {
       return;
@@ -146,7 +148,9 @@ class PosReceiptPrinter {
   static const _usbDevicesEvents = EventChannel('pos_main/usb_devices_events');
 
   /// Android plug and unplug. Null off Android. Does not open the printer.
-  static StreamSubscription<dynamic>? watchUsbHardware(void Function() onChange) {
+  static StreamSubscription<dynamic>? watchUsbHardware(
+    void Function() onChange,
+  ) {
     if (!Platform.isAndroid) return null;
     return _usbDevicesEvents.receiveBroadcastStream().listen(
       (_) => onChange(),
@@ -186,8 +190,9 @@ class PosReceiptPrinter {
         return true;
       }
       final productName = '${device['productName'] ?? ''}'.trim().toLowerCase();
-      final manufacturer =
-          '${device['manufacturerName'] ?? ''}'.trim().toLowerCase();
+      final manufacturer = '${device['manufacturerName'] ?? ''}'
+          .trim()
+          .toLowerCase();
       if (name.isNotEmpty &&
           (name == productName ||
               name == '$manufacturer $productName'.trim())) {
@@ -226,8 +231,9 @@ class PosReceiptPrinter {
     return UsbPrinterDevice(
       name: printer.name ?? 'Receipt printer',
       address: _printerAddress(printer),
-      connection:
-          isBle ? PosPrinterConnection.bluetooth : PosPrinterConnection.usb,
+      connection: isBle
+          ? PosPrinterConnection.bluetooth
+          : PosPrinterConnection.usb,
       printable: true,
       source: isBle ? 'bluetooth' : 'usb',
       // Android USB reports isConnected false until the port is opened.
@@ -273,11 +279,7 @@ class PosReceiptPrinter {
     }
 
     if (config.connection == PosPrinterConnection.bluetooth) {
-      return _probeBluetooth(
-        config,
-        checkedAt,
-        allowScan: allowBluetoothScan,
-      );
+      return _probeBluetooth(config, checkedAt, allowScan: allowBluetoothScan);
     }
 
     if (Platform.isAndroid && config.connection == PosPrinterConnection.usb) {
@@ -368,8 +370,9 @@ class PosReceiptPrinter {
 
     if (Platform.isMacOS &&
         (device.source == 'cups' || config.source == 'cups')) {
-      final queue =
-          device.address.trim().isNotEmpty ? device.address : device.name;
+      final queue = device.address.trim().isNotEmpty
+          ? device.address
+          : device.name;
       final status = await MacosUsbDiscovery.getPrinterStatus(queue);
       if (status != null) {
         final found = status['found'] == true;
@@ -378,7 +381,8 @@ class PosReceiptPrinter {
             state: PrinterHealthState.missing,
             config: config,
             device: device,
-            message: status['message']?.toString() ??
+            message:
+                status['message']?.toString() ??
                 thermalPrinterConnectError(config.name),
             issues: const ['missing'],
             lastCheckedAt: checkedAt,
@@ -463,33 +467,33 @@ class PosReceiptPrinter {
               .toLowerCase();
       return switch (status) {
         'ready' || 'printing' => PrinterHealth(
-            state: PrinterHealthState.ready,
-            config: config,
-            message: status == 'printing' ? 'Printing' : 'Ready',
-            lastCheckedAt: checkedAt,
-          ),
+          state: PrinterHealthState.ready,
+          config: config,
+          message: status == 'printing' ? 'Printing' : 'Ready',
+          lastCheckedAt: checkedAt,
+        ),
         'paperout' => PrinterHealth(
-            state: PrinterHealthState.attention,
-            config: config,
-            message: 'Printer paper roll is finished.',
-            issues: const ['paper_out'],
-            lastCheckedAt: checkedAt,
-          ),
+          state: PrinterHealthState.attention,
+          config: config,
+          message: 'Printer paper roll is finished.',
+          issues: const ['paper_out'],
+          lastCheckedAt: checkedAt,
+        ),
         'overheated' => PrinterHealth(
-            state: PrinterHealthState.attention,
-            config: config,
-            message: 'Built-in printer is overheated. Allow it to cool.',
-            issues: const ['offline'],
-            lastCheckedAt: checkedAt,
-          ),
+          state: PrinterHealthState.attention,
+          config: config,
+          message: 'Built-in printer is overheated. Allow it to cool.',
+          issues: const ['offline'],
+          lastCheckedAt: checkedAt,
+        ),
         _ => PrinterHealth(
-            state: PrinterHealthState.missing,
-            config: config,
-            message:
-                'Built-in printer is not ready. Open Printer setup → Built-in, then Test print.',
-            issues: const ['offline', 'missing'],
-            lastCheckedAt: checkedAt,
-          ),
+          state: PrinterHealthState.missing,
+          config: config,
+          message:
+              'Built-in printer is not ready. Open Printer setup → Built-in, then Test print.',
+          issues: const ['offline', 'missing'],
+          lastCheckedAt: checkedAt,
+        ),
       };
     } catch (e) {
       return PrinterHealth(
@@ -587,7 +591,8 @@ class PosReceiptPrinter {
     }
 
     // LAN: still attempt a test send even if the soft TCP probe failed.
-    final networkReady = config.connection == PosPrinterConnection.network &&
+    final networkReady =
+        config.connection == PosPrinterConnection.network &&
         (config.host ?? '').trim().isNotEmpty;
     if (!health.canTestPrint && !networkReady) {
       return health;
@@ -634,7 +639,8 @@ class PosReceiptPrinter {
                 ? PrinterHealthState.error
                 : after.state,
             issues: after.issues.isNotEmpty ? after.issues : issues,
-            message: after.message ??
+            message:
+                after.message ??
                 PrinterHealth.messageForIssues(issues, fallback: raw),
             jobSubmitted: false,
             lastCheckedAt: DateTime.now(),
@@ -898,8 +904,9 @@ class PosReceiptPrinter {
       final mods = line['modifiers'];
       if (mods is List) {
         for (final mod in mods.whereType<Map>()) {
-          final modName =
-              (mod['name'] ?? mod['option_name'])?.toString().trim();
+          final modName = (mod['name'] ?? mod['option_name'])
+              ?.toString()
+              .trim();
           if (modName != null && modName.isNotEmpty) {
             builder.text('   + $modName');
           }
@@ -985,11 +992,7 @@ class PosReceiptPrinter {
   }
 
   static Map<String, dynamic> _printPayloadFrom(Map<String, dynamic> data) {
-    final printObject = data['print_object'] ?? data['printObject'];
-    if (printObject is Map) {
-      return Map<String, dynamic>.from(printObject);
-    }
-    return Map<String, dynamic>.from(data);
+    return PrintObjectExecutor.payloadFrom(data);
   }
 
   static Future<void> _dispatchPrintBytes({
@@ -1101,11 +1104,13 @@ class PosReceiptPrinter {
       throw StateError(thermalPrinterConnectError(config.name));
     }
 
-    final source =
-        device.source == 'cups' || config.source == 'cups' ? 'cups' : device.source;
+    final source = device.source == 'cups' || config.source == 'cups'
+        ? 'cups'
+        : device.source;
     if (device.printable && source == 'cups') {
-      final queueName =
-          device.address.trim().isNotEmpty ? device.address : device.name;
+      final queueName = device.address.trim().isNotEmpty
+          ? device.address
+          : device.name;
       await MacosUsbDiscovery.printRawBytes(queueName: queueName, bytes: bytes);
       return;
     }
@@ -1297,8 +1302,7 @@ class PosReceiptPrinter {
 
     final connected = await _thermal.connect(
       printer,
-      connectionStabilizationDelay:
-          isBle ? const Duration(seconds: 12) : null,
+      connectionStabilizationDelay: isBle ? const Duration(seconds: 12) : null,
     );
 
     if (connected || await manager.isConnected(printer)) {
@@ -1307,9 +1311,7 @@ class PosReceiptPrinter {
       return;
     }
 
-    final pollSeconds = isBle
-        ? 15
-        : (Platform.isAndroid ? 20 : 0);
+    final pollSeconds = isBle ? 15 : (Platform.isAndroid ? 20 : 0);
     if (pollSeconds > 0) {
       final deadline = DateTime.now().add(Duration(seconds: pollSeconds));
       while (DateTime.now().isBefore(deadline)) {
@@ -1335,7 +1337,9 @@ class PosReceiptPrinter {
     required String serverUrl,
     required int orderId,
   }) async {
-    final uri = Uri.parse('$serverUrl/api/v1/pos/orders/$orderId/payment/qr/print');
+    final uri = Uri.parse(
+      '$serverUrl/api/v1/pos/orders/$orderId/payment/qr/print',
+    );
     final response = await http.get(
       uri,
       headers: {
@@ -1347,7 +1351,9 @@ class PosReceiptPrinter {
     );
 
     if (response.statusCode != 200) {
-      throw StateError('Failed to fetch payment QR slip (${response.statusCode})');
+      throw StateError(
+        'Failed to fetch payment QR slip (${response.statusCode})',
+      );
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1355,7 +1361,9 @@ class PosReceiptPrinter {
     final printObject = data;
 
     final executor = PrintObjectExecutor.fromPayload(printObject);
-    return executor.buildBytes(PrintObjectExecutor.commandsFromPayload(printObject));
+    return executor.buildBytes(
+      PrintObjectExecutor.commandsFromPayload(printObject),
+    );
   }
 
   static Future<List<int>> _buildThermalReportBytesFromServer({
@@ -1381,8 +1389,9 @@ class PosReceiptPrinter {
       params['include_cancelled'] = '1';
     }
 
-    final uri = Uri.parse('$serverUrl/api/v1/pos/reports/thermal-print')
-        .replace(queryParameters: params);
+    final uri = Uri.parse(
+      '$serverUrl/api/v1/pos/reports/thermal-print',
+    ).replace(queryParameters: params);
     final response = await http.get(
       uri,
       headers: {
@@ -1402,7 +1411,8 @@ class PosReceiptPrinter {
     }
 
     if (response.statusCode != 200) {
-      final message = body?['message'] as String? ??
+      final message =
+          body?['message'] as String? ??
           'Failed to fetch report (${response.statusCode})';
       throw StateError(message);
     }
@@ -1537,10 +1547,7 @@ class PosReceiptPrinter {
     required PosBootstrap bootstrap,
     required PendingOrder order,
   }) async {
-    return OfflineReceiptBuilder.buildBytes(
-      bootstrap: bootstrap,
-      order: order,
-    );
+    return OfflineReceiptBuilder.buildBytes(bootstrap: bootstrap, order: order);
   }
 
   static Future<List<Printer>> _fetchPrinters(
@@ -1554,7 +1561,9 @@ class PosReceiptPrinter {
     var latest = <Printer>[];
 
     subscription = _thermal.devicesStream.listen((devices) {
-      latest = devices.where((device) => device.connectionType == type).toList();
+      latest = devices
+          .where((device) => device.connectionType == type)
+          .toList();
       if (completer.isCompleted) return;
 
       if (type == ConnectionType.USB && latest.isNotEmpty) {
@@ -1598,10 +1607,7 @@ class PosReceiptPrinter {
         return List<Printer>.from(latest);
       }
 
-      return await completer.future.timeout(
-        timeout,
-        onTimeout: () => latest,
-      );
+      return await completer.future.timeout(timeout, onTimeout: () => latest);
     } finally {
       await subscription.cancel();
       if (type == ConnectionType.BLE) {
@@ -1619,11 +1625,13 @@ class PosReceiptPrinter {
       switch (config.connection) {
         case PosPrinterConnection.smartpos:
           if (!Platform.isAndroid) return PrinterPaperSensor.unknown;
-          final status = (await _smartPosChannel
-                      .invokeMethod<String>('getPrinterStatus') ??
-                  '')
-              .trim()
-              .toLowerCase();
+          final status =
+              (await _smartPosChannel.invokeMethod<String>(
+                        'getPrinterStatus',
+                      ) ??
+                      '')
+                  .trim()
+                  .toLowerCase();
           return switch (status) {
             'ready' || 'printing' => PrinterPaperSensor.present,
             'paperout' => PrinterPaperSensor.empty,
@@ -1645,16 +1653,22 @@ class PosReceiptPrinter {
   }
 
   /// USB printer-class paper-empty bit. Unknown replies do not mean empty.
-  static Future<PrinterPaperSensor> _androidUsbPaperSensor(String address) async {
+  static Future<PrinterPaperSensor> _androidUsbPaperSensor(
+    String address,
+  ) async {
     final parts = address.split(':');
-    if (parts.length != 2 || parts[0].trim().isEmpty || parts[1].trim().isEmpty) {
+    if (parts.length != 2 ||
+        parts[0].trim().isEmpty ||
+        parts[1].trim().isEmpty) {
       return PrinterPaperSensor.unknown;
     }
     try {
-      final status = await _smartPosChannel.invokeMethod<int>(
-        'getUsbPaperStatus',
-        {'vendorId': parts[0].trim(), 'productId': parts[1].trim()},
-      ).timeout(const Duration(seconds: 2));
+      final status = await _smartPosChannel
+          .invokeMethod<int>('getUsbPaperStatus', {
+            'vendorId': parts[0].trim(),
+            'productId': parts[1].trim(),
+          })
+          .timeout(const Duration(seconds: 2));
       if (status == null) return PrinterPaperSensor.unknown;
       return decodeUsbPortPaperSensor(status);
     } on Object {
@@ -1777,9 +1791,7 @@ class PosReceiptPrinter {
 
     if (saved.contains(':')) {
       final parts = saved.split(':');
-      if (parts.length == 2 &&
-          parts[0] == vendorId &&
-          parts[1] == productId) {
+      if (parts.length == 2 && parts[0] == vendorId && parts[1] == productId) {
         return true;
       }
     }

@@ -35,7 +35,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Windows release build failed' }
     }
     $releaseDir = Join-Path $appRoot 'build\windows\x64\runner\Release'
-    foreach ($required in @('selfx_pos.exe', 'flutter_windows.dll', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'data\icudtl.dat', 'data\app.so', 'data\flutter_assets')) {
+    foreach ($required in @('selfx_pos.exe', 'flutter_windows.dll', 'sqlite3.dll', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'data\icudtl.dat', 'data\app.so', 'data\flutter_assets')) {
         if (-not (Test-Path -LiteralPath (Join-Path $releaseDir $required))) {
             throw "Release bundle is incomplete: $required. Run without -SkipBuild."
         }

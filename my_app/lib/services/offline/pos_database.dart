@@ -2,29 +2,45 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
+
+import 'pos_database_platform.dart';
 
 class PosDatabase {
   PosDatabase._();
 
   static final PosDatabase instance = PosDatabase._();
   static Database? _database;
+  static Future<Database>? _opening;
 
   Future<Database> get database async {
-    _database ??= await _initDatabase();
-    return _database!;
+    if (_database != null) return _database!;
+    final opening = _opening ??= _initDatabase();
+    try {
+      return _database = await opening;
+    } finally {
+      if (identical(_opening, opening)) _opening = null;
+    }
   }
 
   Future<Database> _initDatabase() async {
-    final dbPath = await getDatabasesPath();
+    final factory = posDatabaseFactory;
+    // FFI's default directory can be relative to the launcher working folder.
+    // Keep installed desktop data in the user's persistent application folder.
+    final dbPath = usesDesktopDatabase
+        ? join((await getApplicationSupportDirectory()).path, 'databases')
+        : await factory.getDatabasesPath();
     final path = join(dbPath, 'serveai_pos.db');
 
-    return openDatabase(
+    return factory.openDatabase(
       path,
-      version: 3,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
+      options: OpenDatabaseOptions(
+        version: 3,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+      ),
     );
   }
 
@@ -187,17 +203,13 @@ class BootstrapCache {
 
     try {
       final db = await PosDatabase.instance.database;
-      await db.insert(
-        'bootstrap_cache',
-        {
-          'branch_id': branchId,
-          'data': jsonEncode(data),
-          'menu_revision': menuRevision,
-          'bootstrap_revision': bootstrapRevision,
-          'cached_at': DateTime.now().millisecondsSinceEpoch,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await db.insert('bootstrap_cache', {
+        'branch_id': branchId,
+        'data': jsonEncode(data),
+        'menu_revision': menuRevision,
+        'bootstrap_revision': bootstrapRevision,
+        'cached_at': DateTime.now().millisecondsSinceEpoch,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     } catch (e) {
       debugPrint('BootstrapCache save failed: $e');
     }
@@ -302,10 +314,7 @@ class ReceiptSettingsCache {
     if (kIsWeb) {
       try {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          '$_webPrefix$branchId',
-          jsonEncode(data),
-        );
+        await prefs.setString('$_webPrefix$branchId', jsonEncode(data));
       } catch (e) {
         debugPrint('ReceiptSettingsCache web save failed: $e');
       }
@@ -314,15 +323,11 @@ class ReceiptSettingsCache {
 
     try {
       final db = await PosDatabase.instance.database;
-      await db.insert(
-        'receipt_settings_cache',
-        {
-          'branch_id': branchId,
-          'data': jsonEncode(data),
-          'cached_at': DateTime.now().millisecondsSinceEpoch,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await db.insert('receipt_settings_cache', {
+        'branch_id': branchId,
+        'data': jsonEncode(data),
+        'cached_at': DateTime.now().millisecondsSinceEpoch,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     } catch (e) {
       debugPrint('ReceiptSettingsCache save failed: $e');
     }
@@ -351,7 +356,8 @@ class ReceiptSettingsCache {
       );
 
       if (results.isEmpty) return null;
-      return jsonDecode(results.first['data'] as String) as Map<String, dynamic>;
+      return jsonDecode(results.first['data'] as String)
+          as Map<String, dynamic>;
     } catch (e) {
       debugPrint('ReceiptSettingsCache load failed: $e');
       return null;

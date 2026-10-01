@@ -79,10 +79,7 @@ class OfflinePrintTaxLine {
 }
 
 class OfflinePrintExtraCharge {
-  const OfflinePrintExtraCharge({
-    required this.label,
-    required this.amount,
-  });
+  const OfflinePrintExtraCharge({required this.label, required this.amount});
 
   final String label;
   final double amount;
@@ -213,23 +210,23 @@ class PosTokenSettings {
   }
 
   Map<String, dynamic> toJson() => {
-        'enabled': enabled,
-        'print_with_receipt': printWithReceipt,
-        'channels': channels,
-        'grouping_mode': groupingMode,
-        'per_quantity': perQuantity,
-        'cut_after_each': cutAfterEach,
-        'cut_mode': cutMode,
-        'show_datetime': showDatetime,
-        'show_item_modifiers': showItemModifiers,
-        'show_item_index': showItemIndex,
-        'show_counter_name': showCounterName,
-        if (fontSize != null) 'font_size': fontSize,
-        if (logoSize != null) 'logo_size': logoSize,
-        'header_line': headerLine,
-        'footer_line': footerLine,
-        'template': template.toJson(),
-      };
+    'enabled': enabled,
+    'print_with_receipt': printWithReceipt,
+    'channels': channels,
+    'grouping_mode': groupingMode,
+    'per_quantity': perQuantity,
+    'cut_after_each': cutAfterEach,
+    'cut_mode': cutMode,
+    'show_datetime': showDatetime,
+    'show_item_modifiers': showItemModifiers,
+    'show_item_index': showItemIndex,
+    'show_counter_name': showCounterName,
+    if (fontSize != null) 'font_size': fontSize,
+    if (logoSize != null) 'logo_size': logoSize,
+    'header_line': headerLine,
+    'footer_line': footerLine,
+    'template': template.toJson(),
+  };
 }
 
 List<String> _normalizeChannels(
@@ -293,9 +290,9 @@ class PosReceiptSettings {
     List<String>? channels,
     ReceiptTemplate? template,
     PosTokenSettings? token,
-  })  : channels = channels ?? const ['kiosk', 'pos', 'online'],
-        template = template ?? ReceiptTemplate.fromJson(null),
-        token = token ?? PosTokenSettings.fromJson(null);
+  }) : channels = channels ?? const ['kiosk', 'pos', 'online'],
+       template = template ?? ReceiptTemplate.fromJson(null),
+       token = token ?? PosTokenSettings.fromJson(null);
 
   static const List<String> defaultChannels = ['kiosk', 'pos', 'online'];
   static const String defaultOrderNumberLabel = 'Bill No: ';
@@ -334,8 +331,9 @@ class PosReceiptSettings {
 
   String get receiptWidth => paper;
   String get headerLine => headerText ?? '';
-  String get footerLine =>
-      (footerText ?? '').trim().isEmpty ? 'Thank you for your order!' : footerText!.trim();
+  String get footerLine => (footerText ?? '').trim().isEmpty
+      ? 'Thank you for your order!'
+      : footerText!.trim();
 
   bool enabledForChannel(String channel) {
     if (!enabled) return false;
@@ -348,7 +346,11 @@ class PosReceiptSettings {
   }
 
   /// Settings override template defaults for bill number / date labels.
-  String resolveFieldLabel({required String? bind, String? format, String? label}) {
+  String resolveFieldLabel({
+    required String? bind,
+    String? format,
+    String? label,
+  }) {
     if (bind == 'order.order_number') {
       return orderNumberLabel;
     }
@@ -375,7 +377,7 @@ class PosReceiptSettings {
 
     return PosReceiptSettings(
       paper: _normalizeReceiptPaper(
-        json['receipt_width'] as String? ?? json['paper'] as String?,
+        json['receipt_width']?.toString() ?? json['paper']?.toString(),
       ),
       fontSize: json['font_size'] as String? ?? 'medium',
       logoUrl: json['logo_url'] as String?,
@@ -393,7 +395,10 @@ class PosReceiptSettings {
         json['order_number_label'] as String?,
         defaultOrderNumberLabel,
       ),
-      dateLabel: _sanitizeLabel(json['date_label'] as String?, defaultDateLabel),
+      dateLabel: _sanitizeLabel(
+        json['date_label'] as String?,
+        defaultDateLabel,
+      ),
       showOrderNotes: json['show_order_notes'] as bool? ?? true,
       showDatetime: json['show_datetime'] as bool? ?? true,
       showTable: json['show_table'] as bool? ?? true,
@@ -406,7 +411,8 @@ class PosReceiptSettings {
       footerText: footer != null && footer.isNotEmpty ? footer : null,
       duplicateCopyLabel: () {
         final label =
-            (json['duplicate_copy_label'] as String? ?? 'Duplicate Copy').trim();
+            (json['duplicate_copy_label'] as String? ?? 'Duplicate Copy')
+                .trim();
         return label.isEmpty ? 'Duplicate Copy' : label;
       }(),
       enabled: json['enabled'] as bool? ?? true,
@@ -414,51 +420,49 @@ class PosReceiptSettings {
       template: ReceiptTemplate.fromJson(
         json['template'] as Map<String, dynamic>?,
       ),
-      token: PosTokenSettings.fromJson(
-        json['token'] as Map<String, dynamic>?,
-      ),
+      token: PosTokenSettings.fromJson(json['token'] as Map<String, dynamic>?),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'receipt_width': paper,
-        'paper': paper,
-        'font_size': fontSize,
-        if (logoUrl != null) 'logo_url': logoUrl,
-        'show_logo': showLogo,
-        'show_restaurant_name': showRestaurantName,
-        'show_tax_id': showTaxId,
-        'show_branch_info': showBranchInfo,
-        'show_branch_address': showBranchAddress,
-        'totals_display': totalsDisplay,
-        'show_tax_breakdown': showTaxBreakdown,
-        'show_subtotal': showSubtotal,
-        'show_tax': showTax,
-        'show_total': showTotal,
-        'order_number_label': orderNumberLabel,
-        'date_label': dateLabel,
-        'show_order_notes': showOrderNotes,
-        'show_datetime': showDatetime,
-        'show_table': showTable,
-        'show_order_type': showOrderType,
-        'show_customer_name': showCustomerName,
-        'logo_size': logoSize,
-        'show_currency_symbol': showCurrencySymbol,
-        'show_powered_by': showPoweredBy,
-        'duplicate_copy_label': duplicateCopyLabel,
-        'enabled': enabled,
-        'channels': channels,
-        if (headerText != null) ...{
-          'header_line': headerText,
-          'header_text': headerText,
-        },
-        if (footerText != null) ...{
-          'footer_line': footerText,
-          'footer_text': footerText,
-        },
-        'template': template.toJson(),
-        'token': token.toJson(),
-      };
+    'receipt_width': paper,
+    'paper': paper,
+    'font_size': fontSize,
+    if (logoUrl != null) 'logo_url': logoUrl,
+    'show_logo': showLogo,
+    'show_restaurant_name': showRestaurantName,
+    'show_tax_id': showTaxId,
+    'show_branch_info': showBranchInfo,
+    'show_branch_address': showBranchAddress,
+    'totals_display': totalsDisplay,
+    'show_tax_breakdown': showTaxBreakdown,
+    'show_subtotal': showSubtotal,
+    'show_tax': showTax,
+    'show_total': showTotal,
+    'order_number_label': orderNumberLabel,
+    'date_label': dateLabel,
+    'show_order_notes': showOrderNotes,
+    'show_datetime': showDatetime,
+    'show_table': showTable,
+    'show_order_type': showOrderType,
+    'show_customer_name': showCustomerName,
+    'logo_size': logoSize,
+    'show_currency_symbol': showCurrencySymbol,
+    'show_powered_by': showPoweredBy,
+    'duplicate_copy_label': duplicateCopyLabel,
+    'enabled': enabled,
+    'channels': channels,
+    if (headerText != null) ...{
+      'header_line': headerText,
+      'header_text': headerText,
+    },
+    if (footerText != null) ...{
+      'footer_line': footerText,
+      'footer_text': footerText,
+    },
+    'template': template.toJson(),
+    'token': token.toJson(),
+  };
 
   static ({
     bool showSubtotal,
@@ -466,8 +470,10 @@ class PosReceiptSettings {
     bool showTotal,
     String totalsDisplay,
     bool showTaxBreakdown,
-  }) _normalizeRowVisibility(Map<String, dynamic> data) {
-    final hasGranular = data.containsKey('show_subtotal') ||
+  })
+  _normalizeRowVisibility(Map<String, dynamic> data) {
+    final hasGranular =
+        data.containsKey('show_subtotal') ||
         data.containsKey('show_tax') ||
         data.containsKey('show_total');
 
@@ -486,8 +492,7 @@ class PosReceiptSettings {
       showTotal = true;
     }
 
-    final totalsDisplay =
-        (showSubtotal || showTax) ? 'detailed' : 'total_only';
+    final totalsDisplay = (showSubtotal || showTax) ? 'detailed' : 'total_only';
 
     return (
       showSubtotal: showSubtotal,
@@ -517,12 +522,16 @@ class PosReceiptSettings {
   }
 
   static String _normalizeReceiptPaper(String? width) {
-    switch (width) {
+    switch ((width ?? '').trim().toLowerCase().replaceAll(' ', '')) {
+      case '56':
+      case '58':
       case '56mm':
       case '58mm':
         return '56mm';
+      case '72':
       case '72mm':
         return '72mm';
+      case '112':
       case '112mm':
       case 'full':
         return '112mm';

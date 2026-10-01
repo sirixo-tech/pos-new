@@ -1,14 +1,17 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'receipt_typography.dart';
 import 'thermal_text_encoder.dart';
 
 /// Minimal ESC/POS byte builder for thermal receipt printers.
 class EscPosBuilder {
-  EscPosBuilder({
-    required this.typography,
-    this.enableCurrencyGlyphs = true,
-  }) : lineWidth = typography.lineWidth;
+  EscPosBuilder({required this.typography, bool? enableCurrencyGlyphs})
+    : enableCurrencyGlyphs =
+          enableCurrencyGlyphs ??
+          defaultTargetPlatform != TargetPlatform.android,
+      lineWidth = typography.lineWidth;
 
   final ReceiptTypography typography;
   final bool enableCurrencyGlyphs;
@@ -19,7 +22,8 @@ class EscPosBuilder {
   int _heightMul = 1;
   bool _emphasis = false;
 
-  int get effectiveLineWidth => (lineWidth / _widthMul).floor().clamp(8, lineWidth);
+  int get effectiveLineWidth =>
+      (lineWidth / _widthMul).floor().clamp(8, lineWidth);
 
   List<int> build() => List<int>.from(_bytes);
 
@@ -122,7 +126,10 @@ class EscPosBuilder {
   }
 
   void text(String value) {
-    final normalized = value.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final normalized = ThermalTextEncoder.normalizeText(
+      value.replaceAll('\r\n', '\n').replaceAll('\r', '\n'),
+      enableCurrencyGlyphs: enableCurrencyGlyphs,
+    );
     final segments = normalized.split('\n');
     final maxChars = effectiveLineWidth;
 
@@ -133,10 +140,12 @@ class EscPosBuilder {
       }
       var remaining = segment;
       while (remaining.isNotEmpty) {
-        final chunk =
-            remaining.length <= maxChars ? remaining : remaining.substring(0, maxChars);
-        remaining =
-            remaining.length <= maxChars ? '' : remaining.substring(maxChars);
+        final chunk = remaining.length <= maxChars
+            ? remaining
+            : remaining.substring(0, maxChars);
+        remaining = remaining.length <= maxChars
+            ? ''
+            : remaining.substring(maxChars);
         _emitTextLine(chunk);
       }
     }
@@ -147,7 +156,12 @@ class EscPosBuilder {
       ensureRupeeGlyph();
       _reapplyActiveFontState();
     }
-    _bytes.addAll(ThermalTextEncoder.encodeText(line));
+    _bytes.addAll(
+      ThermalTextEncoder.encodeText(
+        line,
+        enableCurrencyGlyphs: enableCurrencyGlyphs,
+      ),
+    );
     _bytes.add(0x0A);
   }
 
@@ -163,6 +177,14 @@ class EscPosBuilder {
   }
 
   void row(String left, String right) {
+    left = ThermalTextEncoder.normalizeText(
+      left,
+      enableCurrencyGlyphs: enableCurrencyGlyphs,
+    );
+    right = ThermalTextEncoder.normalizeText(
+      right,
+      enableCurrencyGlyphs: enableCurrencyGlyphs,
+    );
     final preserveBold = _emphasis;
     resetToBaseFont();
     alignLeft();
@@ -275,11 +297,7 @@ class EscPosBuilder {
     raw(drawerCommand(pin: pin, t1: t1, t2: t2));
   }
 
-  static List<int> drawerCommand({
-    int pin = 0,
-    int t1 = 0x3C,
-    int t2 = 0x78,
-  }) {
+  static List<int> drawerCommand({int pin = 0, int t1 = 0x3C, int t2 = 0x78}) {
     return [0x1B, 0x70, pin.clamp(0, 1), t1.clamp(0, 255), t2.clamp(0, 255)];
   }
 
@@ -288,7 +306,8 @@ class EscPosBuilder {
     final h = (heightMul - 1).clamp(0, 7);
     _widthMul = widthMul.clamp(1, 8);
     _heightMul = heightMul.clamp(1, 8);
-    final n = w | (h << 4);
+    // GS !: the high nibble selects width, the low nibble selects height.
+    final n = (w << 4) | h;
     _bytes.addAll([0x1D, 0x21, n]);
   }
 

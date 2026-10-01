@@ -1,7 +1,7 @@
 # SELFX POS
 
 Flutter point-of-sale application. Release versions come from `pubspec.yaml`
-(currently `3.1.12+2005`). The source directory and Dart package remain `my_app`;
+(currently `3.2.0+2008`). The source directory and Dart package remain `my_app`;
 the application name shown to users is **SELFX POS**. Platform bundle IDs are
 preserved for update compatibility.
 
@@ -17,7 +17,7 @@ From this directory, run:
 ```
 
 The script builds the release and creates
-`build/installer/SELFX-POS-3.1.12+2005-windows-setup.exe` plus a SHA-256 file.
+`build/installer/SELFX-POS-3.2.0+2008-windows-setup.exe` plus a SHA-256 file.
 Use `-IsccPath 'C:\path\to\ISCC.exe'` for a custom compiler location. Use
 `-SkipBuild` only with a complete release matching `pubspec.yaml`.
 

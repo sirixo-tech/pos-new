@@ -49,9 +49,9 @@ class TokenTemplateRenderer {
     required this.template,
     required this.item,
   }) : _typography = ReceiptTypography(
-          receiptWidth: receiptSettings.paper,
-          fontSize: tokenSettings.fontSize ?? receiptSettings.fontSize,
-        );
+         receiptWidth: receiptSettings.paper,
+         fontSize: tokenSettings.fontSize ?? receiptSettings.fontSize,
+       );
 
   final PrintVenueContext venue;
   final OfflinePrintOrder order;
@@ -70,10 +70,13 @@ class TokenTemplateRenderer {
     return venue.logoUrl ?? '';
   }
 
-  Future<List<int>> buildBytes({required bool cutAtEnd, String cutMode = 'full'}) async {
+  Future<List<int>> buildBytes({
+    required bool cutAtEnd,
+    String cutMode = 'full',
+  }) async {
     final esc = EscPosBuilder(
       typography: _typography,
-      enableCurrencyGlyphs: receiptSettings.showCurrencySymbol,
+      enableCurrencyGlyphs: receiptSettings.showCurrencySymbol ? null : false,
     );
     esc.initialize();
 
@@ -203,8 +206,8 @@ class TokenTemplateRenderer {
       value = block.format == 'datetime'
           ? formatReceiptDatetimeRaw(raw)
           : block.format == 'order_type'
-              ? formatOrderType(raw)
-              : raw;
+          ? formatOrderType(raw)
+          : raw;
     }
 
     final text = block.format == 'order_type_datetime'
@@ -235,7 +238,11 @@ class TokenTemplateRenderer {
       if (mod.priceAdjustment != 0) {
         esc.row(
           '  + ${mod.optionName}',
-          formatMoneyThermal(mod.priceAdjustment, currency, showSymbol: showSymbol),
+          formatMoneyThermal(
+            mod.priceAdjustment,
+            currency,
+            showSymbol: showSymbol,
+          ),
         );
       } else {
         esc.text('  + ${mod.optionName}');
@@ -261,7 +268,11 @@ class TokenTemplateRenderer {
         esc.feed(1);
       }
 
-      final total = formatMoneyThermal(lineItem.total, currency, showSymbol: showSymbol);
+      final total = formatMoneyThermal(
+        lineItem.total,
+        currency,
+        showSymbol: showSymbol,
+      );
       esc.resetToBaseFont();
       _applyAlign(esc, block.align);
 
@@ -283,7 +294,11 @@ class TokenTemplateRenderer {
           if (mod.priceAdjustment != 0) {
             esc.row(
               '  + ${mod.optionName}',
-              formatMoneyThermal(mod.priceAdjustment, currency, showSymbol: showSymbol),
+              formatMoneyThermal(
+                mod.priceAdjustment,
+                currency,
+                showSymbol: showSymbol,
+              ),
             );
           } else {
             esc.text('  + ${mod.optionName}');
@@ -363,7 +378,8 @@ class TokenTemplateRenderer {
 
   String _formatOrderTypeAndDatetimeLine() {
     final parts = <String>[];
-    if (receiptSettings.showOrderType && (order.orderType ?? '').trim().isNotEmpty) {
+    if (receiptSettings.showOrderType &&
+        (order.orderType ?? '').trim().isNotEmpty) {
       parts.add(formatOrderType(order.orderType));
     }
     if ((receiptSettings.showDatetime || tokenSettings.showDatetime) &&
@@ -391,17 +407,14 @@ List<TokenPrintItem> expandTokenPrintItemsPerKitchen(OfflinePrintOrder order) {
 
   for (final line in order.items) {
     final key = line.kitchenId ?? 'none';
-    groups.putIfAbsent(
-      key,
-      () {
-        groupOrder.add(key);
-        return _TokenKitchenGroup(
-          kitchenId: line.kitchenId,
-          kitchenName: line.kitchenName,
-          kitchenCounterName: line.kitchenCounterName,
-        );
-      },
-    );
+    groups.putIfAbsent(key, () {
+      groupOrder.add(key);
+      return _TokenKitchenGroup(
+        kitchenId: line.kitchenId,
+        kitchenName: line.kitchenName,
+        kitchenCounterName: line.kitchenCounterName,
+      );
+    });
     groups[key]!.items.add(_tokenLineFromOrderItem(line));
   }
 
@@ -441,7 +454,9 @@ List<TokenPrintItem> expandTokenPrintItemsPerItem(
 
   var index = 0;
   for (final line in order.items) {
-    final unitTotal = line.quantity > 0 ? line.total / line.quantity : line.total;
+    final unitTotal = line.quantity > 0
+        ? line.total / line.quantity
+        : line.total;
     if (tokenSettings.perQuantity) {
       for (var q = 0; q < line.quantity; q++) {
         index++;

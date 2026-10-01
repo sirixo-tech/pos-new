@@ -7,15 +7,12 @@ class PrintObjectExecutor {
   PrintObjectExecutor({
     required this.paper,
     required this.fontSize,
-    this.enableCurrencyGlyphs = true,
-  }) : _typography = ReceiptTypography(
-          receiptWidth: paper,
-          fontSize: fontSize,
-        );
+    this.enableCurrencyGlyphs,
+  }) : _typography = ReceiptTypography(receiptWidth: paper, fontSize: fontSize);
 
   final String paper;
   final String fontSize;
-  final bool enableCurrencyGlyphs;
+  final bool? enableCurrencyGlyphs;
   final ReceiptTypography _typography;
 
   Future<List<int>> buildBytes(List<dynamic> printObject) async {
@@ -108,25 +105,49 @@ class PrintObjectExecutor {
 
   static PrintObjectExecutor fromPayload(
     Map<String, dynamic> payload, {
-    bool enableCurrencyGlyphs = true,
+    bool? enableCurrencyGlyphs,
   }) {
+    final document = payloadFrom(payload);
     return PrintObjectExecutor(
-      paper: payload['paper']?.toString() ?? '80mm',
-      fontSize: payload['font_size']?.toString() ?? 'medium',
+      paper: _paperFrom(document) ?? '80mm',
+      fontSize: document['font_size']?.toString() ?? 'medium',
       enableCurrencyGlyphs: enableCurrencyGlyphs,
     );
   }
 
+  /// Keep enclosing API metadata when commands are wrapped in print_object.
+  /// A document's own width takes precedence over an enclosing default.
+  static Map<String, dynamic> payloadFrom(Map<String, dynamic> payload) {
+    final direct = payload['print_object'] ?? payload['printObject'];
+    if (direct is! Map) return Map<String, dynamic>.from(payload);
+    final nested = Map<String, dynamic>.from(direct);
+    final paper = _paperFrom(nested) ?? _paperFrom(payload);
+    return {
+      ...payload,
+      ...nested,
+      if (paper != null) 'paper': paper,
+      if (paper != null) 'receipt_width': paper,
+    };
+  }
+
+  static String? _paperFrom(Map<String, dynamic> payload) {
+    for (final key in ['receipt_width', 'paper']) {
+      final value = payload[key]?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return null;
+  }
+
   static List<dynamic> commandsFromPayload(Map<String, dynamic> payload) {
-    final direct = payload['print_object'] ??
+    final direct =
+        payload['print_object'] ??
         payload['printObject'] ??
         payload['commands'];
     if (direct is List) return direct;
     if (direct is Map) {
       final nested = Map<String, dynamic>.from(direct);
-      final inner = nested['print_object'] ??
-          nested['printObject'] ??
-          nested['commands'];
+      final inner =
+          nested['print_object'] ?? nested['printObject'] ?? nested['commands'];
       if (inner is List) return inner;
     }
     return const [];

@@ -46,12 +46,13 @@ class PosDisplayMode {
         titleBarStyle: TitleBarStyle.normal,
         fullScreen: false,
       );
-      await windowManager.waitUntilReadyToShow(options, () async {
-        _desktopReady = true;
-        await windowManager.show();
-        await windowManager.focus();
-        await apply();
-      });
+      await windowManager.waitUntilReadyToShow(options);
+      // Await these operations directly: the plugin's callback is a
+      // VoidCallback, so async failures inside it would escape initialization.
+      await windowManager.show();
+      await windowManager.focus();
+      _desktopReady = true;
+      await apply();
       return;
     }
 
