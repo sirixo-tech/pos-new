@@ -572,7 +572,7 @@ class PosMoreMenuButton extends StatelessWidget {
       sections: sections,
       title: tooltip,
     );
-    if (selected == null) return;
+    if (selected == null || !context.mounted) return;
     onSelected(selected);
   }
 

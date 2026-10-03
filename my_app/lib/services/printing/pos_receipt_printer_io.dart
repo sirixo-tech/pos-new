@@ -14,6 +14,7 @@ import '../../utils/thermal_printer_platform.dart';
 import '../offline/pending_order.dart';
 import '../pos_api.dart';
 import 'esc_pos_builder.dart';
+import 'bluetooth_print_transport.dart';
 import 'macos_usb_discovery.dart';
 import 'network_printer.dart';
 import 'offline_receipt_builder.dart';
@@ -60,6 +61,10 @@ class PosReceiptPrinter {
     try {
       final config = await UsbPrinterStorage.load();
       if (config == null) return;
+      if (config.connection == PosPrinterConnection.bluetooth) {
+        await _probeBluetooth(config, DateTime.now(), allowScan: true);
+        return;
+      }
       await probe();
       if (config.connection == PosPrinterConnection.network) {
         return;
@@ -265,7 +270,6 @@ class PosReceiptPrinter {
   static Printer? _lastResolvedPrinter;
   static bool bleLinkIsLive = false;
   static Future<void> _bluetoothChain = Future<void>.value();
-  static String? _warmBluetoothAddress;
 
   static Future<PrinterHealth> _probeDevice({
     bool allowBluetoothScan = false,
@@ -565,17 +569,6 @@ class PosReceiptPrinter {
       await _withBluetooth(() => _dropBluetooth(printer));
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
-    final address = printer.address?.trim() ?? '';
-    if (address.isNotEmpty && _warmBluetoothAddress == address) {
-      bleLinkIsLive = true;
-      return PrinterHealth(
-        state: PrinterHealthState.ready,
-        config: config,
-        message: 'Ready',
-        lastCheckedAt: checkedAt,
-      );
-    }
-
     try {
       if (await PrinterManager.instance
           .isConnected(printer)
@@ -1231,7 +1224,6 @@ class PosReceiptPrinter {
   }
 
   static Future<void> _dropBluetooth(Printer printer) async {
-    _warmBluetoothAddress = null;
     bleLinkIsLive = false;
     try {
       await _thermal.disconnect(printer).timeout(const Duration(seconds: 3));
@@ -1239,11 +1231,8 @@ class PosReceiptPrinter {
   }
 
   static void _rememberBluetooth(Printer printer) {
-    final address = printer.address?.trim() ?? '';
     _lastResolvedPrinter = printer;
     bleLinkIsLive = true;
-    if (address.isEmpty) return;
-    _warmBluetoothAddress = address;
   }
 
   /// Connect the saved BLE address. Does not scan.
@@ -1286,28 +1275,51 @@ class PosReceiptPrinter {
       );
     }
     return _withBluetooth(() async {
-      final address = printer.address?.trim() ?? '';
-      final warm = address.isNotEmpty && _warmBluetoothAddress == address;
-      if (warm) {
-        try {
-          await _thermal.printData(printer, bytes, longData: true);
-          _rememberBluetooth(printer);
-          return;
-        } catch (error) {
-          debugPrint('Bluetooth warm print failed, reconnecting: $error');
-          _warmBluetoothAddress = null;
-          bleLinkIsLive = false;
-        }
-      }
-      final connected = await _connectBluetooth(printer);
-      if (!connected) {
-        throw StateError(
-          thermalPrinterConnectError(config.name, bluetooth: true),
+      try {
+        await sendBluetoothPrint(
+          isConnected: () => PrinterManager.instance
+              .isConnected(printer)
+              .timeout(const Duration(seconds: 2)),
+          connect: () => _connectBluetooth(printer),
+          write: () => _writeBluetooth(printer, bytes),
+          connectionError: thermalPrinterConnectError(
+            config.name,
+            bluetooth: true,
+          ),
         );
+        _rememberBluetooth(printer);
+      } catch (_) {
+        bleLinkIsLive = false;
+        rethrow;
       }
-      await _thermal.printData(printer, bytes, longData: true);
-      _rememberBluetooth(printer);
     });
+  }
+
+  // The thermal plugin catches BLE write errors and returns success. Write
+  // through its underlying device API so failed/partial tickets stay pending.
+  static Future<void> _writeBluetooth(Printer printer, List<int> bytes) async {
+    final services = await printer.discoverServices().timeout(
+      const Duration(seconds: 8),
+    );
+    for (final service in services) {
+      for (final characteristic in service.characteristics) {
+        if (!characteristic.properties.any(
+          (property) => property.name == 'write',
+        )) {
+          continue;
+        }
+        // Conservative chunks avoid MTU negotiation failures on POS printers.
+        for (var offset = 0; offset < bytes.length; offset += 20) {
+          final end = offset + 20 < bytes.length ? offset + 20 : bytes.length;
+          await characteristic
+              .write(Uint8List.fromList(bytes.sublist(offset, end)))
+              .timeout(const Duration(seconds: 5));
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        return;
+      }
+    }
+    throw StateError('Bluetooth printer has no writable characteristic.');
   }
 
   /// Ensure the plugin has an open transport to [printer].

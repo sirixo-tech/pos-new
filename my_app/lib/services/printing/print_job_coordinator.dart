@@ -272,17 +272,18 @@ class PrintJobCoordinator extends ChangeNotifier {
 
   Future<void> _retryFailedOnce({required bool includeMayHavePrinted}) async {
     if (_failed.isEmpty) return;
-    final jobs = _failed.values
-        .where((job) => includeMayHavePrinted || !job.mayHavePrinted)
-        .toList()
-      ..sort((a, b) {
-        final byTime = a.queuedAt.compareTo(b.queuedAt);
-        if (byTime != 0) return byTime;
-        if (a.kind != b.kind) {
-          return a.kind == PrintJobKind.kot ? -1 : 1;
-        }
-        return a.jobKey.compareTo(b.jobKey);
-      });
+    final jobs =
+        _failed.values
+            .where((job) => includeMayHavePrinted || !job.mayHavePrinted)
+            .toList()
+          ..sort((a, b) {
+            final byTime = a.queuedAt.compareTo(b.queuedAt);
+            if (byTime != 0) return byTime;
+            if (a.kind != b.kind) {
+              return a.kind == PrintJobKind.kot ? -1 : 1;
+            }
+            return a.jobKey.compareTo(b.jobKey);
+          });
     if (jobs.isEmpty) return;
     for (final job in jobs) {
       if (_queued.contains(job.jobKey) || _completed.contains(job.jobKey)) {
@@ -345,9 +346,11 @@ class PrintJobCoordinator extends ChangeNotifier {
     if (health.state == PrinterHealthState.none) {
       throw StateError(thermalPrinterMissingMessage());
     }
+    // An idle Bluetooth link can drop. Let the serialized transport reconnect
+    // before sending this job rather than blocking it on a stale health poll.
+    if (health.config?.connection == PosPrinterConnection.bluetooth) return;
     throw StateError(
-      health.message ??
-          'The printer is disconnected or not responding.',
+      health.message ?? 'The printer is disconnected or not responding.',
     );
   }
 

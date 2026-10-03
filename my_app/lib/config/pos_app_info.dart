@@ -31,7 +31,7 @@ class PosAppInfo {
   static String version = '3.2.0';
 
   /// Build number from `pubspec.yaml` (`version:` after `+`).
-  static String buildNumber = '2017';
+  static String buildNumber = '2019';
 
   /// e.g. `1.0.0 (1)`
   static String get versionLabel => '$version ($buildNumber)';

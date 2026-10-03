@@ -27,6 +27,26 @@ class _PosOrderBarcodeListenerState extends State<PosOrderBarcodeListener> {
   late final OrderBarcodeScan _scanner;
   final _delivery = ScannerDeliveryFilter();
   StreamSubscription<String>? _imin;
+  ScannerConnectionService? _connection;
+  bool _active = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _connection = context.read<ScannerConnectionService>();
+  }
+
+  @override
+  void deactivate() {
+    _active = false;
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _active = true;
+  }
 
   @override
   void initState() {
@@ -47,12 +67,11 @@ class _PosOrderBarcodeListenerState extends State<PosOrderBarcodeListener> {
   }
 
   void _emit(String payload, {bool broadcast = false}) {
+    if (!_active || !mounted) return;
     final trimmed = payload.trim();
     if (trimmed.isEmpty) return;
     if (!_delivery.accept(trimmed, broadcast: broadcast)) return;
-    if (mounted) {
-      context.read<ScannerConnectionService>().markInput();
-    }
+    _connection?.markInput();
     widget.onScan(trimmed);
   }
 

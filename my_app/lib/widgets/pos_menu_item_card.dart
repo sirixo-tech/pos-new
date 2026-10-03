@@ -423,118 +423,136 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
               ),
       ),
     );
-    return Material(
-      color: inCart ? posAccentSoft(accent).bg : PosTheme.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: _handleTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 76),
-          padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
-          decoration: BoxDecoration(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 280;
+        return Material(
+          color: inCart ? posAccentSoft(accent).bg : PosTheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: _handleTap,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: inCart ? accent.withValues(alpha: 0.4) : PosTheme.border,
-            ),
-          ),
-          child: Row(
-            children: [
-              thumbnail,
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.2,
-                        fontWeight: FontWeight.w700,
-                        color: PosTheme.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 76),
+              padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: inCart
+                      ? accent.withValues(alpha: 0.4)
+                      : PosTheme.border,
+                ),
+              ),
+              child: Row(
+                children: [
+                  thumbnail,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (normalizePosItemType(widget.item.itemType) != null)
-                          PosItemTypeMark(
-                            type: widget.item.itemType!,
-                            size: 12,
-                          ),
                         Text(
-                          '${widget.item.variants.isNotEmpty ? '${context.l10n.menuFrom} ' : ''}${formatMoney(_minDisplayPrice(), widget.currency)}',
+                          name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 13,
+                            height: 1.2,
                             fontWeight: FontWeight.w700,
+                            color: PosTheme.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (normalizePosItemType(widget.item.itemType) !=
+                                null)
+                              PosItemTypeMark(
+                                type: widget.item.itemType!,
+                                size: 12,
+                              ),
+                            Text(
+                              '${widget.item.variants.isNotEmpty ? '${context.l10n.menuFrom} ' : ''}${formatMoney(_minDisplayPrice(), widget.currency)}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (status != null)
+                          Text(
+                            status,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFFB45309),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  if (stepper && !narrow)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Decrease quantity',
+                          onPressed: () => widget.onDecrementSimple?.call(
+                            widget.simpleCartLine!,
+                          ),
+                          icon: const Icon(Icons.remove_rounded, size: 18),
+                        ),
+                        Text(
+                          '${widget.inTicketQty}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Increase quantity',
+                          onPressed: () => widget.onIncrementSimple?.call(
+                            widget.simpleCartLine!,
+                          ),
+                          icon: Icon(
+                            Icons.add_rounded,
+                            size: 18,
                             color: accent,
                           ),
                         ),
                       ],
-                    ),
-                    if (status != null)
-                      Text(
-                        status,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFFB45309),
-                        ),
+                    )
+                  else
+                    IconButton(
+                      tooltip: widget.item.hasOptions
+                          ? context.l10n.menuOptions
+                          : stepper
+                          ? 'Increase quantity'
+                          : 'Add item',
+                      onPressed: stepper
+                          ? () => widget.onIncrementSimple?.call(
+                              widget.simpleCartLine!,
+                            )
+                          : _handleTap,
+                      icon: Icon(
+                        widget.item.hasOptions
+                            ? Icons.tune_rounded
+                            : Icons.add_circle_outline_rounded,
+                        size: 24,
+                        color: accent,
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
-              const SizedBox(width: 4),
-              if (stepper)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: 'Decrease quantity',
-                      onPressed: () => widget.onDecrementSimple?.call(
-                        widget.simpleCartLine!,
-                      ),
-                      icon: const Icon(Icons.remove_rounded, size: 18),
-                    ),
-                    Text(
-                      '${widget.inTicketQty}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Increase quantity',
-                      onPressed: () => widget.onIncrementSimple?.call(
-                        widget.simpleCartLine!,
-                      ),
-                      icon: Icon(Icons.add_rounded, size: 18, color: accent),
-                    ),
-                  ],
-                )
-              else
-                IconButton(
-                  tooltip: widget.item.hasOptions
-                      ? context.l10n.menuOptions
-                      : 'Add item',
-                  onPressed: _handleTap,
-                  icon: Icon(
-                    widget.item.hasOptions
-                        ? Icons.tune_rounded
-                        : Icons.add_circle_outline_rounded,
-                    size: 24,
-                    color: accent,
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

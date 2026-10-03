@@ -93,7 +93,9 @@ class PosCategoryRail extends StatelessWidget {
     return Material(
       color: PosTheme.surface,
       child: Container(
-        width: 128,
+        width: usePosHandheldLayout(context)
+            ? (MediaQuery.sizeOf(context).width < 400 ? 84 : 104)
+            : 128,
         decoration: BoxDecoration(
           color: PosTheme.surface,
           border: Border(right: BorderSide(color: PosTheme.border)),
@@ -109,7 +111,7 @@ class PosCategoryRail extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 16, 14, 10),
+              padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
               child: Row(
                 children: [
                   Container(
@@ -139,7 +141,7 @@ class PosCategoryRail extends StatelessWidget {
             ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 16),
                 children: [
                   _CategoryTile(
                     label: resolvedAllItems,
@@ -235,13 +237,13 @@ class _CategoryTile extends StatelessWidget {
                 icon: icon,
                 isActive: isActive,
                 accent: accent,
-                size: 52,
+                size: usePosHandheldLayout(context) ? 32 : 52,
               ),
               const SizedBox(height: 8),
               Text(
                 label,
                 textAlign: TextAlign.center,
-                maxLines: 2,
+                maxLines: usePosHandheldLayout(context) ? 3 : 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 11.5,

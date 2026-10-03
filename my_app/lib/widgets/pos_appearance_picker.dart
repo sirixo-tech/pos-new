@@ -42,234 +42,229 @@ Future<void> showPosAppearancePicker(BuildContext context) async {
         content: SizedBox(
           width: 380,
           child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                l10n.appearancePickerHint,
-                style: TextStyle(
-                  color: PosTheme.inkMuted,
-                  fontSize: 13,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  l10n.appearancePickerHint,
+                  style: TextStyle(color: PosTheme.inkMuted, fontSize: 13),
                 ),
-              ),
-              const SizedBox(height: 14),
-              for (final option in options)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Builder(
-                    builder: (context) {
-                      final soft = posAccentSoft(accent);
-                      final selected = option.$1 == current;
-                      return Material(
-                    color: selected ? soft.bg : PosTheme.surfaceMuted,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => Navigator.of(dialogContext).pop(option.$1),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: selected ? soft.bg : PosTheme.surface,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: selected
-                                      ? soft.fg.withValues(alpha: 0.28)
-                                      : PosTheme.border,
-                                ),
+                const SizedBox(height: 14),
+                for (final option in options)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Builder(
+                      builder: (context) {
+                        final soft = posAccentSoft(accent);
+                        final selected = option.$1 == current;
+                        return Material(
+                          color: selected ? soft.bg : PosTheme.surfaceMuted,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () =>
+                                Navigator.of(dialogContext).pop(option.$1),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
                               ),
-                              child: Icon(
-                                option.$2,
-                                size: 18,
-                                color: selected ? soft.fg : PosTheme.inkMuted,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              child: Row(
                                 children: [
-                                  Text(
-                                    option.$3,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: selected ? soft.fg : PosTheme.ink,
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? soft.bg
+                                          : PosTheme.surface,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: selected
+                                            ? soft.fg.withValues(alpha: 0.28)
+                                            : PosTheme.border,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      option.$2,
+                                      size: 18,
+                                      color: selected
+                                          ? soft.fg
+                                          : PosTheme.inkMuted,
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    option.$4,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: PosTheme.inkMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (selected)
-                              Icon(Icons.check_rounded, color: soft.fg),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                    },
-                  ),
-                ),
-              const SizedBox(height: 8),
-              Text(
-                context.posText(
-                  'categoryBarTitle',
-                  'Categories',
-                ),
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  color: PosTheme.ink,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                context.posText(
-                  'categoryBarHint',
-                  'Choose where category chips sit on the POS menu. Saved on this device.',
-                ),
-                style: TextStyle(
-                  color: PosTheme.inkMuted,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Consumer<PosCategoryBarSettings>(
-                builder: (context, bar, _) {
-                  final placements = <(
-                    PosCategoryBarPlacement,
-                    IconData,
-                    String,
-                    String
-                  )>[
-                    (
-                      PosCategoryBarPlacement.left,
-                      Icons.view_sidebar_rounded,
-                      context.posText('categoryBarLeft', 'Left'),
-                      context.posText(
-                        'categoryBarLeftHint',
-                        'Vertical rail beside the item cards',
-                      ),
-                    ),
-                    (
-                      PosCategoryBarPlacement.top,
-                      Icons.view_agenda_rounded,
-                      context.posText('categoryBarTop', 'Top'),
-                      context.posText(
-                        'categoryBarTopHint',
-                        'Horizontal chips above the item cards',
-                      ),
-                    ),
-                  ];
-                  return Column(
-                    children: [
-                      for (final option in placements)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Builder(
-                            builder: (context) {
-                              final soft = posAccentSoft(accent);
-                              final selected = option.$1 == bar.placement;
-                              return Material(
-                                color: selected
-                                    ? soft.bg
-                                    : PosTheme.surfaceMuted,
-                                borderRadius: BorderRadius.circular(12),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap: () => bar.setPlacement(option.$1),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 12,
-                                    ),
-                                    child: Row(
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Container(
-                                          width: 36,
-                                          height: 36,
-                                          decoration: BoxDecoration(
-                                            color: selected
-                                                ? soft.bg
-                                                : PosTheme.surface,
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                            border: Border.all(
-                                              color: selected
-                                                  ? soft.fg.withValues(
-                                                      alpha: 0.28,
-                                                    )
-                                                  : PosTheme.border,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            option.$2,
-                                            size: 18,
+                                        Text(
+                                          option.$3,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
                                             color: selected
                                                 ? soft.fg
-                                                : PosTheme.inkMuted,
+                                                : PosTheme.ink,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                option.$3,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  color: selected
-                                                      ? soft.fg
-                                                      : PosTheme.ink,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                option.$4,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: PosTheme.inkMuted,
-                                                ),
-                                              ),
-                                            ],
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          option.$4,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: PosTheme.inkMuted,
                                           ),
                                         ),
-                                        if (selected)
-                                          Icon(
-                                            Icons.check_rounded,
-                                            color: soft.fg,
-                                          ),
                                       ],
                                     ),
                                   ),
-                                ),
-                              );
-                            },
+                                  if (selected)
+                                    Icon(Icons.check_rounded, color: soft.fg),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Text(
+                  dialogContext.posText('categoryBarTitle', 'Categories'),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: PosTheme.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  dialogContext.posText(
+                    'categoryBarHint',
+                    'Choose where category chips sit on the POS menu. Saved on this device.',
+                  ),
+                  style: TextStyle(color: PosTheme.inkMuted, fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                Consumer<PosCategoryBarSettings>(
+                  builder: (context, bar, _) {
+                    final placements =
+                        <(PosCategoryBarPlacement, IconData, String, String)>[
+                          (
+                            PosCategoryBarPlacement.left,
+                            Icons.view_sidebar_rounded,
+                            context.posText('categoryBarLeft', 'Left'),
+                            context.posText(
+                              'categoryBarLeftHint',
+                              'Vertical rail beside the item cards',
+                            ),
+                          ),
+                          (
+                            PosCategoryBarPlacement.top,
+                            Icons.view_agenda_rounded,
+                            context.posText('categoryBarTop', 'Top'),
+                            context.posText(
+                              'categoryBarTopHint',
+                              'Horizontal chips above the item cards',
+                            ),
+                          ),
+                        ];
+                    return Column(
+                      children: [
+                        for (final option in placements)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Builder(
+                              builder: (context) {
+                                final soft = posAccentSoft(accent);
+                                final selected = option.$1 == bar.placement;
+                                return Material(
+                                  color: selected
+                                      ? soft.bg
+                                      : PosTheme.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onTap: () => bar.setPlacement(option.$1),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 12,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              color: selected
+                                                  ? soft.bg
+                                                  : PosTheme.surface,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              border: Border.all(
+                                                color: selected
+                                                    ? soft.fg.withValues(
+                                                        alpha: 0.28,
+                                                      )
+                                                    : PosTheme.border,
+                                              ),
+                                            ),
+                                            child: Icon(
+                                              option.$2,
+                                              size: 18,
+                                              color: selected
+                                                  ? soft.fg
+                                                  : PosTheme.inkMuted,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  option.$3,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    color: selected
+                                                        ? soft.fg
+                                                        : PosTheme.ink,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  option.$4,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: PosTheme.inkMuted,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (selected)
+                                            Icon(
+                                              Icons.check_rounded,
+                                              color: soft.fg,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -282,7 +277,7 @@ Future<void> showPosAppearancePicker(BuildContext context) async {
     },
   );
 
-  if (selected == null) return;
+  if (selected == null || !context.mounted) return;
   await themeController.setMode(selected);
 }
 

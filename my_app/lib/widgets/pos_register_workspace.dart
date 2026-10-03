@@ -142,6 +142,19 @@ class _PosRegisterWorkspaceState extends State<PosRegisterWorkspace> {
   }
 
   Widget _phoneLayout(Color accent) {
+    final top = context.watch<PosCategoryBarSettings>().isTop;
+    if (!top) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PosCategoryRailHost(
+            accent: accent,
+            searchController: widget.searchController,
+          ),
+          Expanded(child: _menuColumn(accent)),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -406,7 +419,7 @@ class _MenuScrollBody extends StatelessWidget {
                   handheld ? 10 : 16,
                   handheld ? 88 : 24,
                 ),
-                sliver: handheld
+                sliver: handheld && paneWidth < 400
                     ? SliverList(
                         delegate: SliverChildBuilderDelegate((context, index) {
                           final item = items[index];
@@ -432,7 +445,10 @@ class _MenuScrollBody extends StatelessWidget {
                       )
                     : SliverGrid(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
+                          crossAxisCount: handheld ? 2 : crossAxisCount,
+                          mainAxisExtent: handheld
+                              ? 96 * MediaQuery.textScalerOf(context).scale(1)
+                              : null,
                           mainAxisSpacing: 14,
                           crossAxisSpacing: 14,
                           childAspectRatio: posMenuGridChildAspectRatio(
@@ -444,6 +460,7 @@ class _MenuScrollBody extends StatelessWidget {
                         delegate: SliverChildBuilderDelegate((context, index) {
                           final item = items[index];
                           return PosMenuItemCard(
+                            handheld: handheld,
                             key: ValueKey(item.id),
                             item: item,
                             currency: currency,
