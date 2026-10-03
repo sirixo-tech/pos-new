@@ -1,3 +1,5 @@
+Future<void> allowWindowCloseForUpdate(bool allowed) async {}
+
 class WindowCloseGuard {
   WindowCloseGuard({required this.onCloseRequest});
 

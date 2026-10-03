@@ -36,11 +36,13 @@ class SmartPosCustomerDisplayHandler(
     private val mainHandler: Handler,
 ) {
     private val logTag = "POS_SMARTPOS_DISPLAY"
+    private val iminDisplay = IminCustomerDisplayHandler(activity, mainHandler)
     private val driverManager: DriverManager by lazy { DriverManager.getInstance() }
     @Volatile private var sdkReady = false
     private var customerPresentation: Presentation? = null
 
     fun handle(call: io.flutter.plugin.common.MethodCall, result: MethodChannel.Result): Boolean {
+        if (iminDisplay.handle(call, result)) return true
         when (call.method) {
             "showUpiQr", "showUpiQrOnCustomerDisplay" -> {
                 val arguments = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
@@ -85,6 +87,7 @@ class SmartPosCustomerDisplayHandler(
     }
 
     fun destroy() {
+        iminDisplay.destroy()
         mainHandler.post {
             customerPresentation?.dismiss()
             customerPresentation = null
@@ -107,6 +110,7 @@ class SmartPosCustomerDisplayHandler(
             is Number -> value.toInt()
             else -> value?.toString()?.toIntOrNull()
         }
+
         Thread {
             try {
                 if (isIminDevice()) {
@@ -178,6 +182,7 @@ class SmartPosCustomerDisplayHandler(
         mainHandler.post {
             customerPresentation?.dismiss()
             customerPresentation = null
+
             Thread {
                 try {
                     if (isIminDevice()) {
@@ -393,8 +398,14 @@ class SmartPosCustomerDisplayHandler(
         return displayManager.displays.firstOrNull { it.displayId != defaultDisplayId }
     }
 
-    private fun createQrBitmap(text: String, size: Int): Bitmap {
-        val hints = mapOf(EncodeHintType.MARGIN to 1)
+
+
+
+
+
+
+    private fun createQrBitmap(text: String, size: Int, margin: Int = 1): Bitmap {
+        val hints = mapOf(EncodeHintType.MARGIN to margin)
         val matrix = MultiFormatWriter().encode(
             text,
             BarcodeFormat.QR_CODE,

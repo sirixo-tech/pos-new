@@ -131,7 +131,9 @@ class _PosCartPanelState extends State<PosCartPanel> {
       final customerName = customer['name']?.toString().trim();
       pos.setCustomer(
         id: intId,
-        name: (customerName == null || customerName.isEmpty) ? name : customerName,
+        name: (customerName == null || customerName.isEmpty)
+            ? name
+            : customerName,
       );
       _toggleCustomerSearch();
     } catch (_) {}
@@ -152,8 +154,9 @@ class _PosCartPanelState extends State<PosCartPanel> {
         setState(() {
           _tables = tables;
           _tableAreas = areas;
-          _tablesWithoutArea =
-              withoutArea.isNotEmpty ? withoutArea : _tablesWithoutAreaFrom(tables);
+          _tablesWithoutArea = withoutArea.isNotEmpty
+              ? withoutArea
+              : _tablesWithoutAreaFrom(tables);
           _tablesLoaded = true;
           _tablesLoading = false;
         });
@@ -239,16 +242,20 @@ class _PosCartPanelState extends State<PosCartPanel> {
     final orderType = context.select((PosController p) => p.orderType);
     final tableId = context.select((PosController p) => p.tableId);
     final parkedOrderId = context.select((PosController p) => p.parkedOrderId);
-    final parkedLocalUuid =
-        context.select((PosController p) => p.parkedLocalUuid);
+    final parkedLocalUuid = context.select(
+      (PosController p) => p.parkedLocalUuid,
+    );
     final hasParkedTicket = parkedOrderId != null || parkedLocalUuid != null;
-    final parkedOrderLabel =
-        context.select((PosController p) => p.parkedOrderLabel);
-    final parkedAmountPaid =
-        context.select((PosController p) => p.parkedAmountPaid);
+    final parkedOrderLabel = context.select(
+      (PosController p) => p.parkedOrderLabel,
+    );
+    final parkedAmountPaid = context.select(
+      (PosController p) => p.parkedAmountPaid,
+    );
     final itemCount = context.select((PosController p) => p.cartItemCount);
-    final hasDiscount =
-        context.select((PosController p) => p.discountAmount > 0);
+    final hasDiscount = context.select(
+      (PosController p) => p.discountAmount > 0,
+    );
     final allowedOrderTypes = context.select(
       (PosController p) =>
           p.bootstrap?.restaurant.ordering.activePosOrderTypes ??
@@ -261,8 +268,7 @@ class _PosCartPanelState extends State<PosCartPanel> {
     final hasCustomer =
         customerId != null || (customerName?.isNotEmpty ?? false);
     final canClear = itemCount > 0 || hasParkedTicket;
-    final showDiscount =
-        !widget.lockServiceContext && !pos.isWaiterMode;
+    final showDiscount = !widget.lockServiceContext && !pos.isWaiterMode;
 
     if (orderType == 'delivery' &&
         allowedOrderTypes.isNotEmpty &&
@@ -291,63 +297,36 @@ class _PosCartPanelState extends State<PosCartPanel> {
       child: Column(
         children: [
           Container(
-                width: double.infinity,
-                padding: EdgeInsets.fromLTRB(
-                  widget.splitCompact ? 10 : 14,
-                  headerCompact ? 4 : 14,
-                  widget.splitCompact ? 10 : 14,
-                  headerCompact ? 8 : 12,
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(
+              widget.splitCompact ? 10 : 14,
+              headerCompact ? 4 : (usePosHandheldLayout(context) ? 8 : 14),
+              widget.splitCompact ? 10 : 14,
+              headerCompact ? 8 : (usePosHandheldLayout(context) ? 8 : 12),
+            ),
+            decoration: BoxDecoration(
+              color: PosTheme.surface,
+              border: Border(
+                bottom: BorderSide(
+                  color: PosTheme.border.withValues(alpha: 0.85),
                 ),
-                decoration: BoxDecoration(
-                  color: PosTheme.surface,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: PosTheme.border.withValues(alpha: 0.85),
-                    ),
-                  ),
-                  boxShadow: widget.compact
-                      ? null
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (widget.splitCompact)
-                      widget.lockServiceContext
-                          ? _LockedServiceContext(
-                              orderType: orderType,
-                              tableLabel: orderType == 'dine_in'
-                                  ? _tableLabel(tableId)
-                                  : null,
-                              accent: accent,
-                              soft: soft,
-                            )
-                          : _SplitServiceRow(
-                              accent: accent,
-                              soft: soft,
-                              orderType: orderType,
-                              allowedTypes: allowedOrderTypes,
-                              onOrderTypeChanged: pos.setOrderType,
-                              tableLabel: orderType == 'dine_in'
-                                  ? _tableLabel(tableId)
-                                  : null,
-                              tableCount: _tables.length,
-                              onTableTap: null,
-                              hasCustomer: hasCustomer,
-                              customerName: customerName,
-                              onCustomerTap: _toggleCustomerSearch,
-                              canClear: canClear,
-                              onClear: () => _clearTicket(pos),
-                            )
-                    else ...[
-                      if (widget.lockServiceContext)
-                        _LockedServiceContext(
+              ),
+              boxShadow: widget.compact
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.splitCompact)
+                  widget.lockServiceContext
+                      ? _LockedServiceContext(
                           orderType: orderType,
                           tableLabel: orderType == 'dine_in'
                               ? _tableLabel(tableId)
@@ -355,86 +334,110 @@ class _PosCartPanelState extends State<PosCartPanel> {
                           accent: accent,
                           soft: soft,
                         )
-                      else
-                        _OrderTypeRow(
-                          value: orderType,
-                          onChanged: pos.setOrderType,
+                      : _SplitServiceRow(
                           accent: accent,
+                          soft: soft,
+                          orderType: orderType,
                           allowedTypes: allowedOrderTypes,
-                          iconOnly: widget.splitCompact,
+                          onOrderTypeChanged: pos.setOrderType,
+                          tableLabel: orderType == 'dine_in'
+                              ? _tableLabel(tableId)
+                              : null,
+                          tableCount: _tables.length,
+                          onTableTap: null,
+                          hasCustomer: hasCustomer,
+                          customerName: customerName,
+                          onCustomerTap: _toggleCustomerSearch,
+                          canClear: canClear,
+                          onClear: () => _clearTicket(pos),
+                        )
+                else ...[
+                  if (widget.lockServiceContext)
+                    _LockedServiceContext(
+                      orderType: orderType,
+                      tableLabel: orderType == 'dine_in'
+                          ? _tableLabel(tableId)
+                          : null,
+                      accent: accent,
+                      soft: soft,
+                    )
+                  else
+                    _OrderTypeRow(
+                      value: orderType,
+                      onChanged: pos.setOrderType,
+                      accent: accent,
+                      allowedTypes: allowedOrderTypes,
+                      iconOnly: widget.splitCompact,
+                    ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CustomerChip(
+                          accent: accent,
+                          soft: soft,
+                          hasCustomer: hasCustomer,
+                          expanded: _customerOpen,
+                          name: customerName,
+                          onTap: _toggleCustomerSearch,
                         ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _CustomerChip(
-                              accent: accent,
-                              soft: soft,
-                              hasCustomer: hasCustomer,
-                              expanded: _customerOpen,
-                              name: customerName,
-                              onTap: _toggleCustomerSearch,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _ClearTicketButton(
-                            enabled: canClear,
-                            onPressed: canClear
-                                ? () => _clearTicket(pos)
-                                : null,
-                          ),
-                        ],
+                      ),
+                      const SizedBox(width: 8),
+                      _ClearTicketButton(
+                        enabled: canClear,
+                        onPressed: canClear ? () => _clearTicket(pos) : null,
                       ),
                     ],
-                    if (_customerOpen) ...[
-                      const SizedBox(height: 8),
-                      _InlineCustomerSearch(
-                        controller: _customerQuery,
-                        searching: _customerSearching,
-                        results: _customerResults,
-                        accent: accent,
-                        onChanged: (value) {
-                          setState(() {});
-                          _onCustomerQuery(value, pos);
-                        },
-                        onPick: (id, name) {
-                          pos.setCustomer(id: id, name: name);
-                          _toggleCustomerSearch();
-                        },
-                        onCreate: () => _createCustomerFromQuery(pos),
-                      ),
-                    ],
-                    if (hasParkedTicket) ...[
-                      const SizedBox(height: 10),
-                      _HeldBanner(
-                        label: parkedOrderLabel ??
-                            parkedLocalUuid ??
-                            '#$parkedOrderId',
-                        alreadyPaid: parkedAmountPaid,
-                        remaining: pos.cartAmountDue,
-                        currency: pos.currency,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Expanded(
-                child: _CartLinesPane(accent: accent),
-              ),
-              _CartFooterPane(
-                accent: accent,
-                soft: soft,
-                onPay: widget.onPay,
-                onPayMethod: widget.onPayMethod,
-                onPark: widget.onPark,
-                onDiscount: showDiscount ? () => _openDiscount(pos) : null,
-                discountActive: hasDiscount,
-                primaryLabel: widget.primaryLabel,
-                primaryIcon: widget.primaryIcon,
-                primaryColor: widget.primaryColor,
-              ),
-            ],
+                  ),
+                ],
+                if (_customerOpen) ...[
+                  const SizedBox(height: 8),
+                  _InlineCustomerSearch(
+                    controller: _customerQuery,
+                    searching: _customerSearching,
+                    results: _customerResults,
+                    accent: accent,
+                    onChanged: (value) {
+                      setState(() {});
+                      _onCustomerQuery(value, pos);
+                    },
+                    onPick: (id, name) {
+                      pos.setCustomer(id: id, name: name);
+                      _toggleCustomerSearch();
+                    },
+                    onCreate: () => _createCustomerFromQuery(pos),
+                  ),
+                ],
+                if (hasParkedTicket) ...[
+                  const SizedBox(height: 10),
+                  _HeldBanner(
+                    label:
+                        parkedOrderLabel ??
+                        parkedLocalUuid ??
+                        '#$parkedOrderId',
+                    alreadyPaid: parkedAmountPaid,
+                    remaining: pos.cartAmountDue,
+                    currency: pos.currency,
+                  ),
+                ],
+              ],
+            ),
           ),
+          Expanded(child: _CartLinesPane(accent: accent)),
+          _CartFooterPane(
+            accent: accent,
+            soft: soft,
+            onPay: widget.onPay,
+            onPayMethod: widget.onPayMethod,
+            onPark: widget.onPark,
+            onDiscount: showDiscount ? () => _openDiscount(pos) : null,
+            discountActive: hasDiscount,
+            primaryLabel: widget.primaryLabel,
+            primaryIcon: widget.primaryIcon,
+            primaryColor: widget.primaryColor,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -449,8 +452,9 @@ Future<void> showPosTablePicker(BuildContext context) async {
     final data = await pos.fetchTables();
     tables = _PosCartPanelState._mapList(data['tables']);
     tableAreas = _PosCartPanelState._mapList(data['table_areas']);
-    final withoutArea =
-        _PosCartPanelState._mapList(data['tables_without_area']);
+    final withoutArea = _PosCartPanelState._mapList(
+      data['tables_without_area'],
+    );
     tablesWithoutArea = withoutArea.isNotEmpty
         ? withoutArea
         : _PosCartPanelState._tablesWithoutAreaFrom(tables);
@@ -468,8 +472,9 @@ Future<void> showPosTablePicker(BuildContext context) async {
         accent: accent,
         selectedId: pos.tableId,
         tableAreas: tableAreas,
-        tablesWithoutArea:
-            tablesWithoutArea.isNotEmpty ? tablesWithoutArea : tables,
+        tablesWithoutArea: tablesWithoutArea.isNotEmpty
+            ? tablesWithoutArea
+            : tables,
       ),
     ),
   );
@@ -493,8 +498,9 @@ class _CartLinesPaneState extends State<_CartLinesPane> {
   @override
   Widget build(BuildContext context) {
     context.select((PosController p) => p.cartEpoch);
-    final revealGeneration =
-        context.select((PosController p) => p.cartRevealGeneration);
+    final revealGeneration = context.select(
+      (PosController p) => p.cartRevealGeneration,
+    );
     final currency = context.select((PosController p) => p.currency);
     final pos = context.read<PosController>();
     final cartLen = pos.cart.length;
@@ -502,8 +508,9 @@ class _CartLinesPaneState extends State<_CartLinesPane> {
     if (revealGeneration != _appliedRevealGeneration) {
       _appliedRevealGeneration = revealGeneration;
       final reveal = pos.cartRevealIndex;
-      _expandedIndex =
-          reveal != null && reveal >= 0 && reveal < cartLen ? reveal : null;
+      _expandedIndex = usePosHandheldLayout(context)
+          ? null
+          : (reveal != null && reveal >= 0 && reveal < cartLen ? reveal : null);
     } else if (_expandedIndex != null && _expandedIndex! >= cartLen) {
       _expandedIndex = cartLen == 0 ? null : cartLen - 1;
     }
@@ -606,22 +613,25 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
     context.select((PosController p) => p.cartEpoch);
     final submitting = context.select((PosController p) => p.submitting);
     final currency = context.select((PosController p) => p.currency);
-    final discountAmount =
-        context.select((PosController p) => p.discountAmount);
+    final discountAmount = context.select(
+      (PosController p) => p.discountAmount,
+    );
     final serviceChargeLabel = context.select(
       (PosController p) => p.bootstrap?.restaurant.serviceCharge.label,
     );
-    context.select((PosController p) => (p.orderType, p.discount, p.parkedAmountPaid));
+    context.select(
+      (PosController p) => (p.orderType, p.discount, p.parkedAmountPaid),
+    );
     final layout = context.watch<CartQuickPaySettings>();
     final visiblePay = layout.visibleKeys;
-    final activePay =
-        visiblePay.contains(_quickPay) ? _quickPay : visiblePay.first;
+    final activePay = visiblePay.contains(_quickPay)
+        ? _quickPay
+        : visiblePay.first;
     final pos = context.read<PosController>();
     final preview = pos.cartTotalsPreview;
     final tax = preview.taxComputation;
     final includedRate = includedTaxRateSum(tax.breakdown);
-    final scTaxable =
-        pos.bootstrap?.restaurant.serviceCharge.taxable ?? false;
+    final scTaxable = pos.bootstrap?.restaurant.serviceCharge.taxable ?? false;
     final displaySubtotal = exclusiveAmount(pos.cartSubtotal, includedRate);
     final displayDiscount = exclusiveAmount(discountAmount, includedRate);
     final displayServiceCharge = scTaxable
@@ -634,14 +644,62 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
     final payable = pos.cartAmountDue;
     final canPay = !cartEmpty && !submitting && payable > 0.001;
 
+    final handheld = usePosHandheldLayout(context);
+    final totalRows = <Widget>[
+      _TotalRow(
+        label: l10n.commonSubtotal,
+        value: formatMoney(displaySubtotal, currency),
+      ),
+      if (displayDiscount > 0)
+        _TotalRow(
+          label: l10n.discountLabel,
+          value: '− ${formatMoney(displayDiscount, currency)}',
+          emphasize: true,
+        ),
+      for (final line in preview.extraChargeLines)
+        _TotalRow(
+          label: line.label,
+          value: formatMoney(
+            line.taxable
+                ? exclusiveAmount(line.amount, includedRate)
+                : line.amount,
+            currency,
+          ),
+        ),
+      if (displayServiceCharge > 0)
+        _TotalRow(
+          label: serviceChargeLabel ?? l10n.cartServiceCharge,
+          value: formatMoney(displayServiceCharge, currency),
+        ),
+      if (tax.totalTax > 0)
+        _TotalRow(
+          label: l10n.cartTax,
+          value: formatMoney(tax.totalTax, currency),
+        ),
+      if (showPartial) ...[
+        const SizedBox(height: 4),
+        _TotalRow(
+          label: context.posText('cartBillTotal', 'Bill total'),
+          value: formatMoney(preview.total, currency),
+        ),
+        _TotalRow(
+          label: context.posText('cartAlreadyPaid', 'Already paid'),
+          value: '− ${formatMoney(alreadyPaid, currency)}',
+          emphasize: true,
+        ),
+      ],
+    ];
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+      padding: EdgeInsets.fromLTRB(
+        handheld ? 10 : 14,
+        handheld ? 4 : 14,
+        handheld ? 10 : 14,
+        handheld ? 8 : 16,
+      ),
       decoration: BoxDecoration(
         color: PosTheme.surface,
         border: Border(
-          top: BorderSide(
-            color: PosTheme.border.withValues(alpha: 0.9),
-          ),
+          top: BorderSide(color: PosTheme.border.withValues(alpha: 0.9)),
         ),
         boxShadow: [
           BoxShadow(
@@ -653,7 +711,7 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
       ),
       child: Column(
         children: [
-          if (onDiscount != null)
+          if (!handheld && onDiscount != null)
             Align(
               alignment: Alignment.centerLeft,
               child: _FooterDiscountButton(
@@ -662,60 +720,67 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                 onPressed: onDiscount,
               ),
             ),
-          _TotalRow(
-            label: l10n.commonSubtotal,
-            value: formatMoney(displaySubtotal, currency),
-          ),
-          if (displayDiscount > 0)
-            _TotalRow(
-              label: l10n.discountLabel,
-              value: '− ${formatMoney(displayDiscount, currency)}',
-              emphasize: true,
-            ),
-          for (final line in preview.extraChargeLines)
-            _TotalRow(
-              label: line.label,
-              value: formatMoney(
-                line.taxable
-                    ? exclusiveAmount(line.amount, includedRate)
-                    : line.amount,
-                currency,
-              ),
-            ),
-          if (displayServiceCharge > 0)
-            _TotalRow(
-              label: serviceChargeLabel ?? l10n.cartServiceCharge,
-              value: formatMoney(displayServiceCharge, currency),
-            ),
-          if (tax.totalTax > 0)
-            _TotalRow(
-              label: l10n.cartTax,
-              value: formatMoney(tax.totalTax, currency),
-            ),
-          if (showPartial) ...[
-            const SizedBox(height: 4),
-            _TotalRow(
-              label: context.posText('cartBillTotal', 'Bill total'),
-              value: formatMoney(preview.total, currency),
-            ),
-            _TotalRow(
-              label: context.posText('cartAlreadyPaid', 'Already paid'),
-              value: '− ${formatMoney(alreadyPaid, currency)}',
-              emphasize: true,
-            ),
-          ],
-          const SizedBox(height: 10),
+          if (handheld)
+            Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(44, 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                      label: Text(
+                        context.posText('cartTotalsDetails', 'Totals'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: Text(
+                            context.posText('cartTotals', 'Order totals'),
+                          ),
+                          content: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: totalRows,
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: Text(l10n.commonClose),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (onDiscount != null)
+                  _FooterDiscountButton(
+                    accent: accent,
+                    active: widget.discountActive,
+                    onPressed: onDiscount,
+                  ),
+              ],
+            )
+          else
+            ...totalRows,
+          SizedBox(height: handheld ? 4 : 10),
           Container(
-            padding: const EdgeInsets.symmetric(
+            padding: EdgeInsets.symmetric(
               horizontal: 12,
-              vertical: 10,
+              vertical: handheld ? 6 : 10,
             ),
             decoration: BoxDecoration(
               color: soft.bg,
               borderRadius: BorderRadius.circular(PosTheme.radiusSm),
-              border: Border.all(
-                color: accent.withValues(alpha: 0.18),
-              ),
+              border: Border.all(color: accent.withValues(alpha: 0.18)),
             ),
             child: Row(
               children: [
@@ -735,18 +800,16 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                   formatMoney(payable, currency),
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.w700,
-                    fontSize: 22,
+                    fontSize: handheld ? 18 : 22,
                     letterSpacing: -0.4,
                     color: accent,
-                    fontFeatures: const [
-                      FontFeature.tabularFigures(),
-                    ],
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: handheld ? 6 : 12),
           if (primaryLabel == null && onPark != null) ...[
             _QuickPayRow(
               selected: activePay,
@@ -757,7 +820,7 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                 context.read<PosController>().cartQuickPayMethod = value;
               },
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: handheld ? 6 : 10),
           ],
           LayoutBuilder(
             builder: (context, constraints) {
@@ -903,24 +966,24 @@ class _InlineCustomerSearch extends StatelessWidget {
               ),
               child: results.isEmpty
                   ? searching
-                      ? const SizedBox(height: 44)
-                      : InkWell(
-                          onTap: onCreate,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                            child: Text(
-                              'Add "$query"',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: accent,
+                        ? const SizedBox(height: 44)
+                        : InkWell(
+                            onTap: onCreate,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                              child: Text(
+                                'Add "$query"',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: accent,
+                                ),
                               ),
                             ),
-                          ),
-                        )
+                          )
                   : ListView.separated(
                       shrinkWrap: true,
                       padding: EdgeInsets.zero,
@@ -930,9 +993,12 @@ class _InlineCustomerSearch extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final customer = results[index];
                         final rawId = customer['id'];
-                        final id = rawId is int ? rawId : int.tryParse('$rawId');
+                        final id = rawId is int
+                            ? rawId
+                            : int.tryParse('$rawId');
                         final name = customer['name']?.toString().trim() ?? '';
-                        final phone = customer['phone']?.toString().trim() ?? '';
+                        final phone =
+                            customer['phone']?.toString().trim() ?? '';
                         return ListTile(
                           dense: true,
                           visualDensity: VisualDensity.compact,
@@ -941,9 +1007,7 @@ class _InlineCustomerSearch extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                           subtitle: phone.isEmpty ? null : Text(phone),
-                          onTap: name.isEmpty
-                              ? null
-                              : () => onPick(id, name),
+                          onTap: name.isEmpty ? null : () => onPick(id, name),
                         );
                       },
                     ),
@@ -1122,8 +1186,10 @@ class _TablePickerTrigger extends StatelessWidget {
               if (tableCount > 0)
                 Container(
                   margin: const EdgeInsets.only(right: 6),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: PosTheme.surface,
                     borderRadius: BorderRadius.circular(999),
@@ -1210,8 +1276,9 @@ class _TablePickerSheet extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: soft.bg,
                         borderRadius: BorderRadius.circular(PosTheme.radiusSm),
-                        border:
-                            Border.all(color: accent.withValues(alpha: 0.2)),
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.2),
+                        ),
                       ),
                       child: Icon(
                         Icons.table_restaurant_rounded,
@@ -1318,10 +1385,7 @@ class _TablePickerSheet extends StatelessWidget {
                           final intId = parseJsonIntOrNull(table['id']);
                           Navigator.pop(
                             context,
-                            _TablePick(
-                              intId,
-                              name: table['name']?.toString(),
-                            ),
+                            _TablePick(intId, name: table['name']?.toString()),
                           );
                         },
                       ),
@@ -1428,17 +1492,11 @@ class _HeldBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: soft.bg,
         borderRadius: BorderRadius.circular(PosTheme.radiusSm),
-        border: Border.all(
-          color: soft.fg.withValues(alpha: 0.4),
-        ),
+        border: Border.all(color: soft.fg.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.pause_circle_filled_rounded,
-            size: 18,
-            color: soft.fg,
-          ),
+          Icon(Icons.pause_circle_filled_rounded, size: 18, color: soft.fg),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1616,7 +1674,9 @@ class _HoldButton extends StatelessWidget {
               final w = constraints.maxWidth;
               final showLabel = w >= 72;
               final showShortcut =
-                  shortcutLabel != null && shortcutLabel!.isNotEmpty && w >= 108;
+                  shortcutLabel != null &&
+                  shortcutLabel!.isNotEmpty &&
+                  w >= 108;
 
               return FittedBox(
                 fit: BoxFit.scaleDown,
@@ -1680,10 +1740,7 @@ class _HoldButton extends StatelessWidget {
 }
 
 class _ClearTicketButton extends StatelessWidget {
-  const _ClearTicketButton({
-    required this.enabled,
-    required this.onPressed,
-  });
+  const _ClearTicketButton({required this.enabled, required this.onPressed});
 
   final bool enabled;
   final VoidCallback? onPressed;
@@ -1747,13 +1804,14 @@ class _FooterDiscountButton extends StatelessWidget {
           onTap: onPressed,
           borderRadius: BorderRadius.circular(999),
           child: Container(
+            constraints: usePosHandheldLayout(context)
+                ? const BoxConstraints(minHeight: 44)
+                : null,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
-                color: active
-                    ? accent.withValues(alpha: 0.4)
-                    : PosTheme.border,
+                color: active ? accent.withValues(alpha: 0.4) : PosTheme.border,
               ),
             ),
             child: Row(
@@ -1911,8 +1969,9 @@ class _OrderTypeRow extends StatelessWidget {
       ('takeaway', l10n.orderTypeTakeaway, Icons.shopping_bag_outlined),
       ('delivery', l10n.orderTypeDelivery, Icons.delivery_dining_rounded),
     ];
-    final types =
-        allTypes.where((type) => allowedTypes.contains(type.$1)).toList();
+    final types = allTypes
+        .where((type) => allowedTypes.contains(type.$1))
+        .toList();
     final soft = posAccentSoft(accent);
 
     if (types.isEmpty) {
@@ -1938,6 +1997,9 @@ class _OrderTypeRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(PosTheme.radiusSm),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
+                  constraints: usePosHandheldLayout(context)
+                      ? const BoxConstraints(minHeight: 44)
+                      : null,
                   padding: EdgeInsets.symmetric(
                     vertical: iconOnly ? 6 : 9,
                     horizontal: iconOnly ? 4 : 0,
@@ -1951,7 +2013,19 @@ class _OrderTypeRow extends StatelessWidget {
                         ? PosTheme.cardShadow(accent)
                         : null,
                   ),
-                  child: iconOnly
+                  child: usePosHandheldLayout(context)
+                      ? Text(
+                          type.$2,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: selected ? soft.fg : PosTheme.inkMuted,
+                          ),
+                        )
+                      : iconOnly
                       ? Icon(
                           type.$3,
                           size: 16,
@@ -2059,7 +2133,8 @@ class _SplitServiceRow extends StatelessWidget {
                   icon: Icons.table_restaurant_rounded,
                   label: tableLabel ?? context.l10n.cartSelectTable,
                   accent: accent,
-                  emphasized: tableLabel != null &&
+                  emphasized:
+                      tableLabel != null &&
                       tableLabel != context.l10n.cartSelectTable,
                   onTap: onTableTap!,
                   badge: tableCount > 0 ? '$tableCount' : null,
@@ -2131,8 +2206,10 @@ class _MiniContextChip extends StatelessWidget {
               ),
               if (badge != null)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
@@ -2186,8 +2263,109 @@ class _CartLineRow extends StatelessWidget {
     final lineName = line.displayNameFor(lang);
     final hasNote = line.notes?.trim().isNotEmpty == true;
 
-    final cardColor =
-        PosTheme.isDark ? const Color(0xFF1B2433) : const Color(0xFFFFFFFF);
+    if (usePosHandheldLayout(context)) {
+      return Material(
+        color: PosTheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 2, 4, 4),
+          decoration: BoxDecoration(
+            border: Border.all(color: PosTheme.border),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  if (normalizePosItemType(line.menuItem.itemType) != null) ...[
+                    PosItemTypeMark(type: line.menuItem.itemType!, size: 12),
+                    const SizedBox(width: 6),
+                  ],
+                  Expanded(
+                    child: Text(
+                      lineName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: PosTheme.ink,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Remove item',
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  ),
+                ],
+              ),
+              if (modifiers.isNotEmpty)
+                Text(
+                  modifiers,
+                  style: TextStyle(fontSize: 11, color: PosTheme.inkMuted),
+                ),
+              if (hasNote && !expanded)
+                Text(
+                  line.notes!.trim(),
+                  style: TextStyle(fontSize: 11, color: PosTheme.inkMuted),
+                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      formatMoney(line.lineTotal, currency),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: soft.fg,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Decrease quantity',
+                    onPressed: onDecrement,
+                    icon: const Icon(Icons.remove_rounded, size: 18),
+                  ),
+                  Text(
+                    '${line.quantity}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Increase quantity',
+                    onPressed: onIncrement,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                  ),
+                  IconButton(
+                    tooltip: 'Item notes',
+                    onPressed: onToggleExpanded,
+                    icon: Icon(
+                      expanded
+                          ? Icons.expand_less_rounded
+                          : Icons.edit_note_rounded,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+              if (expanded)
+                _CartLineNoteField(
+                  initialValue: line.notes ?? '',
+                  onChanged: onNotesChanged,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final cardColor = PosTheme.isDark
+        ? const Color(0xFF1B2433)
+        : const Color(0xFFFFFFFF);
     return Material(
       color: cardColor,
       borderRadius: BorderRadius.circular(PosTheme.radiusMd),
@@ -2301,8 +2479,9 @@ class _CartLineRow extends StatelessWidget {
                                   fontSize: 12,
                                   fontStyle: FontStyle.italic,
                                   fontWeight: FontWeight.w500,
-                                  color: PosTheme.holdAmberDark
-                                      .withValues(alpha: 0.9),
+                                  color: PosTheme.holdAmberDark.withValues(
+                                    alpha: 0.9,
+                                  ),
                                 ),
                               ),
                             ),
@@ -2325,71 +2504,71 @@ class _CartLineRow extends StatelessWidget {
                 ),
               ),
             ),
-          if (expanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (modifiers.isNotEmpty) ...[
-                    Text(
-                      modifiers,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: PosTheme.inkMuted,
+            if (expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (modifiers.isNotEmpty) ...[
+                      Text(
+                        modifiers,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: PosTheme.inkMuted,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final stacked = constraints.maxWidth < 300;
-                      final quantity = _LabeledField(
-                        label: context.posText('cartLineQty', 'Quantity'),
-                        child: _QtyStepper(
-                          quantity: line.quantity,
-                          accent: accent,
-                          onDecrement: onDecrement,
-                          onIncrement: onIncrement,
-                        ),
-                      );
-                      final price = _LabeledField(
-                        label: context.posText(
-                          'cartLineUnitPrice',
-                          'Unit price',
-                        ),
-                        child: _UnitPriceBox(
-                          value: formatMoney(line.lineTotal, currency),
-                        ),
-                      );
-                      if (stacked) {
-                        return Column(
+                      const SizedBox(height: 10),
+                    ],
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final stacked = constraints.maxWidth < 300;
+                        final quantity = _LabeledField(
+                          label: context.posText('cartLineQty', 'Quantity'),
+                          child: _QtyStepper(
+                            quantity: line.quantity,
+                            accent: accent,
+                            onDecrement: onDecrement,
+                            onIncrement: onIncrement,
+                          ),
+                        );
+                        final price = _LabeledField(
+                          label: context.posText(
+                            'cartLineUnitPrice',
+                            'Unit price',
+                          ),
+                          child: _UnitPriceBox(
+                            value: formatMoney(line.lineTotal, currency),
+                          ),
+                        );
+                        if (stacked) {
+                          return Column(
+                            children: [
+                              quantity,
+                              const SizedBox(height: 10),
+                              price,
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            quantity,
-                            const SizedBox(height: 10),
-                            price,
+                            Expanded(child: quantity),
+                            const SizedBox(width: 12),
+                            Expanded(child: price),
                           ],
                         );
-                      }
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: quantity),
-                          const SizedBox(width: 12),
-                          Expanded(child: price),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _CartLineNoteField(
-                    initialValue: line.notes ?? '',
-                    onChanged: onNotesChanged,
-                  ),
-                ],
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _CartLineNoteField(
+                      initialValue: line.notes ?? '',
+                      onChanged: onNotesChanged,
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -2477,11 +2656,7 @@ class _CartLineRemoveButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(PosTheme.radiusSm),
               border: Border.all(color: tone.fg.withValues(alpha: 0.28)),
             ),
-            child: Icon(
-              Icons.delete_outline_rounded,
-              size: 20,
-              color: tone.fg,
-            ),
+            child: Icon(Icons.delete_outline_rounded, size: 20, color: tone.fg),
           ),
         ),
       ),
@@ -2565,7 +2740,10 @@ class _CartLineNoteFieldState extends State<_CartLineNoteField> {
           size: 16,
           color: PosTheme.inkMuted,
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 32,
+          minHeight: 32,
+        ),
         filled: true,
         fillColor: PosTheme.surfaceMuted,
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -2580,7 +2758,9 @@ class _CartLineNoteFieldState extends State<_CartLineNoteField> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.45),
+            color: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.45),
           ),
         ),
       ),

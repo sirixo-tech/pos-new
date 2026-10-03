@@ -32,6 +32,8 @@ class MainActivity : FlutterActivity() {
     private var iminScannerReceiver: BroadcastReceiver? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val smartPosPrinter = SmartPosPrinterHandler(mainHandler)
+    private val iminPrinterDelegate = lazy { IminPrinterHandler(this, mainHandler) }
+    private val iminPrinter by iminPrinterDelegate
     private var bluetoothPermResult: MethodChannel.Result? = null
     private var usbAttachReceiver: BroadcastReceiver? = null
     private var usbAttachSink: EventChannel.EventSink? = null
@@ -118,6 +120,18 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler(soundHandler)
 
         val smartPosHandler = MethodChannel.MethodCallHandler { call, result ->
+            if (call.method == "getPrinterDeviceInfo") {
+                val imin = IminPrinterHandler.isIminDevice()
+                val identity = "${Build.MANUFACTURER} ${Build.BRAND} ${Build.MODEL}".lowercase(Locale.ROOT)
+                result.success(mapOf(
+                    "hasBuiltInPrinter" to (imin || listOf("tvs", "zcs", "smartpos").any { identity.contains(it) }),
+                    "name" to if (imin) IminPrinterHandler.deviceName() else Build.MODEL,
+                ))
+                return@MethodCallHandler
+            }
+            if (IminPrinterHandler.isIminDevice() && iminPrinter.handle(call, result)) {
+                return@MethodCallHandler
+            }
             when (call.method) {
                 "getUsbPaperStatus" -> {
                     val vendor = call.argument<String>("vendorId")?.toIntOrNull()
@@ -298,6 +312,7 @@ class MainActivity : FlutterActivity() {
         usbDisplays = null
         smartPosDisplay?.destroy()
         smartPosDisplay = null
+        if (iminPrinterDelegate.isInitialized()) iminPrinter.destroy()
         super.onDestroy()
     }
 

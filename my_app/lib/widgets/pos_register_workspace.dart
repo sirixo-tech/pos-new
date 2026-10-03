@@ -94,10 +94,7 @@ class _PosRegisterWorkspaceState extends State<PosRegisterWorkspace> {
           Positioned(
             right: 16,
             bottom: 16,
-            child: _ViewCartPillHost(
-              accent: accent,
-              onTap: _openCart,
-            ),
+            child: _ViewCartPillHost(accent: accent, onTap: _openCart),
           ),
       ],
     );
@@ -107,8 +104,9 @@ class _PosRegisterWorkspaceState extends State<PosRegisterWorkspace> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final short = PosTheme.isShort(context);
-        final categoriesOnTop =
-            context.select((PosCategoryBarSettings s) => s.isTop);
+        final categoriesOnTop = context.select(
+          (PosCategoryBarSettings s) => s.isTop,
+        );
         final cartWidth = (constraints.maxWidth * 0.40).clamp(
           short ? 280.0 : 320.0,
           PosTheme.cartPanelWidth,
@@ -123,10 +121,7 @@ class _PosRegisterWorkspaceState extends State<PosRegisterWorkspace> {
                 searchController: widget.searchController,
               ),
             Expanded(
-              child: _menuColumn(
-                accent,
-                categoriesOnTop: categoriesOnTop,
-              ),
+              child: _menuColumn(accent, categoriesOnTop: categoriesOnTop),
             ),
             SizedBox(
               width: cartWidth,
@@ -182,9 +177,7 @@ class _PosRegisterWorkspaceState extends State<PosRegisterWorkspace> {
               pos.setSearchQuery('');
               final variant = match.variant;
               if (variant != null && match.item.modifiers.isEmpty) {
-                pos.addToCart(
-                  CartLine(menuItem: match.item, variant: variant),
-                );
+                pos.addToCart(CartLine(menuItem: match.item, variant: variant));
                 return;
               }
               widget.onItemTap(match.item);
@@ -197,10 +190,7 @@ class _PosRegisterWorkspaceState extends State<PosRegisterWorkspace> {
               horizontal: true,
             ),
           Expanded(
-            child: _MenuScrollBody(
-              accent: accent,
-              onItemTap: widget.onItemTap,
-            ),
+            child: _MenuScrollBody(accent: accent, onItemTap: widget.onItemTap),
           ),
         ],
       ),
@@ -222,10 +212,12 @@ class _PosCategoryRailHost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categories = context.select((PosController p) => p.categories);
-    final activeCategoryId =
-        context.select((PosController p) => p.activeCategoryId);
-    final searchActive =
-        context.select((PosController p) => p.searchQuery.isNotEmpty);
+    final activeCategoryId = context.select(
+      (PosController p) => p.activeCategoryId,
+    );
+    final searchActive = context.select(
+      (PosController p) => p.searchQuery.isNotEmpty,
+    );
     final serverUrl = context.select(
       (PosController p) => p.serverUrl ?? p.session?.serverUrl,
     );
@@ -301,7 +293,10 @@ class _SearchStripState extends State<_SearchStrip> {
           bottom: BorderSide(color: PosTheme.border.withValues(alpha: 0.9)),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: usePosHandheldLayout(context) ? 10 : 14,
+        vertical: usePosHandheldLayout(context) ? 6 : 10,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -319,10 +314,7 @@ class _SearchStripState extends State<_SearchStrip> {
 }
 
 class _MenuScrollBody extends StatelessWidget {
-  const _MenuScrollBody({
-    required this.accent,
-    required this.onItemTap,
-  });
+  const _MenuScrollBody({required this.accent, required this.onItemTap});
 
   final Color accent;
   final ValueChanged<MenuItem> onItemTap;
@@ -330,8 +322,7 @@ class _MenuScrollBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final menuEmpty = context.select((PosController p) => p.menuItemsEmpty);
-    final showPopular =
-        context.select((PosController p) => p.showPopularStrip);
+    final showPopular = context.select((PosController p) => p.showPopularStrip);
     final searchQuery = context.select((PosController p) => p.searchQuery);
     final items = context.select((PosController p) => p.itemsToDisplay);
     final popularItems = context.select((PosController p) => p.popularItems);
@@ -339,14 +330,16 @@ class _MenuScrollBody extends StatelessWidget {
     final serverUrl = context.select(
       (PosController p) => p.serverUrl ?? p.session?.serverUrl,
     );
-    final categoryTitle =
-        context.select((PosController p) => p.activeCategoryTitle);
-    final categorySubtitle =
-        context.select((PosController p) => p.activeCategorySubtitle);
-    final cartQty =
-        context.select((PosController p) => p.cartQtyByMenuItemId);
-    final simpleLines =
-        context.select((PosController p) => p.simpleCartLineByMenuItemId);
+    final categoryTitle = context.select(
+      (PosController p) => p.activeCategoryTitle,
+    );
+    final categorySubtitle = context.select(
+      (PosController p) => p.activeCategorySubtitle,
+    );
+    final cartQty = context.select((PosController p) => p.cartQtyByMenuItemId);
+    final simpleLines = context.select(
+      (PosController p) => p.simpleCartLineByMenuItemId,
+    );
     final showItemImages = context.select(
       (PosCatalogLayoutSettings s) => s.showsItemImages,
     );
@@ -364,11 +357,12 @@ class _MenuScrollBody extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final paneWidth = constraints.maxWidth;
+        final handheld = usePosHandheldLayout(context);
         final crossAxisCount = posMenuGridCrossAxisCount(paneWidth);
 
         return CustomScrollView(
           slivers: [
-            if (showPopular)
+            if (showPopular && !handheld)
               SliverToBoxAdapter(
                 child: _PopularSection(
                   items: popularItems,
@@ -406,39 +400,65 @@ class _MenuScrollBody extends StatelessWidget {
               ),
             if (items.isNotEmpty)
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: posMenuGridChildAspectRatio(
-                      paneWidth,
-                      compact: true,
-                      images: showItemImages,
-                    ),
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final item = items[index];
-                      return PosMenuItemCard(
-                        key: ValueKey(item.id),
-                        item: item,
-                        currency: currency,
-                        accent: accent,
-                        compact: true,
-                        serverUrl: serverUrl,
-                        showImage: showItemImages,
-                        inTicketQty: cartQty[item.id] ?? 0,
-                        simpleCartLine: simpleLines[item.id],
-                        onTap: () => onItemTap(item),
-                        onIncrementSimple: pos.incrementSimpleCartLine,
-                        onDecrementSimple: pos.decrementSimpleCartLine,
-                      );
-                    },
-                    childCount: items.length,
-                  ),
+                padding: EdgeInsets.fromLTRB(
+                  handheld ? 10 : 16,
+                  4,
+                  handheld ? 10 : 16,
+                  handheld ? 88 : 24,
                 ),
+                sliver: handheld
+                    ? SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final item = items[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: PosMenuItemCard(
+                              handheld: true,
+                              key: ValueKey(item.id),
+                              item: item,
+                              currency: currency,
+                              accent: accent,
+                              compact: true,
+                              serverUrl: serverUrl,
+                              showImage: showItemImages,
+                              inTicketQty: cartQty[item.id] ?? 0,
+                              simpleCartLine: simpleLines[item.id],
+                              onTap: () => onItemTap(item),
+                              onIncrementSimple: pos.incrementSimpleCartLine,
+                              onDecrementSimple: pos.decrementSimpleCartLine,
+                            ),
+                          );
+                        }, childCount: items.length),
+                      )
+                    : SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 14,
+                          childAspectRatio: posMenuGridChildAspectRatio(
+                            paneWidth,
+                            compact: true,
+                            images: showItemImages,
+                          ),
+                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final item = items[index];
+                          return PosMenuItemCard(
+                            key: ValueKey(item.id),
+                            item: item,
+                            currency: currency,
+                            accent: accent,
+                            compact: true,
+                            serverUrl: serverUrl,
+                            showImage: showItemImages,
+                            inTicketQty: cartQty[item.id] ?? 0,
+                            simpleCartLine: simpleLines[item.id],
+                            onTap: () => onItemTap(item),
+                            onIncrementSimple: pos.incrementSimpleCartLine,
+                            onDecrementSimple: pos.decrementSimpleCartLine,
+                          );
+                        }, childCount: items.length),
+                      ),
               ),
           ],
         );
@@ -505,7 +525,9 @@ class _PopularSection extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: soft.bg,
                       borderRadius: BorderRadius.circular(PosTheme.radiusMd),
-                      border: Border.all(color: soft.fg.withValues(alpha: 0.28)),
+                      border: Border.all(
+                        color: soft.fg.withValues(alpha: 0.28),
+                      ),
                     ),
                     child: Icon(
                       Icons.trending_up_rounded,
@@ -589,18 +611,27 @@ class _CategorySectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      padding: EdgeInsets.fromLTRB(
+        12,
+        4,
+        12,
+        usePosHandheldLayout(context) ? 6 : 12,
+      ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: usePosHandheldLayout(context) ? 24 : 36,
+            height: usePosHandheldLayout(context) ? 24 : 36,
             decoration: BoxDecoration(
               color: PosTheme.searchFill,
               borderRadius: BorderRadius.circular(PosTheme.radiusMd),
               border: Border.all(color: PosTheme.border),
             ),
-            child: Icon(Icons.grid_view_rounded, size: 18, color: PosTheme.inkMuted),
+            child: Icon(
+              Icons.grid_view_rounded,
+              size: 18,
+              color: PosTheme.inkMuted,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -615,10 +646,11 @@ class _CategorySectionHeader extends StatelessWidget {
                     color: PosTheme.ink,
                   ),
                 ),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
-                ),
+                if (!usePosHandheldLayout(context))
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
+                  ),
               ],
             ),
           ),
@@ -629,10 +661,7 @@ class _CategorySectionHeader extends StatelessWidget {
 }
 
 class _ViewCartPillHost extends StatelessWidget {
-  const _ViewCartPillHost({
-    required this.accent,
-    required this.onTap,
-  });
+  const _ViewCartPillHost({required this.accent, required this.onTap});
 
   final Color accent;
   final VoidCallback onTap;
@@ -641,11 +670,7 @@ class _ViewCartPillHost extends StatelessWidget {
   Widget build(BuildContext context) {
     final count = context.select((PosController p) => p.cartItemCount);
     if (count <= 0) return const SizedBox.shrink();
-    return _ViewCartPill(
-      count: count,
-      accent: accent,
-      onTap: onTap,
-    );
+    return _ViewCartPill(count: count, accent: accent, onTap: onTap);
   }
 }
 
@@ -760,9 +785,9 @@ class _MobileCartSheet extends StatelessWidget {
                   child: Text(
                     l10n.cartCurrentTicket,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.2,
-                        ),
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
                   ),
                 ),
                 Material(
@@ -774,10 +799,7 @@ class _MobileCartSheet extends StatelessWidget {
                     child: SizedBox(
                       width: 36,
                       height: 36,
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: soft.fg,
-                      ),
+                      child: Icon(Icons.close_rounded, color: soft.fg),
                     ),
                   ),
                 ),

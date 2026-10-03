@@ -38,6 +38,32 @@ Future<String?> showSmartPosUpiQr({
   String? restaurantName,
   String? restaurantLogoUrl,
 }) async {
+  String? nativeMode;
+  // Android secondary screens do not depend on the external USB display
+  // transports. Send the payment QR there before waiting for serial discovery.
+  if (Platform.isAndroid) {
+    try {
+      final mode = await _smartPosDisplayChannel.invokeMethod<String>(
+        'getCustomerDisplayStatus',
+      );
+      if (mode == 'secondary_display' || mode == 'imin_lcd') {
+        nativeMode = await _showNativePaymentQr(
+          qr: qr,
+          orderNumber: orderNumber,
+          amount: amount,
+          payeeName: payeeName,
+          upiId: upiId,
+          timeoutSeconds: timeoutSeconds,
+          restaurantName: restaurantName,
+          restaurantLogoUrl: restaurantLogoUrl,
+        );
+      }
+    } on MissingPluginException {
+      // Older devices can still use the external display transports below.
+    } on PlatformException catch (error) {
+      debugPrint('[UPI_QR][DISPLAY] native display attempt failed: $error');
+    }
+  }
   if (Platform.isWindows || Platform.isAndroid) {
     // USB serial displays (DQ11, DQR-222) take several seconds to complete a
     // write. Awaiting both serially blocks the cashier and triggers the 700 ms
@@ -82,6 +108,16 @@ Future<String?> showSmartPosUpiQr({
         timeoutSeconds: timeoutSeconds,
       ).catchError((_) => false),
     ]);
+
+    if (nativeMode != null) {
+      // Also update attached USB displays while the built-in QR is visible.
+      unawaited(writeFuture.then((results) {
+        _activeWindowsUsbDisplays
+          ..clear()
+          ..addAll([if (results[0]) 'dq11', if (results[1]) 'dqr222']);
+      }));
+      return nativeMode;
+    }
 
     if (dqr222Known || dq11Known) {
       // At least one USB display is expected to show the QR. Return the mode
@@ -129,6 +165,28 @@ Future<String?> showSmartPosUpiQr({
     'qrLen=${qr.length} upi=${qr.startsWith('upi://')} '
     'order=$orderNumber amount=$amount timeout=$timeoutSeconds',
   );
+  return _showNativePaymentQr(
+    qr: qr,
+    orderNumber: orderNumber,
+    amount: amount,
+    payeeName: payeeName,
+    upiId: upiId,
+    timeoutSeconds: timeoutSeconds,
+    restaurantName: restaurantName,
+    restaurantLogoUrl: restaurantLogoUrl,
+  );
+}
+
+Future<String?> _showNativePaymentQr({
+  required String qr,
+  String? orderNumber,
+  double? amount,
+  String? payeeName,
+  String? upiId,
+  int? timeoutSeconds,
+  String? restaurantName,
+  String? restaurantLogoUrl,
+}) async {
   final result = await _smartPosDisplayChannel
       .invokeMethod<String>('showUpiQr', <String, Object?>{
         'qrData': qr,
@@ -394,10 +452,16 @@ Future<void> showWindowsCustomerDisplayHomeIfIdle({
 
 /// Initializes every supported USB customer display and retries while the
 /// host publishes serial devices or Android grants USB permission.
-Future<void> initializeWindowsCustomerDisplays() async {
+Future<void> initializeWindowsCustomerDisplays({
+  String? restaurantName,
+  String? restaurantLogoUrl,
+}) async {
   if (!Platform.isWindows && !Platform.isAndroid) return;
   for (var attempt = 0; attempt < 4; attempt++) {
-    await showSmartPosIdleCustomerDisplay();
+    await showSmartPosIdleCustomerDisplay(
+      restaurantName: restaurantName,
+      restaurantLogoUrl: restaurantLogoUrl,
+    );
     if (attempt < 3) {
       await Future<void>.delayed(const Duration(seconds: 2));
     }

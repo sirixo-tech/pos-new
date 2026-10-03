@@ -3,6 +3,17 @@ import 'dart:io';
 
 import 'package:window_manager/window_manager.dart';
 
+bool _installerShutdownAllowed = false;
+
+/// The user has already chosen to install an update. Allow Restart Manager
+/// to close the app without displaying the normal cashier exit confirmation.
+Future<void> allowWindowCloseForUpdate(bool allowed) async {
+  if (!Platform.isWindows) return;
+  _installerShutdownAllowed = allowed;
+  await windowManager.ensureInitialized();
+  await windowManager.setPreventClose(!allowed);
+}
+
 class WindowCloseGuard with WindowListener {
   WindowCloseGuard({required this.onCloseRequest});
 
@@ -23,6 +34,7 @@ class WindowCloseGuard with WindowListener {
   @override
   void onWindowClose() {
     if (_closing) return;
+    if (_installerShutdownAllowed) return;
     unawaited(_confirmAndClose());
   }
 

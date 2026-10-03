@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import '../l10n/pos_l10n.dart';
 import '../models/pos_app_update.dart';
 import '../utils/platform_info.dart';
+import 'window_close/window_close_guard.dart';
 
 enum PosUpdateInstallPhase {
   preparing,
@@ -113,10 +115,12 @@ class PosUpdateInstaller {
       return failed;
     }
 
-    emit(PosUpdateInstallProgress(
-      phase: PosUpdateInstallPhase.preparing,
-      message: _t('updatePreparing', 'Preparing download…'),
-    ));
+    emit(
+      PosUpdateInstallProgress(
+        phase: PosUpdateInstallPhase.preparing,
+        message: _t('updatePreparing', 'Preparing download…'),
+      ),
+    );
 
     try {
       final parsedUri = Uri.parse(url);
@@ -142,11 +146,9 @@ class PosUpdateInstaller {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final failed = PosUpdateInstallProgress(
           phase: PosUpdateInstallPhase.failed,
-          message: _t(
-            'updateDownloadFailed',
-            'Download failed ({code}).',
-            {'code': response.statusCode},
-          ),
+          message: _t('updateDownloadFailed', 'Download failed ({code}).', {
+            'code': response.statusCode,
+          }),
         );
         emit(failed);
         return failed;
@@ -173,21 +175,22 @@ class PosUpdateInstaller {
 
           sink.add(chunk);
           received += chunk.length;
-          final progress =
-              total != null && total > 0 ? (received / total).clamp(0.0, 1.0) : null;
-          emit(PosUpdateInstallProgress(
-            phase: PosUpdateInstallPhase.downloading,
-            progress: progress,
-            receivedBytes: received,
-            totalBytes: total,
-            message: total != null && total > 0
-                ? _t(
-                    'updateDownloadingPct',
-                    'Downloading… {pct}%',
-                    {'pct': ((received / total) * 100).floor()},
-                  )
-                : _t('updateDownloading', 'Downloading update'),
-          ));
+          final progress = total != null && total > 0
+              ? (received / total).clamp(0.0, 1.0)
+              : null;
+          emit(
+            PosUpdateInstallProgress(
+              phase: PosUpdateInstallPhase.downloading,
+              progress: progress,
+              receivedBytes: received,
+              totalBytes: total,
+              message: total != null && total > 0
+                  ? _t('updateDownloadingPct', 'Downloading… {pct}%', {
+                      'pct': ((received / total) * 100).floor(),
+                    })
+                  : _t('updateDownloading', 'Downloading update'),
+            ),
+          );
         }
       } finally {
         await sink.close();
@@ -218,26 +221,38 @@ class PosUpdateInstaller {
         return failed;
       }
 
-      emit(PosUpdateInstallProgress(
-        phase: PosUpdateInstallPhase.opening,
-        progress: 1,
-        receivedBytes: received,
-        totalBytes: total ?? received,
-        filePath: target.path,
-        message: _openingMessage(),
-      ));
+      emit(
+        PosUpdateInstallProgress(
+          phase: PosUpdateInstallPhase.opening,
+          progress: 1,
+          receivedBytes: received,
+          totalBytes: total ?? received,
+          filePath: target.path,
+          message: _openingMessage(),
+        ),
+      );
 
-      if (Platform.isWindows &&
-          target.path.toLowerCase().endsWith('.exe')) {
-        await Process.start(
-          target.path,
-          const [
+      if (Platform.isWindows && target.path.toLowerCase().endsWith('.exe')) {
+        await allowWindowCloseForUpdate(true);
+        try {
+          final installer = await Process.start(target.path, const [
             '/CLOSEAPPLICATIONS',
             '/RESTARTAPPLICATIONS',
             '/SUPPRESSMSGBOXES',
-          ],
-          mode: ProcessStartMode.detached,
-        );
+          ], mode: ProcessStartMode.normal);
+          unawaited(installer.stdout.drain<void>());
+          unawaited(installer.stderr.drain<void>());
+          // If the wizard is cancelled and POS remains open, restore its
+          // ordinary exit confirmation after the installer exits.
+          unawaited(
+            installer.exitCode.then((_) async {
+              await allowWindowCloseForUpdate(false);
+            }),
+          );
+        } on Object {
+          await allowWindowCloseForUpdate(false);
+          rethrow;
+        }
         final done = PosUpdateInstallProgress(
           phase: PosUpdateInstallPhase.done,
           progress: 1,
@@ -363,8 +378,8 @@ class PosUpdateInstaller {
     return uri.scheme == 'https' &&
         uri.host.toLowerCase() == 'app.selfx.in' &&
         uri.path.toLowerCase().startsWith(
-              '/media/app-downloads/pos/$normalized/',
-            );
+          '/media/app-downloads/pos/$normalized/',
+        );
   }
 
   static bool _isTrustedDownloadUri(Uri uri) {
@@ -397,17 +412,17 @@ class PosUpdateInstaller {
   static String _openingMessage() {
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => _t(
-          'updateOpeningAndroid',
-          'Opening the Android installer…',
-        ),
+        'updateOpeningAndroid',
+        'Opening the Android installer…',
+      ),
       TargetPlatform.macOS => _t(
-          'updateOpeningMac',
-          'Opening the macOS installer…',
-        ),
+        'updateOpeningMac',
+        'Opening the macOS installer…',
+      ),
       TargetPlatform.windows => _t(
-          'updateOpeningWin',
-          'Opening the Windows installer…',
-        ),
+        'updateOpeningWin',
+        'Opening the Windows installer…',
+      ),
       _ => _t('updateOpeningGeneric', 'Opening the installer…'),
     };
   }
@@ -415,21 +430,21 @@ class PosUpdateInstaller {
   static String _doneMessage() {
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => _t(
-          'updateDoneAndroid',
-          'Complete the system install prompt, then reopen this POS app.',
-        ),
+        'updateDoneAndroid',
+        'Complete the system install prompt, then reopen this POS app.',
+      ),
       TargetPlatform.macOS => _t(
-          'updateDoneMac',
-          'Install from the opened package (DMG/app), then reopen this POS app.',
-        ),
+        'updateDoneMac',
+        'Install from the opened package (DMG/app), then reopen this POS app.',
+      ),
       TargetPlatform.windows => _t(
-          'updateDoneWin',
-          'Finish the installer wizard, then reopen this POS app.',
-        ),
+        'updateDoneWin',
+        'Finish the installer wizard, then reopen this POS app.',
+      ),
       _ => _t(
-          'updateDoneGeneric',
-          'Finish installing, then reopen this POS app.',
-        ),
+        'updateDoneGeneric',
+        'Finish installing, then reopen this POS app.',
+      ),
     };
   }
 }

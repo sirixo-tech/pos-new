@@ -39,6 +39,20 @@ class PosReceiptPrinter {
 
   static bool get isSupported => true;
 
+  static Future<Map<String, dynamic>> builtInDeviceInfo() async {
+    if (!Platform.isAndroid) return const {};
+    try {
+      return await _smartPosChannel.invokeMapMethod<String, dynamic>(
+            'getPrinterDeviceInfo',
+          ) ??
+          const {};
+    } on MissingPluginException {
+      return const {};
+    } on PlatformException {
+      return const {};
+    }
+  }
+
   static String get unsupportedMessage => thermalPrinterUnsupportedMessage();
 
   /// Open USB/BLE transport ahead of the first ticket so checkout is not delayed.
@@ -279,7 +293,15 @@ class PosReceiptPrinter {
     }
 
     if (config.connection == PosPrinterConnection.bluetooth) {
-      return _probeBluetooth(config, checkedAt, allowScan: allowBluetoothScan);
+      return _probeBluetooth(
+        config,
+        checkedAt,
+        allowScan: allowBluetoothScan,
+      ).timeout(
+        Duration(seconds: allowBluetoothScan ? 25 : 6),
+        onTimeout: () =>
+            _disconnectedHealth(config, checkedAt, bluetooth: true),
+      );
     }
 
     if (Platform.isAndroid && config.connection == PosPrinterConnection.usb) {
@@ -461,7 +483,9 @@ class PosReceiptPrinter {
     }
     try {
       final status =
-          (await _smartPosChannel.invokeMethod<String>('getPrinterStatus') ??
+          (await _smartPosChannel
+                      .invokeMethod<String>('getPrinterStatus')
+                      .timeout(const Duration(seconds: 4)) ??
                   '')
               .trim()
               .toLowerCase();
@@ -483,6 +507,13 @@ class PosReceiptPrinter {
           state: PrinterHealthState.attention,
           config: config,
           message: 'Built-in printer is overheated. Allow it to cool.',
+          issues: const ['offline'],
+          lastCheckedAt: checkedAt,
+        ),
+        'coveropen' => PrinterHealth(
+          state: PrinterHealthState.attention,
+          config: config,
+          message: 'Close the printer cover, then try again.',
           issues: const ['offline'],
           lastCheckedAt: checkedAt,
         ),
@@ -546,7 +577,9 @@ class PosReceiptPrinter {
     }
 
     try {
-      if (await PrinterManager.instance.isConnected(printer)) {
+      if (await PrinterManager.instance
+          .isConnected(printer)
+          .timeout(const Duration(seconds: 2))) {
         _rememberBluetooth(printer);
         return PrinterHealth(
           state: PrinterHealthState.ready,
@@ -1186,7 +1219,9 @@ class PosReceiptPrinter {
   static Future<bool?> _bluetoothRadioOn() async {
     if (kIsWeb || !Platform.isAndroid) return null;
     try {
-      return await _bluetoothChannel.invokeMethod<bool>('isRadioOn');
+      return await _bluetoothChannel
+          .invokeMethod<bool>('isRadioOn')
+          .timeout(const Duration(seconds: 2));
     } on MissingPluginException {
       return null;
     } catch (error) {
@@ -1199,7 +1234,7 @@ class PosReceiptPrinter {
     _warmBluetoothAddress = null;
     bleLinkIsLive = false;
     try {
-      await _thermal.disconnect(printer);
+      await _thermal.disconnect(printer).timeout(const Duration(seconds: 3));
     } catch (_) {}
   }
 
@@ -1215,10 +1250,14 @@ class PosReceiptPrinter {
   static Future<bool> _connectBluetooth(Printer printer) async {
     final manager = PrinterManager.instance;
     try {
-      if (await manager.isConnected(printer)) return true;
+      if (await manager
+          .isConnected(printer)
+          .timeout(const Duration(seconds: 2))) {
+        return true;
+      }
     } catch (_) {}
     try {
-      await stopBluetoothScan();
+      await stopBluetoothScan().timeout(const Duration(seconds: 2));
     } catch (_) {}
     try {
       final connected = await _thermal
@@ -1228,7 +1267,9 @@ class PosReceiptPrinter {
           )
           .timeout(const Duration(seconds: 20), onTimeout: () => false);
       if (connected) return true;
-      return await manager.isConnected(printer);
+      return await manager
+          .isConnected(printer)
+          .timeout(const Duration(seconds: 2));
     } catch (_) {
       return false;
     }
@@ -1429,11 +1470,7 @@ class PosReceiptPrinter {
   static List<String> _thermalReportTypeAttempts(String type) {
     return switch (type) {
       'staff' => const ['staff', 'staff_wise', 'staff_sales'],
-      'voids' => const [
-        'voids',
-        'voids_and_cancellations',
-        'cancellations',
-      ],
+      'voids' => const ['voids', 'voids_and_cancellations', 'cancellations'],
       _ => [type],
     };
   }

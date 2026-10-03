@@ -9,21 +9,29 @@ import 'printer_health.dart';
 /// App-bar printer health: USB / LAN / built-in are probed every few seconds.
 /// Bluetooth uses a cheap isConnected check on the timer (no scan / no connect).
 class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
-  PrinterStatusService() {
+  PrinterStatusService({
+    Future<PrinterHealth> Function(bool reconnect)? probe,
+    Future<UsbPrinterConfig?> Function()? loadConfig,
+  }) : _probe =
+           probe ??
+           ((reconnect) =>
+               PosReceiptPrinter.probe(allowBluetoothScan: reconnect)),
+       _loadConfig = loadConfig ?? UsbPrinterStorage.load {
     WidgetsBinding.instance.addObserver(this);
   }
 
   static const _pollInterval = Duration(seconds: 5);
+  final Future<PrinterHealth> Function(bool reconnect) _probe;
+  final Future<UsbPrinterConfig?> Function() _loadConfig;
+  bool _disposed = false;
+  int _revision = 0;
 
-  PrinterHealth _health = const PrinterHealth(
-    state: PrinterHealthState.none,
-  );
+  PrinterHealth _health = const PrinterHealth(state: PrinterHealthState.none);
   bool _probing = false;
   bool _started = false;
   bool _hasProbed = false;
   Timer? _timer;
   StreamSubscription<dynamic>? _usbHardware;
-  int _ticks = 0;
   Future<void>? _flight;
   bool _queued = false;
   bool _queuedScan = false;
@@ -36,15 +44,13 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
     if (_started) return;
     _started = true;
     await refresh(allowBluetoothScan: true);
+    if (_disposed) return;
     _usbHardware ??= PosReceiptPrinter.watchUsbHardware(() {
       unawaited(refresh());
     });
     _timer?.cancel();
     _timer = Timer.periodic(_pollInterval, (_) {
-      _ticks++;
-      unawaited(
-        refresh(allowBluetoothScan: _ticks % 6 == 0),
-      );
+      if (!_probing) unawaited(refresh());
     });
   }
 
@@ -60,6 +66,7 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
   /// Bluetooth never discovery-scans here. [allowBluetoothScan] only allows
   /// one connect to the saved address (start, resume, setup).
   Future<void> refresh({bool allowBluetoothScan = false}) {
+    if (_disposed) return Future.value();
     final current = _flight;
     if (current != null) {
       _queued = true;
@@ -70,7 +77,7 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
     _flight = run;
     return run.whenComplete(() {
       _flight = null;
-      if (!_queued) return;
+      if (_disposed || !_queued) return;
       final scan = _queuedScan;
       _queued = false;
       _queuedScan = false;
@@ -90,7 +97,24 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
-    final config = await UsbPrinterStorage.load();
+    final revision = _revision;
+    UsbPrinterConfig? config;
+    try {
+      config = await _loadConfig().timeout(const Duration(seconds: 3));
+    } catch (error) {
+      if (!_disposed && revision == _revision) {
+        _setHealth(
+          PrinterHealth(
+            state: PrinterHealthState.error,
+            message:
+                'Could not load printer settings. Open Printer setup and try again.',
+            lastCheckedAt: DateTime.now(),
+          ),
+        );
+      }
+      return;
+    }
+    if (_disposed || revision != _revision) return;
     if (config == null || config.name.trim().isEmpty) {
       _setHealth(
         PrinterHealth(
@@ -105,17 +129,26 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
     _probing = true;
     notifyListeners();
     try {
-      final next = await PosReceiptPrinter.probe(
-        allowBluetoothScan: allowBluetoothScan,
+      final next = await _probe(allowBluetoothScan).timeout(
+        Duration(
+          seconds:
+              config.connection == PosPrinterConnection.bluetooth &&
+                  allowBluetoothScan
+              ? 25
+              : 6,
+        ),
       );
-      _setHealth(next);
+      if (!_disposed && revision == _revision) _setHealth(next);
     } catch (e, st) {
+      if (_disposed || revision != _revision) return;
       debugPrint('PrinterStatusService.refresh failed: $e\n$st');
       _setHealth(
         PrinterHealth(
           state: PrinterHealthState.error,
           config: config,
-          message: e.toString(),
+          message: e is TimeoutException
+              ? 'Printer did not respond. Check the connection, then refresh or test print.'
+              : e.toString(),
           issues: PrinterHealth.issuesFromErrorMessage(e.toString()),
           lastCheckedAt: DateTime.now(),
         ),
@@ -125,26 +158,29 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Instant UI update when a print write fails (USB unplug mid-job, BLE drop).
   void markUnreachable(Object error) {
+    _revision++;
     final config = _health.config;
     final paper = isPrinterPaperOut(error);
     _setHealth(
       PrinterHealth(
-        state: paper ? PrinterHealthState.attention : PrinterHealthState.missing,
+        state: paper
+            ? PrinterHealthState.attention
+            : PrinterHealthState.missing,
         config: config,
         message: error.toString(),
-        issues: paper
-            ? const ['paper_out']
-            : const ['offline', 'missing'],
+        issues: paper ? const ['paper_out'] : const ['offline', 'missing'],
         lastCheckedAt: DateTime.now(),
       ),
     );
   }
 
   void applyHealth(PrinterHealth health) {
+    _revision++;
     _setHealth(health);
   }
 
   void _setHealth(PrinterHealth next) {
+    if (_disposed) return;
     _health = next;
     _probing = false;
     _hasProbed = true;
@@ -153,6 +189,7 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _disposed = true;
     _timer?.cancel();
     unawaited(_usbHardware?.cancel());
     WidgetsBinding.instance.removeObserver(this);

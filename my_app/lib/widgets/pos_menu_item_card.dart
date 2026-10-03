@@ -24,6 +24,7 @@ class PosMenuItemCard extends StatefulWidget {
     this.onDecrementSimple,
     this.serverUrl,
     this.showImage = true,
+    this.handheld = false,
   });
 
   final MenuItem item;
@@ -37,6 +38,7 @@ class PosMenuItemCard extends StatefulWidget {
   final ValueChanged<CartLine>? onDecrementSimple;
   final String? serverUrl;
   final bool showImage;
+  final bool handheld;
 
   @override
   State<PosMenuItemCard> createState() => _PosMenuItemCardState();
@@ -60,8 +62,11 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
   }
 
   String _initials(String name) {
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) {
       return parts.first
@@ -97,13 +102,16 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     final lang = Localizations.localeOf(context).languageCode;
     final itemName = widget.item.localizedName(lang);
     final description = widget.item.localizedDescription(lang)?.trim();
-    final showDescription = !widget.compact &&
-        description != null &&
-        description.isNotEmpty;
+    final showDescription =
+        !widget.compact && description != null && description.isNotEmpty;
 
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final unavailable = widget.item.isManuallyUnavailable;
     final outsideSchedule = widget.item.isOutsideSchedule;
+
+    if (widget.handheld) {
+      return _buildHandheldCard(itemName, imageUrl, primary, showStepper);
+    }
 
     if (!widget.showImage || showPlaceholder) {
       return _buildColorCard(
@@ -118,258 +126,415 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     return Opacity(
       opacity: unavailable ? 0.78 : 1,
       child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: inCart ? soft.bg : PosTheme.surface,
-        borderRadius: BorderRadius.circular(PosTheme.radiusLg),
-        border: Border.all(
-          color: unavailable
-              ? const Color(0xFFB91C1C).withValues(alpha: 0.45)
-              : outsideSchedule
-                  ? const Color(0xFFB45309).withValues(alpha: 0.4)
-                  : inCart
-                      ? primary.withValues(alpha: 0.42)
-                      : PosTheme.border,
-          width: inCart || unavailable || outsideSchedule ? 1.5 : 1,
-        ),
-        boxShadow: inCart
-            ? PosTheme.cardShadow(primary)
-            : PosTheme.cardShadow(),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        clipBehavior: Clip.antiAlias,
-        borderRadius: BorderRadius.circular(PosTheme.radiusLg),
-        child: InkWell(
-          onTap: _handleTap,
+        decoration: BoxDecoration(
+          color: inCart ? soft.bg : PosTheme.surface,
           borderRadius: BorderRadius.circular(PosTheme.radiusLg),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final boundedHeight = constraints.maxHeight.isFinite;
-              final imageCacheW = constraints.maxWidth.isFinite
-                  ? (constraints.maxWidth * dpr).round()
-                  : null;
-              final imageCacheH = boundedHeight
-                  ? ((constraints.maxHeight * 0.55) * dpr).round()
-                  : imageCacheW;
-              final image = ClipRRect(
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(PosTheme.radiusLg - (inCart ? 1.5 : 1)),
-                ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (showPlaceholder)
-                      _InitialsPlaceholder(
-                        initials: _initials(itemName),
-                        name: itemName,
-                        accent: primary,
-                        compact: widget.compact,
-                      )
-                    else
-                      CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        fit: BoxFit.cover,
-                        memCacheWidth: imageCacheW,
-                        memCacheHeight: imageCacheH,
-                        fadeInDuration: const Duration(milliseconds: 180),
-                        errorWidget: (context, url, error) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (mounted) setState(() => _imageFailed = true);
-                          });
-                          return _InitialsPlaceholder(
-                            initials: _initials(itemName),
-                            name: itemName,
-                            accent: primary,
-                            compact: widget.compact,
-                          );
-                        },
-                        placeholder: (context, url) => Container(
-                          color: PosTheme.surfaceMuted,
-                          child: Center(
-                            child: SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: primary.withValues(alpha: 0.45),
+          border: Border.all(
+            color: unavailable
+                ? const Color(0xFFB91C1C).withValues(alpha: 0.45)
+                : outsideSchedule
+                ? const Color(0xFFB45309).withValues(alpha: 0.4)
+                : inCart
+                ? primary.withValues(alpha: 0.42)
+                : PosTheme.border,
+            width: inCart || unavailable || outsideSchedule ? 1.5 : 1,
+          ),
+          boxShadow: inCart
+              ? PosTheme.cardShadow(primary)
+              : PosTheme.cardShadow(),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          clipBehavior: Clip.antiAlias,
+          borderRadius: BorderRadius.circular(PosTheme.radiusLg),
+          child: InkWell(
+            onTap: _handleTap,
+            borderRadius: BorderRadius.circular(PosTheme.radiusLg),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final boundedHeight = constraints.maxHeight.isFinite;
+                final imageCacheW = constraints.maxWidth.isFinite
+                    ? (constraints.maxWidth * dpr).round()
+                    : null;
+                final imageCacheH = boundedHeight
+                    ? ((constraints.maxHeight * 0.55) * dpr).round()
+                    : imageCacheW;
+                final image = ClipRRect(
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(
+                      PosTheme.radiusLg - (inCart ? 1.5 : 1),
+                    ),
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (showPlaceholder)
+                        _InitialsPlaceholder(
+                          initials: _initials(itemName),
+                          name: itemName,
+                          accent: primary,
+                          compact: widget.compact,
+                        )
+                      else
+                        CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          memCacheWidth: imageCacheW,
+                          memCacheHeight: imageCacheH,
+                          fadeInDuration: const Duration(milliseconds: 180),
+                          errorWidget: (context, url, error) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) setState(() => _imageFailed = true);
+                            });
+                            return _InitialsPlaceholder(
+                              initials: _initials(itemName),
+                              name: itemName,
+                              accent: primary,
+                              compact: widget.compact,
+                            );
+                          },
+                          placeholder: (context, url) => Container(
+                            color: PosTheme.surfaceMuted,
+                            child: Center(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: primary.withValues(alpha: 0.45),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withValues(alpha: 0.02),
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.38),
-                            ],
-                            stops: const [0, 0.45, 1],
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (normalizePosItemType(widget.item.itemType) != null)
-                      Positioned(
-                        top: widget.compact ? 6 : 8,
-                        left: widget.compact ? 6 : 8,
+                      Positioned.fill(
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.black.withValues(alpha: 0.08),
-                            ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: PosItemTypeMark(
-                              type: widget.item.itemType!,
-                              size: widget.compact ? 14 : 16,
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.02),
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.38),
+                              ],
+                              stops: const [0, 0.45, 1],
                             ),
                           ),
                         ),
                       ),
-                    if (widget.item.isManuallyUnavailable ||
-                        widget.item.isOutsideSchedule)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          color: widget.item.isManuallyUnavailable
-                              ? const Color(0xCC991B1B)
-                              : const Color(0xCCB45309),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: widget.compact ? 6 : 8,
-                            vertical: widget.compact ? 4 : 5,
-                          ),
-                          child: Text(
-                            widget.item.isManuallyUnavailable
-                                ? context.posText(
-                                    'menuNotAvailableBadge',
-                                    'Not available',
-                                  )
-                                : context.posText(
-                                    'menuOutsideScheduleBadge',
-                                    'Outside schedule',
-                                  ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
+                      if (normalizePosItemType(widget.item.itemType) != null)
+                        Positioned(
+                          top: widget.compact ? 6 : 8,
+                          left: widget.compact ? 6 : 8,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
                               color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: widget.compact ? 9.5 : 11,
-                              height: 1.1,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (widget.item.hasOptions && !widget.compact)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: _GlassChip(
-                          icon: Icons.tune_rounded,
-                          label: context.l10n.menuOptions,
-                        ),
-                      ),
-                    if (showQtyBadge)
-                      Positioned(
-                        bottom: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: primary,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: primary.withValues(alpha: 0.35),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: Colors.black.withValues(alpha: 0.08),
                               ),
-                            ],
-                          ),
-                          child: Text(
-                            '×${widget.inTicketQty}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 11,
-                              height: 1,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: PosItemTypeMark(
+                                type: widget.item.itemType!,
+                                size: widget.compact ? 14 : 16,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    if (inCart && !widget.item.hasOptions)
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.95),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '×${widget.inTicketQty}',
-                            style: TextStyle(
-                              color: soft.fg,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 11,
-                              height: 1,
+                      if (widget.item.isManuallyUnavailable ||
+                          widget.item.isOutsideSchedule)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            color: widget.item.isManuallyUnavailable
+                                ? const Color(0xCC991B1B)
+                                : const Color(0xCCB45309),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: widget.compact ? 6 : 8,
+                              vertical: widget.compact ? 4 : 5,
+                            ),
+                            child: Text(
+                              widget.item.isManuallyUnavailable
+                                  ? context.posText(
+                                      'menuNotAvailableBadge',
+                                      'Not available',
+                                    )
+                                  : context.posText(
+                                      'menuOutsideScheduleBadge',
+                                      'Outside schedule',
+                                    ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: widget.compact ? 9.5 : 11,
+                                height: 1.1,
+                                letterSpacing: 0.2,
+                              ),
                             ),
                           ),
+                        ),
+                      if (widget.item.hasOptions && !widget.compact)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: _GlassChip(
+                            icon: Icons.tune_rounded,
+                            label: context.l10n.menuOptions,
+                          ),
+                        ),
+                      if (showQtyBadge)
+                        Positioned(
+                          bottom: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primary,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primary.withValues(alpha: 0.35),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              '×${widget.inTicketQty}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 11,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (inCart && !widget.item.hasOptions)
+                        Positioned(
+                          bottom: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.95),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '×${widget.inTicketQty}',
+                              style: TextStyle(
+                                color: soft.fg,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 11,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+
+                // Never use Expanded under unbounded height — image collapses to 0.
+                // Grid cells are height-bounded; popular/list cards use 4:3.
+                final footer = _buildFooter(
+                  primary: primary,
+                  showFromPrice: showFromPrice,
+                  showStepper: showStepper,
+                  showDescription: showDescription,
+                  description: description,
+                  itemName: itemName,
+                );
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: boundedHeight && widget.showImage
+                      ? MainAxisSize.max
+                      : MainAxisSize.min,
+                  children: [
+                    if (widget.showImage)
+                      if (boundedHeight)
+                        Expanded(child: image)
+                      else
+                        AspectRatio(aspectRatio: 4 / 3, child: image),
+                    footer,
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHandheldCard(
+    String name,
+    String? imageUrl,
+    Color accent,
+    bool stepper,
+  ) {
+    final inCart = widget.inTicketQty > 0;
+    final unavailable = widget.item.isManuallyUnavailable;
+    final status = unavailable
+        ? 'Not available'
+        : widget.item.isOutsideSchedule
+        ? 'Outside schedule'
+        : null;
+    final thumbnail = ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox.square(
+        dimension: 48,
+        child: widget.showImage && imageUrl != null && !_imageFailed
+            ? CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                memCacheWidth: (48 * MediaQuery.devicePixelRatioOf(context))
+                    .round(),
+                placeholder: (_, _) => _colorMonogram(name, 48),
+                errorWidget: (_, _, _) => _colorMonogram(name, 48),
+              )
+            : ColoredBox(
+                color: _colorCardFill(),
+                child: Center(
+                  child: Text(
+                    _initials(name),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+      ),
+    );
+    return Material(
+      color: inCart ? posAccentSoft(accent).bg : PosTheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: _handleTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 76),
+          padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: inCart ? accent.withValues(alpha: 0.4) : PosTheme.border,
+            ),
+          ),
+          child: Row(
+            children: [
+              thumbnail,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.2,
+                        fontWeight: FontWeight.w700,
+                        color: PosTheme.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (normalizePosItemType(widget.item.itemType) != null)
+                          PosItemTypeMark(
+                            type: widget.item.itemType!,
+                            size: 12,
+                          ),
+                        Text(
+                          '${widget.item.variants.isNotEmpty ? '${context.l10n.menuFrom} ' : ''}${formatMoney(_minDisplayPrice(), widget.currency)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (status != null)
+                      Text(
+                        status,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFFB45309),
                         ),
                       ),
                   ],
                 ),
-              );
-
-              // Never use Expanded under unbounded height — image collapses to 0.
-              // Grid cells are height-bounded; popular/list cards use 4:3.
-              final footer = _buildFooter(
-                primary: primary,
-                showFromPrice: showFromPrice,
-                showStepper: showStepper,
-                showDescription: showDescription,
-                description: description,
-                itemName: itemName,
-              );
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: boundedHeight && widget.showImage
-                    ? MainAxisSize.max
-                    : MainAxisSize.min,
-                children: [
-                  if (widget.showImage)
-                    if (boundedHeight)
-                      Expanded(child: image)
-                    else
-                      AspectRatio(aspectRatio: 4 / 3, child: image),
-                  footer,
-                ],
-              );
-            },
+              ),
+              const SizedBox(width: 4),
+              if (stepper)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Decrease quantity',
+                      onPressed: () => widget.onDecrementSimple?.call(
+                        widget.simpleCartLine!,
+                      ),
+                      icon: const Icon(Icons.remove_rounded, size: 18),
+                    ),
+                    Text(
+                      '${widget.inTicketQty}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Increase quantity',
+                      onPressed: () => widget.onIncrementSimple?.call(
+                        widget.simpleCartLine!,
+                      ),
+                      icon: Icon(Icons.add_rounded, size: 18, color: accent),
+                    ),
+                  ],
+                )
+              else
+                IconButton(
+                  tooltip: widget.item.hasOptions
+                      ? context.l10n.menuOptions
+                      : 'Add item',
+                  onPressed: _handleTap,
+                  icon: Icon(
+                    widget.item.hasOptions
+                        ? Icons.tune_rounded
+                        : Icons.add_circle_outline_rounded,
+                    size: 24,
+                    color: accent,
+                  ),
+                ),
+            ],
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -439,162 +604,165 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                 return SizedBox(
                   height: bounded ? constraints.maxHeight : null,
                   child: Stack(
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    widget.compact ? 10 : 12,
-                    widget.compact ? 8 : 10,
-                    widget.compact ? 10 : 12,
-                    widget.compact ? 8 : 10,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize:
-                        bounded ? MainAxisSize.max : MainAxisSize.min,
                     children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: normalizePosItemType(widget.item.itemType) ==
-                                null
-                            ? const SizedBox(height: 16)
-                            : PosItemTypeMark(
-                                type: widget.item.itemType!,
-                                size: 14,
-                              ),
-                      ),
-                      if (bounded)
-                        Expanded(
-                          child: Center(
-                            child: _colorMonogram(itemName, circle),
-                          ),
-                        )
-                      else ...[
-                        const SizedBox(height: 8),
-                        Center(child: _colorMonogram(itemName, circle)),
-                      ],
-                      SizedBox(height: widget.compact ? 8 : 10),
-                      Text(
-                        itemName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: widget.compact ? 14.3 : 15.4,
-                          height: 1.15,
-                          color: const Color(0xFF1F2937),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          widget.compact ? 10 : 12,
+                          widget.compact ? 8 : 10,
+                          widget.compact ? 10 : 12,
+                          widget.compact ? 8 : 10,
                         ),
-                      ),
-                      if (widget.item.variants.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          widget.item.variants
-                              .map((variant) => variant.name)
-                              .join(' · '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF6B7280),
-                            height: 1.1,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              showFromPrice
-                                  ? '${context.l10n.menuFrom} ${formatMoney(_minDisplayPrice(), widget.currency)}'
-                                  : formatMoney(
-                                      _minDisplayPrice(),
-                                      widget.currency,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: bounded
+                              ? MainAxisSize.max
+                              : MainAxisSize.min,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child:
+                                  normalizePosItemType(widget.item.itemType) ==
+                                      null
+                                  ? const SizedBox(height: 16)
+                                  : PosItemTypeMark(
+                                      type: widget.item.itemType!,
+                                      size: 14,
                                     ),
+                            ),
+                            if (bounded)
+                              Expanded(
+                                child: Center(
+                                  child: _colorMonogram(itemName, circle),
+                                ),
+                              )
+                            else ...[
+                              const SizedBox(height: 8),
+                              Center(child: _colorMonogram(itemName, circle)),
+                            ],
+                            SizedBox(height: widget.compact ? 8 : 10),
+                            Text(
+                              itemName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: _colorCardPrice,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
                                 fontSize: widget.compact ? 14.3 : 15.4,
-                                height: 1,
+                                height: 1.15,
+                                color: const Color(0xFF1F2937),
+                              ),
+                            ),
+                            if (widget.item.variants.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                widget.item.variants
+                                    .map((variant) => variant.name)
+                                    .join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF6B7280),
+                                  height: 1.1,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    showFromPrice
+                                        ? '${context.l10n.menuFrom} ${formatMoney(_minDisplayPrice(), widget.currency)}'
+                                        : formatMoney(
+                                            _minDisplayPrice(),
+                                            widget.currency,
+                                          ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: _colorCardPrice,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: widget.compact ? 14.3 : 15.4,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                                if (showStepper)
+                                  _Stepper(
+                                    quantity: widget.simpleCartLine!.quantity,
+                                    compact: true,
+                                    accent: const Color(0xFF3F2A22),
+                                    onDecrement: () => widget.onDecrementSimple
+                                        ?.call(widget.simpleCartLine!),
+                                    onIncrement: () {
+                                      HapticFeedback.selectionClick();
+                                      widget.onIncrementSimple?.call(
+                                        widget.simpleCartLine!,
+                                      );
+                                    },
+                                  )
+                                else
+                                  Material(
+                                    color: _colorCardPrice,
+                                    shape: const CircleBorder(),
+                                    child: InkWell(
+                                      customBorder: const CircleBorder(),
+                                      onTap: _handleTap,
+                                      child: const SizedBox(
+                                        width: 28,
+                                        height: 28,
+                                        child: Icon(
+                                          Icons.add_rounded,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (unavailable || outsideSchedule)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            color: unavailable
+                                ? const Color(0xCC991B1B)
+                                : const Color(0xCCB45309),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              unavailable
+                                  ? context.posText(
+                                      'menuNotAvailableBadge',
+                                      'Not available',
+                                    )
+                                  : context.posText(
+                                      'menuOutsideScheduleBadge',
+                                      'Outside schedule',
+                                    ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10,
                               ),
                             ),
                           ),
-                          if (showStepper)
-                            _Stepper(
-                              quantity: widget.simpleCartLine!.quantity,
-                              compact: true,
-                              accent: const Color(0xFF3F2A22),
-                              onDecrement: () => widget.onDecrementSimple
-                                  ?.call(widget.simpleCartLine!),
-                              onIncrement: () {
-                                HapticFeedback.selectionClick();
-                                widget.onIncrementSimple
-                                    ?.call(widget.simpleCartLine!);
-                              },
-                            )
-                          else
-                            Material(
-                              color: _colorCardPrice,
-                              shape: const CircleBorder(),
-                              child: InkWell(
-                                customBorder: const CircleBorder(),
-                                onTap: _handleTap,
-                                child: const SizedBox(
-                                  width: 28,
-                                  height: 28,
-                                  child: Icon(
-                                    Icons.add_rounded,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                        ),
                     ],
                   ),
-                ),
-                if (unavailable || outsideSchedule)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      color: unavailable
-                          ? const Color(0xCC991B1B)
-                          : const Color(0xCCB45309),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      child: Text(
-                        unavailable
-                            ? context.posText(
-                                'menuNotAvailableBadge',
-                                'Not available',
-                              )
-                            : context.posText(
-                                'menuOutsideScheduleBadge',
-                                'Outside schedule',
-                              ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
                 );
               },
             ),
@@ -711,7 +879,10 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                formatMoney(_minDisplayPrice(), widget.currency),
+                                formatMoney(
+                                  _minDisplayPrice(),
+                                  widget.currency,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: priceStyle,
@@ -762,10 +933,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
 }
 
 class _GlassChip extends StatelessWidget {
-  const _GlassChip({
-    required this.icon,
-    required this.label,
-  });
+  const _GlassChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;

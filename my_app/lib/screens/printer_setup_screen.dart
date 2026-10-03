@@ -16,10 +16,7 @@ import '../utils/thermal_printer_platform.dart';
 import '../widgets/pos_ui.dart';
 
 class PrinterSetupScreen extends StatefulWidget {
-  const PrinterSetupScreen({
-    super.key,
-    this.embedded = false,
-  });
+  const PrinterSetupScreen({super.key, this.embedded = false});
 
   /// True when shown inside the POS overlay dialog (Selfx-style).
   final bool embedded;
@@ -57,13 +54,13 @@ class PrinterSetupScreen extends StatefulWidget {
       );
     } else {
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => const PrinterSetupScreen(),
-        ),
+        MaterialPageRoute<void>(builder: (_) => const PrinterSetupScreen()),
       );
     }
     if (!context.mounted) return;
-    await context.read<PrinterStatusService>().refresh(allowBluetoothScan: true);
+    await context.read<PrinterStatusService>().refresh(
+      allowBluetoothScan: true,
+    );
   }
 
   @override
@@ -82,27 +79,47 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   bool _savingNetwork = false;
   bool _testing = false;
   bool _openingDrawer = false;
+  bool _selectingBuiltIn = false;
+  bool _hasBuiltInPrinter = false;
+  String? _deviceName;
   String? _usbError;
   String? _bluetoothError;
   bool _autoPrintKotOnNewOrder = true;
   bool _clearHandoffOnScanPrint = true;
 
   final _networkHostController = TextEditingController();
-  final _networkPortController =
-      TextEditingController(text: '${NetworkPrinter.defaultPort}');
+  final _networkPortController = TextEditingController(
+    text: '${NetworkPrinter.defaultPort}',
+  );
   final _networkNameController = TextEditingController();
 
   bool get _onNetwork => _tab == 1;
   bool get _onBluetooth => _tab == 2;
   bool get _onSmartPos => _tab == 3;
-  bool get _loading =>
-      _onBluetooth ? _loadingBluetooth : (_onNetwork || _onSmartPos ? false : _loadingUsb);
+  bool get _loading => _onBluetooth
+      ? _loadingBluetooth
+      : (_onNetwork || _onSmartPos ? false : _loadingUsb);
 
   @override
   void initState() {
     super.initState();
     _loadUsb();
+    _loadDevice();
     _loadScanSettings();
+  }
+
+  Future<void> _loadDevice() async {
+    final device = await PosReceiptPrinter.builtInDeviceInfo();
+    if (!mounted) return;
+    setState(() {
+      _hasBuiltInPrinter =
+          device['hasBuiltInPrinter'] == true ||
+          _savedConfig?.connection == PosPrinterConnection.smartpos;
+      _deviceName = device['hasBuiltInPrinter'] == true
+          ? device['name'] as String?
+          : null;
+      if (_hasBuiltInPrinter && _savedConfig == null && _tab == 0) _tab = 3;
+    });
   }
 
   Future<void> _loadScanSettings() async {
@@ -163,20 +180,24 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
 
     try {
       final saved = await UsbPrinterStorage.load();
-      final printers = await PosReceiptPrinter.listUsbPrinters();
       if (!mounted) return;
       _applySavedNetworkFields(saved);
       setState(() {
         _savedConfig = saved;
-        _usbPrinters = printers;
-        _loadingUsb = false;
         if (saved?.connection == PosPrinterConnection.network) {
           _tab = 1;
         } else if (saved?.connection == PosPrinterConnection.bluetooth) {
           _tab = 2;
         } else if (saved?.connection == PosPrinterConnection.smartpos) {
           _tab = 3;
+          _hasBuiltInPrinter = true;
         }
+      });
+      final printers = await PosReceiptPrinter.listUsbPrinters();
+      if (!mounted) return;
+      setState(() {
+        _usbPrinters = printers;
+        _loadingUsb = false;
       });
       if (_tab == 2) {
         unawaited(_scanBluetooth());
@@ -245,12 +266,21 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   }
 
   Future<void> _selectBuiltInPrinter() async {
-    final config = UsbPrinterConfig.smartpos();
-    await UsbPrinterStorage.save(config);
-    final health = await PosReceiptPrinter.probe();
-    if (!mounted) return;
-    _publishHealth(health, config: config);
-    await _showConnected(config, health);
+    if (_selectingBuiltIn) return;
+    setState(() => _selectingBuiltIn = true);
+    try {
+      final config = UsbPrinterConfig.smartpos(
+        name: _deviceName == null ? null : '$_deviceName printer',
+      );
+      await UsbPrinterStorage.save(config);
+      await PosReceiptPrinter.warmUp();
+      final health = await PosReceiptPrinter.probe();
+      if (!mounted) return;
+      _publishHealth(health, config: config);
+      await _showConnected(config, health);
+    } finally {
+      if (mounted) setState(() => _selectingBuiltIn = false);
+    }
   }
 
   void _publishHealth(PrinterHealth health, {UsbPrinterConfig? config}) {
@@ -318,7 +348,8 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
       showPosSnackBar(context, l10n.printerLanHostRequired, error: true);
       return;
     }
-    final port = int.tryParse(_networkPortController.text.trim()) ??
+    final port =
+        int.tryParse(_networkPortController.text.trim()) ??
         NetworkPrinter.defaultPort;
     if (port < 1 || port > 65535) {
       showPosSnackBar(context, l10n.printerLanPortInvalid, error: true);
@@ -462,7 +493,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
     final l10n = context.l10n;
     final accent = Theme.of(context).colorScheme.primary;
     final soft = posAccentSoft(accent);
-    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final compact = MediaQuery.sizeOf(context).width < 520;
 
     return Scaffold(
       backgroundColor: PosTheme.canvas,
@@ -472,20 +503,31 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
           widget.embedded ? 'Receipt printer' : l10n.printerSetupTitle,
         ),
         actions: [
-          TextButton.icon(
-            onPressed: _loading || _testing || _savingNetwork
-                ? null
-                : _refreshCurrent,
-            icon: Icon(
-              _onBluetooth
-                  ? Icons.bluetooth_searching_rounded
-                  : Icons.refresh_rounded,
-              size: 18,
+          if (compact)
+            IconButton(
+              tooltip: _onBluetooth ? l10n.printerScan : l10n.commonRefresh,
+              onPressed: _loading || _testing || _savingNetwork
+                  ? null
+                  : _refreshCurrent,
+              icon: Icon(
+                _onBluetooth
+                    ? Icons.bluetooth_searching_rounded
+                    : Icons.refresh_rounded,
+              ),
+            )
+          else
+            TextButton.icon(
+              onPressed: _loading || _testing || _savingNetwork
+                  ? null
+                  : _refreshCurrent,
+              icon: Icon(
+                _onBluetooth
+                    ? Icons.bluetooth_searching_rounded
+                    : Icons.refresh_rounded,
+                size: 18,
+              ),
+              label: Text(_onBluetooth ? l10n.printerScan : l10n.commonRefresh),
             ),
-            label: Text(
-              _onBluetooth ? l10n.printerScan : l10n.commonRefresh,
-            ),
-          ),
           IconButton(
             tooltip: l10n.commonClose,
             icon: const Icon(Icons.close_rounded),
@@ -494,26 +536,25 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: wide ? 720 : double.infinity),
-          child: Column(
-            children: [
-              if (!PosReceiptPrinter.isSupported)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: _SetupHero(accent: accent, soft: soft, compact: true),
-                )
-              else if (!widget.embedded)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: _SetupHero(accent: accent, soft: soft),
+      body: SafeArea(
+        top: false,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: ListView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+              children: [
+                _SetupHero(
+                  accent: accent,
+                  soft: soft,
+                  compact: true,
+                  deviceName: _deviceName,
                 ),
-              if (_savedConfig != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Builder(
+                const SizedBox(height: 12),
+                if (_savedConfig != null) ...[
+                  Builder(
                     builder: (context) {
                       final service = context.watch<PrinterStatusService>();
                       return _SelectedPrinterCard(
@@ -530,101 +571,87 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
                       );
                     },
                   ),
+                  const SizedBox(height: 12),
+                ],
+                Text(
+                  'Choose a printer',
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: _ConnectionSwitcher(
+                const SizedBox(height: 8),
+                _ConnectionSwitcher(
                   index: _tab,
                   accent: accent,
-                  showBluetooth: true,
+                  showBluetooth: PosReceiptPrinter.supportsBluetooth,
+                  showBuiltIn: _hasBuiltInPrinter,
                   onChanged: _switchTab,
                 ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final pane = _onNetwork
-                          ? _NetworkPrinterForm(
-                              accent: accent,
-                              soft: soft,
-                              hostController: _networkHostController,
-                              portController: _networkPortController,
-                              nameController: _networkNameController,
-                              saving: _savingNetwork,
-                              onSave: _saveNetworkPrinter,
-                            )
-                          : _onSmartPos
-                              ? _BuiltInPrinterCard(
-                                  accent: accent,
-                                  soft: soft,
-                                  selected: _savedConfig?.connection ==
-                                      PosPrinterConnection.smartpos,
-                                  onSelect: _selectBuiltInPrinter,
-                                )
-                              : _PrinterListBody(
-                                  accent: accent,
-                                  loading: _loading,
-                                  error: _onBluetooth
-                                      ? _bluetoothError
-                                      : _usbError,
-                                  printers: _onBluetooth
-                                      ? _bluetoothPrinters
-                                      : _usbPrinters,
-                                  bluetooth: _onBluetooth,
-                                  isSelected: _isSelected,
-                                  onRetry: _refreshCurrent,
-                                  onSelect: _selectPrinter,
-                                );
-                      return SingleChildScrollView(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight,
-                          ),
-                          child: pane,
-                        ),
-                      );
-                    },
+                const SizedBox(height: 12),
+                if (_onNetwork)
+                  _NetworkPrinterForm(
+                    accent: accent,
+                    soft: soft,
+                    hostController: _networkHostController,
+                    portController: _networkPortController,
+                    nameController: _networkNameController,
+                    saving: _savingNetwork,
+                    onSave: _saveNetworkPrinter,
+                  )
+                else if (_onSmartPos)
+                  _BuiltInPrinterCard(
+                    accent: accent,
+                    soft: soft,
+                    deviceName: _deviceName,
+                    selected:
+                        _savedConfig?.connection ==
+                        PosPrinterConnection.smartpos,
+                    selecting: _selectingBuiltIn,
+                    onSelect: _selectBuiltInPrinter,
+                  )
+                else
+                  _PrinterListBody(
+                    accent: accent,
+                    loading: _loading,
+                    error: _onBluetooth ? _bluetoothError : _usbError,
+                    printers: _onBluetooth ? _bluetoothPrinters : _usbPrinters,
+                    bluetooth: _onBluetooth,
+                    isSelected: _isSelected,
+                    onRetry: _refreshCurrent,
+                    onSelect: _selectPrinter,
                   ),
+                if (_onBluetooth) ...[
+                  const SizedBox(height: 8),
+                  _BottomScanBar(
+                    accent: accent,
+                    loading: _loadingBluetooth,
+                    onScan: _scanBluetooth,
+                  ),
+                ],
+                const SizedBox(height: 24),
+                Text(
+                  'Printing options',
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Column(
-                  children: [
-                    _ScanToPrintOptionsCard(
-                      accent: accent,
-                      soft: soft,
-                    ),
-                    const SizedBox(height: 8),
-                    _AutoPrintKotOptionsCard(
-                      accent: accent,
-                      soft: soft,
-                      enabled: _autoPrintKotOnNewOrder,
-                      onChanged: _setAutoPrintKotOnNewOrder,
-                    ),
-                    const SizedBox(height: 8),
-                    _AutoPrintKotOptionsCard(
-                      accent: accent,
-                      soft: soft,
-                      enabled: _clearHandoffOnScanPrint,
-                      onChanged: _setClearHandoffOnScanPrint,
-                      title: 'Clear kitchen ticket on scan-to-print',
-                      help:
-                          'When a guest scans their PWA QR at this register, print the receipt and mark the ready KDS ticket delivered (handoff).',
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-              if (_onBluetooth)
-                _BottomScanBar(
+                const SizedBox(height: 8),
+                _ScanToPrintOptionsCard(accent: accent, soft: soft),
+                const SizedBox(height: 8),
+                _AutoPrintKotOptionsCard(
                   accent: accent,
-                  loading: _loadingBluetooth,
-                  onScan: _scanBluetooth,
+                  soft: soft,
+                  enabled: _autoPrintKotOnNewOrder,
+                  onChanged: _setAutoPrintKotOnNewOrder,
                 ),
-            ],
+                const SizedBox(height: 8),
+                _AutoPrintKotOptionsCard(
+                  accent: accent,
+                  soft: soft,
+                  enabled: _clearHandoffOnScanPrint,
+                  onChanged: _setClearHandoffOnScanPrint,
+                  title: 'Clear kitchen ticket on scan-to-print',
+                  help:
+                      'After scanning and printing an order, mark its ready kitchen ticket delivered.',
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -637,8 +664,10 @@ class _SetupHero extends StatelessWidget {
     required this.accent,
     required this.soft,
     this.compact = false,
+    this.deviceName,
   });
 
+  final String? deviceName;
   final Color accent;
   final ({Color bg, Color fg}) soft;
   final bool compact;
@@ -671,7 +700,7 @@ class _SetupHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  context.l10n.printerReceiptTitle,
+                  deviceName ?? context.l10n.printerReceiptTitle,
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 18,
@@ -681,7 +710,9 @@ class _SetupHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  thermalPrinterSetupHelp(),
+                  deviceName != null
+                      ? 'Choose Built-in for this terminal, or connect an external printer below.'
+                      : 'Select a printer below, then use Test print to check it.',
                   style: TextStyle(
                     color: PosTheme.inkMuted,
                     fontSize: 13,
@@ -698,10 +729,7 @@ class _SetupHero extends StatelessWidget {
 }
 
 class _ScanToPrintOptionsCard extends StatelessWidget {
-  const _ScanToPrintOptionsCard({
-    required this.accent,
-    required this.soft,
-  });
+  const _ScanToPrintOptionsCard({required this.accent, required this.soft});
 
   final Color accent;
   final ({Color bg, Color fg}) soft;
@@ -807,11 +835,7 @@ class _AutoPrintKotOptionsCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: accent.withValues(alpha: 0.18)),
             ),
-            child: Icon(
-              Icons.receipt_long_rounded,
-              size: 20,
-              color: soft.fg,
-            ),
+            child: Icon(Icons.receipt_long_rounded, size: 20, color: soft.fg),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -839,10 +863,7 @@ class _AutoPrintKotOptionsCard extends StatelessWidget {
               ],
             ),
           ),
-          Switch.adaptive(
-            value: enabled,
-            onChanged: onChanged,
-          ),
+          Switch.adaptive(value: enabled, onChanged: onChanged),
         ],
       ),
     );
@@ -894,72 +915,73 @@ class _SelectedPrinterCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(PosTheme.radiusLg),
         border: Border.all(color: accent.withValues(alpha: 0.28)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: soft.bg,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: soft.fg, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    config.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14.5,
-                      color: PosTheme.ink,
+          Row(
+            children: [
+              Icon(icon, color: soft.fg, size: 24),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      config.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${config.connection.label} · ${checking ? 'Checking...' : health?.statusLabel ?? 'Not checked'}',
+                      style: TextStyle(
+                        color: tone.fg,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: tone.bg,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: tone.fg.withValues(alpha: 0.28),
-                    ),
-                  ),
-                  child: Text(
-                    checking
-                        ? 'Checking…'
-                        : (connected ? 'Connected' : 'Disconnected'),
-                    style: TextStyle(
-                      color: tone.fg,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ],
+              ),
+              IconButton(
+                tooltip: context.l10n.commonClear,
+                onPressed: testing || openingDrawer ? null : onClear,
+                icon: const Icon(Icons.close_rounded, size: 18),
+              ),
+            ],
+          ),
+          if (health?.hasIssue == true && health?.message != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              health!.message!,
+              style: TextStyle(color: tone.fg, fontSize: 13),
             ),
-          ),
-          TextButton(
-            onPressed: testing || openingDrawer ? null : onTestPrint,
-            child: testing
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(context.l10n.printerTestPrint),
-          ),
-          IconButton(
-            tooltip: context.l10n.commonClear,
-            onPressed: testing || openingDrawer ? null : onClear,
-            icon: const Icon(Icons.close_rounded, size: 18),
+          ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: testing || openingDrawer ? null : onTestPrint,
+                icon: testing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.print_rounded, size: 18),
+                label: Text(context.l10n.printerTestPrint),
+              ),
+              if (config.connection != PosPrinterConnection.smartpos)
+                OutlinedButton.icon(
+                  onPressed: testing || openingDrawer ? null : onOpenDrawer,
+                  icon: const Icon(Icons.point_of_sale_rounded, size: 18),
+                  label: const Text('Open drawer'),
+                ),
+            ],
           ),
         ],
       ),
@@ -972,12 +994,14 @@ class _ConnectionSwitcher extends StatelessWidget {
     required this.index,
     required this.accent,
     required this.showBluetooth,
+    required this.showBuiltIn,
     required this.onChanged,
   });
 
   final int index;
   final Color accent;
   final bool showBluetooth;
+  final bool showBuiltIn;
   final ValueChanged<int> onChanged;
 
   @override
@@ -1011,46 +1035,37 @@ class _ConnectionSwitcher extends StatelessWidget {
               compact: compact,
               onTap: () => onChanged(1),
             ),
-            _SwitchChip(
-              selected: index == 2,
-              icon: Icons.bluetooth_rounded,
-              label: l10n.printerTabBluetooth,
-              accent: accent,
-              compact: compact,
-              onTap: () => onChanged(2),
-            ),
-            _SwitchChip(
-              selected: index == 3,
-              icon: Icons.print_rounded,
-              label: 'Built-in',
-              accent: accent,
-              compact: compact,
-              onTap: () => onChanged(3),
-            ),
+            if (showBluetooth)
+              _SwitchChip(
+                selected: index == 2,
+                icon: Icons.bluetooth_rounded,
+                label: l10n.printerTabBluetooth,
+                accent: accent,
+                compact: compact,
+                onTap: () => onChanged(2),
+              ),
+            if (showBuiltIn)
+              _SwitchChip(
+                selected: index == 3,
+                icon: Icons.print_rounded,
+                label: 'Built-in',
+                accent: accent,
+                compact: compact,
+                onTap: () => onChanged(3),
+              ),
           ];
           if (compact) {
-            return Column(
+            return Wrap(
+              spacing: 4,
+              runSpacing: 4,
               children: [
-                Row(
-                  children: [
-                    Expanded(child: chips[0]),
-                    Expanded(child: chips[1]),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Expanded(child: chips[2]),
-                    Expanded(child: chips[3]),
-                  ],
-                ),
+                for (final chip in chips)
+                  SizedBox(width: (constraints.maxWidth - 4) / 2, child: chip),
               ],
             );
           }
           return Row(
-            children: [
-              for (final chip in chips) Expanded(child: chip),
-            ],
+            children: [for (final chip in chips) Expanded(child: chip)],
           );
         },
       ),
@@ -1064,12 +1079,16 @@ class _BuiltInPrinterCard extends StatelessWidget {
     required this.soft,
     required this.selected,
     required this.onSelect,
+    required this.selecting,
+    this.deviceName,
   });
 
   final Color accent;
   final ({Color bg, Color fg}) soft;
   final bool selected;
   final VoidCallback onSelect;
+  final bool selecting;
+  final String? deviceName;
 
   @override
   Widget build(BuildContext context) {
@@ -1104,7 +1123,9 @@ class _BuiltInPrinterCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Built-in printer',
+                      deviceName == null
+                          ? 'Built-in printer'
+                          : '$deviceName printer',
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 15,
@@ -1113,7 +1134,7 @@ class _BuiltInPrinterCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'TVS / SmartPOS built-in printer (inner mechanism). This is not USB or LAN — select this on the terminal, then Test print.',
+                      'Print using the paper roll inside this terminal. Load paper, select this printer, then tap Test print above.',
                       style: TextStyle(
                         fontSize: 12.5,
                         height: 1.35,
@@ -1128,12 +1149,18 @@ class _BuiltInPrinterCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           FilledButton.icon(
-            onPressed: selected ? null : onSelect,
+            onPressed: selected || selecting ? null : onSelect,
             icon: Icon(
               selected ? Icons.check_rounded : Icons.print_rounded,
               size: 18,
             ),
-            label: Text(selected ? 'Built-in printer selected' : 'Use built-in printer'),
+            label: Text(
+              selecting
+                  ? 'Connecting...'
+                  : selected
+                  ? 'Built-in printer selected'
+                  : 'Use built-in printer',
+            ),
           ),
         ],
       ),
@@ -1272,9 +1299,7 @@ class _NetworkPrinterForm extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.save_rounded, size: 18),
-            label: Text(
-              saving ? l10n.commonSave : l10n.printerLanSave,
-            ),
+            label: Text(saving ? l10n.commonSave : l10n.printerLanSave),
           ),
         ],
       ),
@@ -1338,59 +1363,6 @@ class _SwitchChip extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    required this.subtitle,
-    required this.count,
-  });
-
-  final String title;
-  final String subtitle;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  color: PosTheme.ink,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: PosTheme.inkMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (count > 0)
-          Text(
-            context.l10n.printerCountFound(count),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: PosTheme.inkMuted,
-            ),
-          ),
-      ],
     );
   }
 }
@@ -1477,10 +1449,7 @@ class _PrinterListBody extends StatelessWidget {
             SizedBox(
               width: 28,
               height: 28,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: accent,
-              ),
+              child: CircularProgressIndicator(strokeWidth: 2.5, color: accent),
             ),
             const SizedBox(height: 14),
             Text(
@@ -1577,10 +1546,7 @@ class _InlineEmpty extends StatelessWidget {
           Container(
             width: 44,
             height: 44,
-            decoration: BoxDecoration(
-              color: soft.bg,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: soft.bg, shape: BoxShape.circle),
             child: Icon(icon, color: soft.fg, size: 22),
           ),
           const SizedBox(height: 10),
@@ -1686,10 +1652,7 @@ class _PrinterTile extends StatelessWidget {
                       printer.address.isNotEmpty
                           ? '${printer.connection.label} · ${printer.address}'
                           : printer.connection.label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: PosTheme.inkMuted,
-                      ),
+                      style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
                     ),
                   ],
                 ),
@@ -1714,10 +1677,7 @@ class _PrinterTile extends StatelessWidget {
                   ),
                 )
               else
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: PosTheme.inkFaint,
-                ),
+                Icon(Icons.chevron_right_rounded, color: PosTheme.inkFaint),
             ],
           ),
         ),

@@ -68,4 +68,7 @@ Future<void> showWindowsCustomerDisplayHomeIfIdle({
   String? restaurantLogoUrl,
 }) async {}
 
-Future<void> initializeWindowsCustomerDisplays() async {}
+Future<void> initializeWindowsCustomerDisplays({
+  String? restaurantName,
+  String? restaurantLogoUrl,
+}) async {}

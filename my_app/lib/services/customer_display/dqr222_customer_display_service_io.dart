@@ -454,11 +454,9 @@ Future<void> showDqr222HomeIfIdle({
     // or the cart was cleared.
     final cartOnScreen = _cartCommand != null;
     if (!cartOnScreen && _readyScreenKey == key) return;
-    if (cartOnScreen) {
-      _cartCommand = null;
-      _readyScreenKey = null;
-      _displayGeneration++;
-    }
+    // Background idle/status refreshes never own an active cart. Only an
+    // explicit empty-cart update may remove the current bill.
+    if (cartOnScreen) return;
     final homeGeneration = _displayGeneration;
     await _writeReady(port, homeGeneration);
     if (homeGeneration == _displayGeneration) {
@@ -497,6 +495,7 @@ Future<void> _drainCartDisplay() async {
   }
   _cartWriteInFlight = true;
   var followUp = false;
+  var failures = 0;
   try {
     while (!_paymentScreenActive && !_mediaRestoreSuppressed) {
       final generation = _displayGeneration;
@@ -508,6 +507,8 @@ Future<void> _drainCartDisplay() async {
       try {
         await _writeReady(port, generation);
       } on Object catch (error) {
+        // Do not abandon a newer cart because an obsolete serial write failed.
+        if (generation != _displayGeneration) continue;
         if (generation == _displayGeneration) {
           _lastDetectedPort = null;
           _readyScreenKey = null;
@@ -516,6 +517,12 @@ Future<void> _drainCartDisplay() async {
           'Cart display failed on $port: $error',
           name: 'SELFX.DQR222',
         );
+        // A single failed latest write must not leave the previous bill on
+        // screen indefinitely. Retry through discovery with the newest cart.
+        if (++failures <= 2) {
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+          continue;
+        }
         return;
       }
       if (generation == _displayGeneration) {
@@ -774,6 +781,7 @@ Future<void> showDqr222PaymentSuccess({
   String? restaurantLogoUrl,
 }) async {
   if (!_dqr222PlatformSupported) return;
+  _cartCommand = null;
   _activePaymentOrderNumber = null;
   // The paid bill must not be written again when the success screen ends.
   _cartCommand = null;

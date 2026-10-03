@@ -58,7 +58,12 @@ flutter {
 }
 
 dependencies {
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
+    // The official freeimagelibrary and the older renamed screen SDK contain
+    // the same classes. Bundle the official copy with its matching JNI libraries.
+    implementation(fileTree("libs") {
+        include("*.jar")
+        exclude("imin-screen-sdk-v1.3.jar")
+    })
     // DQ11 uses USB CDC and DQR-222 is shipped with either CDC or CH340.
     implementation("com.github.mik3y:usb-serial-for-android:3.10.0")
     implementation("com.google.zxing:core:3.5.3")

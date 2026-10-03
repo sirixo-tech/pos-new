@@ -14,14 +14,12 @@ import '../services/printing/printer_health.dart';
 import '../services/printing/printer_status_service.dart';
 import '../services/scanner_connection_service.dart';
 import '../theme/pos_theme.dart';
+import '../utils/pos_layout.dart';
 import 'pos_ui.dart';
 
 /// Header Status control: internet, printer, scanner, and customer QR display.
 class PosSystemStatusButton extends StatefulWidget {
-  const PosSystemStatusButton({
-    super.key,
-    this.showLabel = true,
-  });
+  const PosSystemStatusButton({super.key, this.showLabel = true});
 
   final bool showLabel;
 
@@ -80,13 +78,13 @@ class _PosSystemStatusButtonState extends State<PosSystemStatusButton> {
         final tone = summary.ready
             ? posStatusColors('ready')
             : summary.severe
-                ? posStatusColors('failed')
-                : posStatusColors('pending');
+            ? posStatusColors('failed')
+            : posStatusColors('pending');
         final icon = summary.ready
             ? Icons.check_circle_rounded
             : summary.severe
-                ? Icons.error_outline_rounded
-                : Icons.warning_amber_rounded;
+            ? Icons.error_outline_rounded
+            : Icons.warning_amber_rounded;
 
         return Tooltip(
           message: summary.ready
@@ -99,7 +97,9 @@ class _PosSystemStatusButtonState extends State<PosSystemStatusButton> {
               hoverColor: PosTheme.surfaceMuted,
               child: Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: PosTheme.headerPx(widget.showLabel ? 12 : 10),
+                  horizontal: usePosHandheldLayout(context)
+                      ? 13
+                      : PosTheme.headerPx(widget.showLabel ? 12 : 10),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -127,16 +127,20 @@ class _PosSystemStatusButtonState extends State<PosSystemStatusButton> {
   }
 }
 
-Future<void> showPosSystemStatusDialog(BuildContext context) {
+Future<void> showPosSystemStatusDialog(
+  BuildContext context, {
+  Future<WindowsCustomerDisplayStatus> Function()? displayProbe,
+}) {
   return showDialog<void>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.5),
-    builder: (_) => const _PosSystemStatusDialog(),
+    builder: (_) => _PosSystemStatusDialog(displayProbe: displayProbe),
   );
 }
 
 class _PosSystemStatusDialog extends StatefulWidget {
-  const _PosSystemStatusDialog();
+  const _PosSystemStatusDialog({this.displayProbe});
+  final Future<WindowsCustomerDisplayStatus> Function()? displayProbe;
 
   @override
   State<_PosSystemStatusDialog> createState() => _PosSystemStatusDialogState();
@@ -145,6 +149,7 @@ class _PosSystemStatusDialog extends StatefulWidget {
 class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
   Timer? _poll;
   bool _refreshing = false;
+  bool _refreshActive = false;
   WindowsCustomerDisplayStatus? _display;
 
   @override
@@ -163,18 +168,30 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
   }
 
   Future<void> _refresh({bool silent = false}) async {
+    if (_refreshActive || !mounted) return;
+    _refreshActive = true;
     if (!silent) setState(() => _refreshing = true);
     try {
       await Future.wait([
         context.read<ConnectivityService>().checkConnectivity(),
-        if (PosReceiptPrinter.isSupported)
-          context.read<PrinterStatusService>().refresh(),
-        context.read<ScannerConnectionService>().refresh(),
+        if (!silent && PosReceiptPrinter.isSupported)
+          context.read<PrinterStatusService>().refresh(
+            allowBluetoothScan: true,
+          ),
+        context.read<ScannerConnectionService>().refresh().timeout(
+          const Duration(seconds: 3),
+        ),
       ]);
-      final display = await CustomerDisplayBroker.instance.hardwareStatus();
+      final display =
+          await (widget.displayProbe ??
+                  CustomerDisplayBroker.instance.hardwareStatus)()
+              .timeout(const Duration(seconds: 4));
       if (!mounted) return;
       setState(() => _display = display);
+    } catch (error) {
+      debugPrint('System status refresh failed: $error');
     } finally {
+      _refreshActive = false;
       if (mounted && !silent) setState(() => _refreshing = false);
     }
   }
@@ -208,7 +225,7 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
           connectivity: connectivity,
           printer: printer.health,
           printerSupported: PosReceiptPrinter.isSupported,
-          printerChecking: printer.probing,
+          printerChecking: printer.probing && !printer.hasProbed,
           displayConnected: displayConnected,
           scannerConnected: scanner.connected,
         );
@@ -223,8 +240,8 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
           headerColor: summary.ready
               ? const Color(0xFF16A34A)
               : summary.severe
-                  ? const Color(0xFFB91C1C)
-                  : const Color(0xFFD97706),
+              ? const Color(0xFFB91C1C)
+              : const Color(0xFFD97706),
           maxWidth: 440,
           onClose: () => Navigator.pop(context),
           body: Column(
@@ -236,16 +253,16 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
                 detail: connectivity.isOnline
                     ? 'Online'
                     : connectivity.status == ConnectionStatus.checking
-                        ? 'Checking…'
-                        : 'Offline',
+                    ? 'Checking…'
+                    : 'Offline',
               ),
               _StatusRow(
                 icon: Icons.print_outlined,
                 label: 'Printer',
-                connected: PosReceiptPrinter.isSupported &&
-                    !printer.probing &&
+                connected:
+                    PosReceiptPrinter.isSupported &&
                     printer.health.state == PrinterHealthState.ready,
-                detail: printer.probing
+                detail: printer.probing && !printer.hasProbed
                     ? 'Checking…'
                     : _printerDetail(printer.health),
                 onTap: _openPrinter,
@@ -264,12 +281,35 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
               ),
             ],
           ),
-          footer: posDialogActionFooter(
-            context: context,
-            onCancel: _refreshing ? () {} : () => unawaited(_refresh()),
-            onConfirm: () => Navigator.pop(context),
-            cancelLabel: _refreshing ? 'Refreshing…' : 'Refresh',
-            confirmLabel: l10n.commonClose,
+          footer: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _refreshing ? null : () => unawaited(_refresh()),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  ),
+                  child: Text(
+                    _refreshing ? 'Refreshing…' : 'Refresh',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  ),
+                  child: Text(l10n.commonClose, maxLines: 1),
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -394,9 +434,7 @@ bool qrDisplayIsConnected({
   if (usb?.connected != true || device == null || device.isEmpty) {
     return false;
   }
-  return device == 'dq11' ||
-      device == 'dqr222' ||
-      device == 'dq11+dqr222';
+  return device == 'dq11' || device == 'dqr222' || device == 'dq11+dqr222';
 }
 
 String _qrDisplayDetail({
@@ -423,11 +461,13 @@ String _qrDisplayDetail({
   bool printerChecking = false,
 }) {
   final internetOk = connectivity.isOnline;
-  final printerSevere = printerSupported &&
+  final printerSevere =
+      printerSupported &&
       !printerChecking &&
       (printer.state == PrinterHealthState.missing ||
           printer.state == PrinterHealthState.error);
-  final printerOk = !printerSupported ||
+  final printerOk =
+      !printerSupported ||
       (!printerChecking && printer.state == PrinterHealthState.ready);
   return (
     ready: internetOk && printerOk && displayConnected && scannerConnected,

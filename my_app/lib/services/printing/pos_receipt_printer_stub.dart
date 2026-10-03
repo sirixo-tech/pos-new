@@ -12,6 +12,8 @@ class PosReceiptPrinter {
 
   static bool get isSupported => false;
 
+  static Future<Map<String, dynamic>> builtInDeviceInfo() async => const {};
+
   static bool get supportsBluetooth => false;
 
   static bool get bleLinkIsLive => false;
@@ -29,7 +31,9 @@ class PosReceiptPrinter {
 
   static Future<void> stopBluetoothScan() async {}
 
-  static StreamSubscription<dynamic>? watchUsbHardware(void Function() onChange) {
+  static StreamSubscription<dynamic>? watchUsbHardware(
+    void Function() onChange,
+  ) {
     return null;
   }
 
@@ -37,8 +41,7 @@ class PosReceiptPrinter {
 
   static Future<PrinterPaperSensor> readPaperSensor(
     UsbPrinterConfig config,
-  ) async =>
-      PrinterPaperSensor.unknown;
+  ) async => PrinterPaperSensor.unknown;
 
   static Future<PrinterHealth> probe({bool allowBluetoothScan = false}) async =>
       PrinterHealth(
@@ -51,8 +54,7 @@ class PosReceiptPrinter {
     String? restaurantName,
     String? branchName,
     String? terminalName,
-  }) async =>
-      probe();
+  }) async => probe();
 
   static Future<void> printReceipt({
     required PosSession session,

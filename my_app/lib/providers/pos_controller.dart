@@ -3632,6 +3632,9 @@ class PosController extends ChangeNotifier {
   void _scheduleDisplaySync() {
     if (phase != PosAppPhase.ready) return;
     _displaySyncTimer?.cancel();
+    // Record local cart changes immediately. The DQR worker coalesces USB
+    // writes, so a pending old bill is superseded even during rapid taps.
+    unawaited(_pushDisplaySync(syncServer: false));
     _displaySyncTimer = Timer(const Duration(milliseconds: 300), () {
       unawaited(_pushDisplaySync());
     });
@@ -3656,23 +3659,25 @@ class PosController extends ChangeNotifier {
     );
   }
 
-  Future<void> _pushDisplaySync() async {
+  Future<void> _pushDisplaySync({bool syncServer = true}) async {
     final terminal = _activeSyncTerminal();
     final branch = bootstrap?.branch;
     final url = serverUrl;
-    if (terminal == null || branch == null || url == null) return;
-
-    final syncToken = terminal.syncToken;
-    if (syncToken == null || syncToken.isEmpty) return;
+    final syncToken = terminal?.syncToken;
 
     if (cart.isEmpty) {
+      CustomerDisplayBroker.instance.showIdleHome();
+      if (!syncServer) return;
+      if (terminal == null || branch == null || url == null ||
+          syncToken == null || syncToken.isEmpty) {
+        return;
+      }
       await _displaySync.clearCart(
         serverUrl: url,
         branchId: branch.id,
         terminalCode: terminal.code,
         syncToken: syncToken,
       );
-      CustomerDisplayBroker.instance.showIdleHome();
       return;
     }
 
@@ -3740,6 +3745,14 @@ class PosController extends ChangeNotifier {
         'currency': currency,
       };
 
+    // Local USB displays work without a server display-sync subscription and
+    // must not wait for a network request before showing the current cart.
+    CustomerDisplayBroker.instance.showCart(payload);
+    if (!syncServer) return;
+    if (terminal == null || branch == null || url == null ||
+        syncToken == null || syncToken.isEmpty) {
+      return;
+    }
     await _displaySync.pushCart(
       serverUrl: url,
       branchId: branch.id,
@@ -3747,7 +3760,6 @@ class PosController extends ChangeNotifier {
       syncToken: syncToken,
       payload: payload,
     );
-    CustomerDisplayBroker.instance.showCart(payload);
   }
 
   void _bindCustomerDisplayBranding() {

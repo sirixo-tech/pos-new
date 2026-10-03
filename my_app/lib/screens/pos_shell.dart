@@ -193,9 +193,9 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     final session = pos.session;
     if (session == null) return;
     await context.read<KitchenController>().ensureRunning(
-          session: session,
-          ensureKitchenToken: pos.ensureKitchenApiToken,
-        );
+      session: session,
+      ensureKitchenToken: pos.ensureKitchenApiToken,
+    );
   }
 
   Future<void> _toggleKotDock() async {
@@ -279,11 +279,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     final alert = pos.takeRegisterBannerAlert();
     if (alert == null || !mounted) return;
     HapticFeedback.mediumImpact();
-    showPosSnackBar(
-      context,
-      alert.body,
-      duration: const Duration(seconds: 4),
-    );
+    showPosSnackBar(context, alert.body, duration: const Duration(seconds: 4));
   }
 
   bool _handleClearCartShortcut(KeyEvent event) {
@@ -594,25 +590,25 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     final existingId = existingRaw is int
         ? existingRaw
         : (existingRaw is num
-            ? existingRaw.toInt()
-            : int.tryParse('$existingRaw'));
+              ? existingRaw.toInt()
+              : int.tryParse('$existingRaw'));
     if (existingId != null && existingId > 0) {
       await _settleOpenTicketPayment(
         orderId: existingId,
-        orderLabel:
-            splitTicket?['order_number']?.toString() ?? '#$existingId',
+        orderLabel: splitTicket?['order_number']?.toString() ?? '#$existingId',
         payment: payment,
       );
       return;
     }
 
-    final isQrPayment = payment.method == 'phonepe' || payment.method == 'paytm';
+    final isQrPayment =
+        payment.method == 'phonepe' || payment.method == 'paytm';
 
     final parkedId = pos.parkedOrderId;
     if (isQrPayment && parkedId != null && parkedId > 0) {
       final existing = PaymentSessionManager.instance.sessionForOrder(parkedId);
-      final sameAmount = existing != null &&
-          (existing.amount - pos.cartTotal).abs() < 0.005;
+      final sameAmount =
+          existing != null && (existing.amount - pos.cartTotal).abs() < 0.005;
       if (existing != null &&
           sameAmount &&
           !existing.status.isTerminal &&
@@ -713,10 +709,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
             } catch (_) {}
           }());
         }
-        _queueCheckoutPrints(
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-        );
+        _queueCheckoutPrints(orderId: order.id, orderNumber: order.orderNumber);
       }
     } on PosApiException catch (e) {
       if (!mounted) return;
@@ -810,10 +803,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         return;
       }
 
-      showPosSnackBar(
-        context,
-        context.l10n.ordersPaymentRecorded(orderLabel),
-      );
+      showPosSnackBar(context, context.l10n.ordersPaymentRecorded(orderLabel));
       if (payment.method == 'cash') {
         unawaited(() async {
           try {
@@ -864,8 +854,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     final serverUrl = pos.serverUrl;
     if (live == null || serverUrl == null) return;
 
-    final timeout =
-        session.expiresAt.difference(DateTime.now()).inSeconds.clamp(1, 900);
+    final timeout = session.expiresAt
+        .difference(DateTime.now())
+        .inSeconds
+        .clamp(1, 900);
     final payment = PosOrderPaymentInfo(
       type: 'dynamic_qr',
       gateway: 'upi',
@@ -911,10 +903,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       context,
       context.l10n.ordersPaymentReceived(paid.orderNumber),
     );
-    _queueCheckoutPrints(
-      orderId: paid.id,
-      orderNumber: paid.orderNumber,
-    );
+    _queueCheckoutPrints(orderId: paid.id, orderNumber: paid.orderNumber);
     pos.showCashierPlacedNotice(
       orderNumber: paid.orderNumber,
       orderId: paid.id,
@@ -935,12 +924,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         cashierCheckout: true,
       ),
     );
-    unawaited(
-      jobs.enqueueReceipt(
-        orderId: orderId,
-        orderNumber: orderNumber,
-      ),
-    );
+    unawaited(jobs.enqueueReceipt(orderId: orderId, orderNumber: orderNumber));
   }
 
   Future<void> _openScanToPrintDialog() async {
@@ -990,7 +974,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     return false;
   }
 
-  Future<bool> _addScannedItem(PosController pos, MenuBarcodeMatch match) async {
+  Future<bool> _addScannedItem(
+    PosController pos,
+    MenuBarcodeMatch match,
+  ) async {
     final variant = match.variant;
     if (variant != null && match.item.modifiers.isEmpty) {
       final alreadyInCart = pos.cart.any(
@@ -1129,7 +1116,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _printOfflineReceipt(PosBootstrap bootstrap, PendingOrder order) async {
+  Future<void> _printOfflineReceipt(
+    PosBootstrap bootstrap,
+    PendingOrder order,
+  ) async {
     try {
       await PosReceiptPrinter.printOfflineKot(
         bootstrap: bootstrap,
@@ -1161,10 +1151,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       return;
     }
 
-    await DayEndReportsSheet.open(
-      context,
-      onPrint: _printThermalReport,
-    );
+    await DayEndReportsSheet.open(context, onPrint: _printThermalReport);
   }
 
   Future<void> _printThermalReport(String type) async {
@@ -1205,10 +1192,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     try {
       final order = await pos.parkCurrentTicket();
       if (!mounted) return;
-      showPosSnackBar(
-        context,
-        context.l10n.cartHeldSnack(order.orderNumber),
-      );
+      showPosSnackBar(context, context.l10n.cartHeldSnack(order.orderNumber));
       _closeCart();
     } on PosApiException catch (e) {
       if (!mounted) return;
@@ -1222,8 +1206,9 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     final accent = Theme.of(context).colorScheme.primary;
     final desktop = usePosDesktopLayout(context);
     final blocked = context.select((PosController p) => p.posBlocked);
-    final billUnread =
-        context.select((PosController p) => p.registerBillUnreadCount);
+    final billUnread = context.select(
+      (PosController p) => p.registerBillUnreadCount,
+    );
     final billBannerPending = context.select((PosController p) {
       final alert = p.registerBannerAlert;
       return alert != null && !alert.type.isNewOrderCue;
@@ -1231,10 +1216,8 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     final paymentNoticePending = context.select(
       (PosController p) => p.paymentSessionNotice != null,
     );
-    final canUseKitchen =
-        context.select((PosController p) => p.canUseKitchen);
-    final kotOpenCount =
-        context.select((KitchenController k) => k.totalActive);
+    final canUseKitchen = context.select((PosController p) => p.canUseKitchen);
+    final kotOpenCount = context.select((KitchenController k) => k.totalActive);
     if (billBannerPending) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -1244,8 +1227,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     if (paymentNoticePending) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        final notice =
-            context.read<PosController>().takePaymentSessionNotice();
+        final notice = context.read<PosController>().takePaymentSessionNotice();
         if (notice != null) {
           showPosSnackBar(context, notice);
         }
@@ -1256,7 +1238,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       onScan: (payload) => unawaited(_handleScannedPayload(payload)),
       child: Scaffold(
         backgroundColor: PosTheme.canvas,
-        appBar: _PosAppBar(
+        appBar: PosRegisterAppBar(
           accent: accent,
           onOpenDayEndReports: _openDayEndReports,
           onOpenOrders: _openOrders,
@@ -1291,9 +1273,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
                         ),
                       ),
                       if (blocked)
-                        const Positioned.fill(
-                          child: ShiftOpenOverlay(),
-                        ),
+                        const Positioned.fill(child: ShiftOpenOverlay()),
                     ],
                   ),
                 ),
@@ -1303,10 +1283,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
               Positioned(
                 right: 16,
                 bottom: 16,
-                child: _ViewCartPillHost(
-                  accent: accent,
-                  onTap: _openCart,
-                ),
+                child: _ViewCartPillHost(accent: accent, onTap: _openCart),
               ),
             const NewOrderAlertBannerHost(),
             const PosRequiredUpdateOverlay(),
@@ -1316,99 +1293,91 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     );
 
     if (blocked) {
-      return Stack(
-        children: [
-          shell,
-          const OrderPlacedNoticeHost(),
-        ],
-      );
+      return Stack(children: [shell, const OrderPlacedNoticeHost()]);
     }
 
     return Stack(
       children: [
         Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.slash): _FocusSearchIntent(),
-        SingleActivator(LogicalKeyboardKey.f2): _ParkIntent(),
-        SingleActivator(LogicalKeyboardKey.f3): _PayIntent(),
-        SingleActivator(LogicalKeyboardKey.enter, shift: true): _PayIntent(),
-        SingleActivator(LogicalKeyboardKey.f4): _OpenHeldIntent(),
-        SingleActivator(LogicalKeyboardKey.f5): _OpenHeldIntent(),
-        SingleActivator(LogicalKeyboardKey.f6): _LockIntent(),
-        SingleActivator(LogicalKeyboardKey.keyL, meta: true): _LockIntent(),
-        SingleActivator(LogicalKeyboardKey.keyL, control: true): _LockIntent(),
-        // Forward-delete (Windows/Linux) and Backspace (macOS "Delete").
-        SingleActivator(LogicalKeyboardKey.delete, shift: true):
-            _ClearCartIntent(),
-        SingleActivator(LogicalKeyboardKey.backspace, shift: true):
-            _ClearCartIntent(),
-        SingleActivator(LogicalKeyboardKey.f11): _FullscreenIntent(),
-        // macOS system-style fullscreen chord.
-        SingleActivator(
-          LogicalKeyboardKey.keyF,
-          meta: true,
-          control: true,
-        ): _FullscreenIntent(),
-      },
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
-            onInvoke: (_) {
-              _focusSearch();
-              return null;
+          shortcuts: const <ShortcutActivator, Intent>{
+            SingleActivator(LogicalKeyboardKey.slash): _FocusSearchIntent(),
+            SingleActivator(LogicalKeyboardKey.f2): _ParkIntent(),
+            SingleActivator(LogicalKeyboardKey.f3): _PayIntent(),
+            SingleActivator(LogicalKeyboardKey.enter, shift: true):
+                _PayIntent(),
+            SingleActivator(LogicalKeyboardKey.f4): _OpenHeldIntent(),
+            SingleActivator(LogicalKeyboardKey.f5): _OpenHeldIntent(),
+            SingleActivator(LogicalKeyboardKey.f6): _LockIntent(),
+            SingleActivator(LogicalKeyboardKey.keyL, meta: true): _LockIntent(),
+            SingleActivator(LogicalKeyboardKey.keyL, control: true):
+                _LockIntent(),
+            // Forward-delete (Windows/Linux) and Backspace (macOS "Delete").
+            SingleActivator(LogicalKeyboardKey.delete, shift: true):
+                _ClearCartIntent(),
+            SingleActivator(LogicalKeyboardKey.backspace, shift: true):
+                _ClearCartIntent(),
+            SingleActivator(LogicalKeyboardKey.f11): _FullscreenIntent(),
+            // macOS system-style fullscreen chord.
+            SingleActivator(LogicalKeyboardKey.keyF, meta: true, control: true):
+                _FullscreenIntent(),
+          },
+          child: Actions(
+            actions: <Type, Action<Intent>>{
+              _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
+                onInvoke: (_) {
+                  _focusSearch();
+                  return null;
+                },
+              ),
+              _OpenHeldIntent: CallbackAction<_OpenHeldIntent>(
+                onInvoke: (_) {
+                  _openHeldOrders();
+                  return null;
+                },
+              ),
+              _ParkIntent: CallbackAction<_ParkIntent>(
+                onInvoke: (_) {
+                  final pos = context.read<PosController>();
+                  if (pos.cart.isNotEmpty && !pos.submitting) {
+                    _onPark();
+                  }
+                  return null;
+                },
+              ),
+              _PayIntent: CallbackAction<_PayIntent>(
+                onInvoke: (_) {
+                  final pos = context.read<PosController>();
+                  if (pos.cart.isNotEmpty && !pos.submitting) {
+                    _onPay(
+                      quickMethod: context
+                          .read<PosController>()
+                          .cartQuickPayMethod,
+                    );
+                  }
+                  return null;
+                },
+              ),
+              _LockIntent: CallbackAction<_LockIntent>(
+                onInvoke: (_) {
+                  context.read<PosController>().lockSession();
+                  return null;
+                },
+              ),
+              _ClearCartIntent: CallbackAction<_ClearCartIntent>(
+                onInvoke: (_) {
+                  _clearCartShortcut();
+                  return null;
+                },
+              ),
+              _FullscreenIntent: CallbackAction<_FullscreenIntent>(
+                onInvoke: (_) {
+                  _toggleFullscreen();
+                  return null;
+                },
+              ),
             },
+            child: Focus(autofocus: true, child: shell),
           ),
-          _OpenHeldIntent: CallbackAction<_OpenHeldIntent>(
-            onInvoke: (_) {
-              _openHeldOrders();
-              return null;
-            },
-          ),
-          _ParkIntent: CallbackAction<_ParkIntent>(
-            onInvoke: (_) {
-              final pos = context.read<PosController>();
-              if (pos.cart.isNotEmpty && !pos.submitting) {
-                _onPark();
-              }
-              return null;
-            },
-          ),
-          _PayIntent: CallbackAction<_PayIntent>(
-            onInvoke: (_) {
-              final pos = context.read<PosController>();
-              if (pos.cart.isNotEmpty && !pos.submitting) {
-                _onPay(
-                  quickMethod:
-                      context.read<PosController>().cartQuickPayMethod,
-                );
-              }
-              return null;
-            },
-          ),
-          _LockIntent: CallbackAction<_LockIntent>(
-            onInvoke: (_) {
-              context.read<PosController>().lockSession();
-              return null;
-            },
-          ),
-          _ClearCartIntent: CallbackAction<_ClearCartIntent>(
-            onInvoke: (_) {
-              _clearCartShortcut();
-              return null;
-            },
-          ),
-          _FullscreenIntent: CallbackAction<_FullscreenIntent>(
-            onInvoke: (_) {
-              _toggleFullscreen();
-              return null;
-            },
-          ),
-        },
-        child: Focus(
-          autofocus: true,
-          child: shell,
-        ),
-      ),
         ),
         const OrderPlacedNoticeHost(),
       ],
@@ -1419,10 +1388,12 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     return LayoutBuilder(
       builder: (context, constraints) {
         final short = PosTheme.isShort(context);
-        final canUseKitchen =
-            context.select((PosController p) => p.canUseKitchen);
-        final categoriesOnTop =
-            context.select((PosCategoryBarSettings s) => s.isTop);
+        final canUseKitchen = context.select(
+          (PosController p) => p.canUseKitchen,
+        );
+        final categoriesOnTop = context.select(
+          (PosCategoryBarSettings s) => s.isTop,
+        );
         final layout = resolvePosDesktopPanelLayout(
           totalWidth: constraints.maxWidth,
           kotOpen: _kotDockOpen && canUseKitchen,
@@ -1438,10 +1409,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
                 searchController: _searchController,
               ),
             Expanded(
-              child: _menuColumn(
-                accent,
-                categoriesOnTop: categoriesOnTop,
-              ),
+              child: _menuColumn(accent, categoriesOnTop: categoriesOnTop),
             ),
             if (layout.kotColumnWidth > 0)
               SizedBox(
@@ -1519,10 +1487,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
               horizontal: true,
             ),
           Expanded(
-            child: _MenuScrollBody(
-              accent: accent,
-              onItemTap: _onItemTap,
-            ),
+            child: _MenuScrollBody(accent: accent, onItemTap: _onItemTap),
           ),
         ],
       ),
@@ -1544,10 +1509,12 @@ class _PosCategoryRailHost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categories = context.select((PosController p) => p.categories);
-    final activeCategoryId =
-        context.select((PosController p) => p.activeCategoryId);
-    final searchActive =
-        context.select((PosController p) => p.searchQuery.isNotEmpty);
+    final activeCategoryId = context.select(
+      (PosController p) => p.activeCategoryId,
+    );
+    final searchActive = context.select(
+      (PosController p) => p.searchQuery.isNotEmpty,
+    );
     final serverUrl = context.select(
       (PosController p) => p.serverUrl ?? p.session?.serverUrl,
     );
@@ -1627,7 +1594,10 @@ class _SearchStripState extends State<_SearchStrip> {
           bottom: BorderSide(color: PosTheme.border.withValues(alpha: 0.9)),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: usePosHandheldLayout(context) ? 10 : 14,
+        vertical: usePosHandheldLayout(context) ? 6 : 10,
+      ),
       child: ListenableBuilder(
         listenable: PaymentSessionManager.instance,
         builder: (context, _) {
@@ -1664,10 +1634,7 @@ class _SearchStripState extends State<_SearchStrip> {
 }
 
 class _MenuScrollBody extends StatelessWidget {
-  const _MenuScrollBody({
-    required this.accent,
-    required this.onItemTap,
-  });
+  const _MenuScrollBody({required this.accent, required this.onItemTap});
 
   final Color accent;
   final ValueChanged<MenuItem> onItemTap;
@@ -1675,8 +1642,7 @@ class _MenuScrollBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final menuEmpty = context.select((PosController p) => p.menuItemsEmpty);
-    final showPopular =
-        context.select((PosController p) => p.showPopularStrip);
+    final showPopular = context.select((PosController p) => p.showPopularStrip);
     final searchQuery = context.select((PosController p) => p.searchQuery);
     final items = context.select((PosController p) => p.itemsToDisplay);
     final popularItems = context.select((PosController p) => p.popularItems);
@@ -1684,14 +1650,16 @@ class _MenuScrollBody extends StatelessWidget {
     final serverUrl = context.select(
       (PosController p) => p.serverUrl ?? p.session?.serverUrl,
     );
-    final categoryTitle =
-        context.select((PosController p) => p.activeCategoryTitle);
-    final categorySubtitle =
-        context.select((PosController p) => p.activeCategorySubtitle);
-    final cartQty =
-        context.select((PosController p) => p.cartQtyByMenuItemId);
-    final simpleLines =
-        context.select((PosController p) => p.simpleCartLineByMenuItemId);
+    final categoryTitle = context.select(
+      (PosController p) => p.activeCategoryTitle,
+    );
+    final categorySubtitle = context.select(
+      (PosController p) => p.activeCategorySubtitle,
+    );
+    final cartQty = context.select((PosController p) => p.cartQtyByMenuItemId);
+    final simpleLines = context.select(
+      (PosController p) => p.simpleCartLineByMenuItemId,
+    );
     final showItemImages = context.select(
       (PosCatalogLayoutSettings s) => s.showsItemImages,
     );
@@ -1709,11 +1677,12 @@ class _MenuScrollBody extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final paneWidth = constraints.maxWidth;
+        final handheld = usePosHandheldLayout(context);
         final crossAxisCount = posMenuGridCrossAxisCount(paneWidth);
 
         return CustomScrollView(
           slivers: [
-            if (showPopular)
+            if (showPopular && !handheld)
               SliverToBoxAdapter(
                 child: _PopularSection(
                   items: popularItems,
@@ -1751,39 +1720,65 @@ class _MenuScrollBody extends StatelessWidget {
               ),
             if (items.isNotEmpty)
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: posMenuGridChildAspectRatio(
-                      paneWidth,
-                      compact: true,
-                      images: showItemImages,
-                    ),
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final item = items[index];
-                      return PosMenuItemCard(
-                        key: ValueKey(item.id),
-                        item: item,
-                        currency: currency,
-                        accent: accent,
-                        compact: true,
-                        serverUrl: serverUrl,
-                        showImage: showItemImages,
-                        inTicketQty: cartQty[item.id] ?? 0,
-                        simpleCartLine: simpleLines[item.id],
-                        onTap: () => onItemTap(item),
-                        onIncrementSimple: pos.incrementSimpleCartLine,
-                        onDecrementSimple: pos.decrementSimpleCartLine,
-                      );
-                    },
-                    childCount: items.length,
-                  ),
+                padding: EdgeInsets.fromLTRB(
+                  handheld ? 10 : 16,
+                  4,
+                  handheld ? 10 : 16,
+                  handheld ? 88 : 24,
                 ),
+                sliver: handheld
+                    ? SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final item = items[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: PosMenuItemCard(
+                              handheld: true,
+                              key: ValueKey(item.id),
+                              item: item,
+                              currency: currency,
+                              accent: accent,
+                              compact: true,
+                              serverUrl: serverUrl,
+                              showImage: showItemImages,
+                              inTicketQty: cartQty[item.id] ?? 0,
+                              simpleCartLine: simpleLines[item.id],
+                              onTap: () => onItemTap(item),
+                              onIncrementSimple: pos.incrementSimpleCartLine,
+                              onDecrementSimple: pos.decrementSimpleCartLine,
+                            ),
+                          );
+                        }, childCount: items.length),
+                      )
+                    : SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 14,
+                          childAspectRatio: posMenuGridChildAspectRatio(
+                            paneWidth,
+                            compact: true,
+                            images: showItemImages,
+                          ),
+                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final item = items[index];
+                          return PosMenuItemCard(
+                            key: ValueKey(item.id),
+                            item: item,
+                            currency: currency,
+                            accent: accent,
+                            compact: true,
+                            serverUrl: serverUrl,
+                            showImage: showItemImages,
+                            inTicketQty: cartQty[item.id] ?? 0,
+                            simpleCartLine: simpleLines[item.id],
+                            onTap: () => onItemTap(item),
+                            onIncrementSimple: pos.incrementSimpleCartLine,
+                            onDecrementSimple: pos.decrementSimpleCartLine,
+                          );
+                        }, childCount: items.length),
+                      ),
               ),
           ],
         );
@@ -1850,13 +1845,15 @@ class _PopularSection extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: soft.bg,
                       borderRadius: BorderRadius.circular(PosTheme.radiusMd),
-                      border: Border.all(color: soft.fg.withValues(alpha: 0.28)),
-                    ),
-                      child: Icon(
-                        Icons.local_fire_department_rounded,
-                        size: short ? 14 : 18,
-                        color: soft.fg,
+                      border: Border.all(
+                        color: soft.fg.withValues(alpha: 0.28),
                       ),
+                    ),
+                    child: Icon(
+                      Icons.local_fire_department_rounded,
+                      size: short ? 14 : 18,
+                      color: soft.fg,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1934,18 +1931,27 @@ class _CategorySectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      padding: EdgeInsets.fromLTRB(
+        12,
+        4,
+        12,
+        usePosHandheldLayout(context) ? 6 : 12,
+      ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: usePosHandheldLayout(context) ? 24 : 36,
+            height: usePosHandheldLayout(context) ? 24 : 36,
             decoration: BoxDecoration(
               color: PosTheme.searchFill,
               borderRadius: BorderRadius.circular(PosTheme.radiusMd),
               border: Border.all(color: PosTheme.border),
             ),
-            child: Icon(Icons.grid_view_rounded, size: 18, color: PosTheme.inkMuted),
+            child: Icon(
+              Icons.grid_view_rounded,
+              size: 18,
+              color: PosTheme.inkMuted,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1960,10 +1966,11 @@ class _CategorySectionHeader extends StatelessWidget {
                     color: PosTheme.ink,
                   ),
                 ),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
-                ),
+                if (!usePosHandheldLayout(context))
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
+                  ),
               ],
             ),
           ),
@@ -1974,10 +1981,7 @@ class _CategorySectionHeader extends StatelessWidget {
 }
 
 class _ViewCartPillHost extends StatelessWidget {
-  const _ViewCartPillHost({
-    required this.accent,
-    required this.onTap,
-  });
+  const _ViewCartPillHost({required this.accent, required this.onTap});
 
   final Color accent;
   final VoidCallback onTap;
@@ -1986,11 +1990,7 @@ class _ViewCartPillHost extends StatelessWidget {
   Widget build(BuildContext context) {
     final count = context.select((PosController p) => p.cartItemCount);
     if (count <= 0) return const SizedBox.shrink();
-    return _ViewCartPill(
-      count: count,
-      accent: accent,
-      onTap: onTap,
-    );
+    return _ViewCartPill(count: count, accent: accent, onTap: onTap);
   }
 }
 
@@ -2101,9 +2101,9 @@ class _MobileCartSheet extends StatelessWidget {
                   child: Text(
                     l10n.cartCurrentTicket,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.2,
-                        ),
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
                   ),
                 ),
                 Material(
@@ -2115,10 +2115,7 @@ class _MobileCartSheet extends StatelessWidget {
                     child: SizedBox(
                       width: 36,
                       height: 36,
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: soft.fg,
-                      ),
+                      child: Icon(Icons.close_rounded, color: soft.fg),
                     ),
                   ),
                 ),
@@ -2140,8 +2137,9 @@ class _MobileCartSheet extends StatelessWidget {
   }
 }
 
-class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const _PosAppBar({
+class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const PosRegisterAppBar({
+    super.key,
     required this.accent,
     required this.onOpenDayEndReports,
     required this.onOpenOrders,
@@ -2154,6 +2152,7 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.kotDockOpen = false,
     this.kotOpenCount = 0,
     this.onToggleKotDock,
+    this.statusControl,
   });
 
   final Color accent;
@@ -2168,6 +2167,7 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool kotDockOpen;
   final int kotOpenCount;
   final VoidCallback? onToggleKotDock;
+  final Widget? statusControl;
 
   @override
   Size get preferredSize => Size.fromHeight(PosTheme.headerPx(56));
@@ -2184,38 +2184,45 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
       (PosController p) => p.marketplaceOpenOrderCounts,
     );
     final tableId = context.select((PosController p) => p.tableId);
-    final selectedTableLabel = context.select((PosController p) => p.tableLabel);
+    final selectedTableLabel = context.select(
+      (PosController p) => p.tableLabel,
+    );
     final hasTable = tableId != null;
-    final hasPin =
-        context.select((PosController p) => p.session?.hasPosPin == true);
+    final hasPin = context.select(
+      (PosController p) => p.session?.hasPosPin == true,
+    );
     final restaurantName = context.select(
       (PosController p) => p.bootstrap?.restaurant.name,
     );
-    final branchName =
-        context.select((PosController p) => p.bootstrap?.branch.name);
+    final branchName = context.select(
+      (PosController p) => p.bootstrap?.branch.name,
+    );
     final staffName = context.select(
       (PosController p) => p.session?.userName?.trim(),
     );
     final logoRawUrl = context.select(
       (PosController p) => p.bootstrap?.restaurant.logoUrl,
     );
-    final serverUrl =
-        context.select((PosController p) => p.session?.serverUrl);
+    final serverUrl = context.select((PosController p) => p.session?.serverUrl);
     final terminalCount = context.select(
       (PosController p) => p.bootstrap?.posTerminals.length ?? 0,
     );
-    final pendingOrderCount =
-        context.select((PosController p) => p.pendingOrderCount);
-    final checkingForUpdates =
-        context.select((PosController p) => p.checkingForUpdates);
-    final canUseCaptain =
-        context.select((PosController p) => p.canUseCaptain);
-    final canChooseWorkMode =
-        context.select((PosController p) => p.canChooseWorkMode);
-    final canChangeLocation =
-        context.select((PosController p) => p.canChangeLocation);
-    final hasDeviceBinding =
-        context.select((PosController p) => p.deviceBinding != null);
+    final pendingOrderCount = context.select(
+      (PosController p) => p.pendingOrderCount,
+    );
+    final checkingForUpdates = context.select(
+      (PosController p) => p.checkingForUpdates,
+    );
+    final canUseCaptain = context.select((PosController p) => p.canUseCaptain);
+    final canChooseWorkMode = context.select(
+      (PosController p) => p.canChooseWorkMode,
+    );
+    final canChangeLocation = context.select(
+      (PosController p) => p.canChangeLocation,
+    );
+    final hasDeviceBinding = context.select(
+      (PosController p) => p.deviceBinding != null,
+    );
     final showLanguageSwitcher = context.select(
       (PosLocaleController c) => c.showSwitcher,
     );
@@ -2224,6 +2231,7 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
     final l10n = context.l10n;
     final width = MediaQuery.sizeOf(context).width;
     final compact = width < PosTheme.compactWidthBreakpoint;
+    final handheld = usePosHandheldLayout(context);
     final allowDelivery = context.select(
       (PosController p) => p.bootstrap?.allowsPosDelivery ?? true,
     );
@@ -2231,16 +2239,15 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
     final showActionLabels = width >= 1280;
     final logoUrl = resolveMediaUrl(logoRawUrl, serverUrl: serverUrl);
     final canAccessAdmin = context.select(
-      (PosController p) => p.bootstrap?.adminCapabilities.canAccessAdmin == true,
+      (PosController p) =>
+          p.bootstrap?.adminCapabilities.canAccessAdmin == true,
     );
-    final canViewMenu = context.select(
-      (PosController p) {
-        final caps = p.bootstrap?.adminCapabilities;
-        return caps?.canViewMenu == true ||
-            caps?.canManageMenu == true ||
-            caps?.canManageMenuItems == true;
-      },
-    );
+    final canViewMenu = context.select((PosController p) {
+      final caps = p.bootstrap?.adminCapabilities;
+      return caps?.canViewMenu == true ||
+          caps?.canManageMenu == true ||
+          caps?.canManageMenuItems == true;
+    });
     final canManageStore = context.select(
       (PosController p) =>
           p.bootstrap?.adminCapabilities.canManageSettings == true,
@@ -2253,8 +2260,8 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
     final storeStatusLabel = guestOrdering.open
         ? l10n.storeOpen
         : (guestOrdering.isPaused || !storeAccepting
-            ? l10n.storePaused
-            : l10n.storeClosed);
+              ? l10n.storePaused
+              : l10n.storeClosed);
     final titleText = restaurantName ?? 'POS';
     final titleTooltip = [
       if (restaurantName != null && restaurantName.isNotEmpty) restaurantName,
@@ -2272,70 +2279,77 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
       shape: Border(
         bottom: BorderSide(color: PosTheme.border.withValues(alpha: 0.7)),
       ),
-      title: Row(
-        children: [
-          _HeaderBrandMark(
-            logoUrl: logoUrl,
-            accent: accent,
-            compact: compact,
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Tooltip(
-              message: titleTooltip.isEmpty ? 'POS' : titleTooltip,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    titleText,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.25,
-                      height: 1.15,
-                      color: PosTheme.ink,
+      title: handheld
+          ? Text(
+              titleText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            )
+          : Row(
+              children: [
+                _HeaderBrandMark(
+                  logoUrl: logoUrl,
+                  accent: accent,
+                  compact: compact,
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Tooltip(
+                    message: titleTooltip.isEmpty ? 'POS' : titleTooltip,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          titleText,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.25,
+                            height: 1.15,
+                            color: PosTheme.ink,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (branchName != null && branchName.isNotEmpty)
+                          Text(
+                            branchName,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.2,
+                              color: PosTheme.inkMuted,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  if (branchName != null && branchName.isNotEmpty)
-                    Text(
-                      branchName,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        height: 1.2,
-                        color: PosTheme.inkMuted,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 10),
+                const PosShiftControl(),
+              ],
             ),
-          ),
-          const SizedBox(width: 10),
-          const PosShiftControl(),
-        ],
-      ),
       actions: [
         _HeaderSegment(
           children: [
-            PosSystemStatusButton(showLabel: showActionLabels && !compact),
+            statusControl ??
+                PosSystemStatusButton(showLabel: showActionLabels && !compact),
           ],
         ),
-        OfflineStatusIndicator(compact: true),
-        const PosPrinterWarningButton(),
-        const SizedBox(width: 6),
+        if (!handheld) ...[
+          OfflineStatusIndicator(compact: true),
+          const PosPrinterWarningButton(),
+          const SizedBox(width: 6),
+        ],
         _HeaderSegment(
           children: [
             if (canUseKitchen && onToggleKotDock != null)
               _HeaderIconButton(
-                tooltip: context.posText(
-                  'kitchenDockToggle',
-                  'Kitchen orders',
-                ),
+                tooltip: context.posText('kitchenDockToggle', 'Kitchen orders'),
                 label: showActionLabels
                     ? context.posText('kitchenDockTitle', 'Kitchen')
                     : null,
@@ -2345,13 +2359,13 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
                 iconColor: kotOpenCount > 0
                     ? const Color(0xFFDC2626)
                     : kotDockOpen
-                        ? accent
-                        : null,
+                    ? accent
+                    : null,
                 badgeCount: kotOpenCount,
                 badgeColor: const Color(0xFFDC2626),
                 onPressed: onToggleKotDock!,
               ),
-            if (canAccessAdmin && canViewMenu)
+            if (!handheld && canAccessAdmin && canViewMenu)
               _HeaderIconButton(
                 tooltip: l10n.adminMenu,
                 label: showActionLabels ? l10n.adminMenu : null,
@@ -2361,18 +2375,20 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
             _HeaderIconButton(
               tooltip: hasTable
                   ? (selectedTableLabel ??
-                      context.posText('shellTable', 'Table'))
+                        context.posText('shellTable', 'Table'))
                   : context.posText('cartSelectTable', 'Select table'),
-              label: hasTable &&
-                      selectedTableLabel != null &&
-                      selectedTableLabel.isNotEmpty
+              label: handheld
+                  ? null
+                  : hasTable &&
+                        selectedTableLabel != null &&
+                        selectedTableLabel.isNotEmpty
                   ? selectedTableLabel
                   : context.posText('shellTable', 'Table'),
               icon: Icons.table_restaurant_rounded,
               iconColor: hasTable ? accent : null,
               onPressed: onOpenTable,
             ),
-            if (allowDelivery)
+            if (!handheld && allowDelivery)
               _HeaderIconButton(
                 tooltip: context.posText(
                   'shellDeliveryOrders',
@@ -2396,29 +2412,31 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
               badgeColor: accent,
               onPressed: onOpenOrders,
             ),
-            _HeaderIconButton(
-              tooltip: l10n.waiterNavAlerts,
-              icon: notificationCount > 0
-                  ? Icons.notifications_active_rounded
-                  : Icons.notifications_none_rounded,
-              iconColor: notificationCount > 0
-                  ? const Color(0xFFD97706)
-                  : null,
-              badgeCount: notificationCount,
-              badgeColor: const Color(0xFFD97706),
-              onPressed: onOpenNotifications,
-            ),
-            _HeaderIconButton(
-              tooltip: l10n.shellRefreshMenu,
-              icon: Icons.refresh_rounded,
-              onPressed: () => _refreshMenu(context, pos, l10n),
-            ),
+            if (!handheld)
+              _HeaderIconButton(
+                tooltip: l10n.waiterNavAlerts,
+                icon: notificationCount > 0
+                    ? Icons.notifications_active_rounded
+                    : Icons.notifications_none_rounded,
+                iconColor: notificationCount > 0
+                    ? const Color(0xFFD97706)
+                    : null,
+                badgeCount: notificationCount,
+                badgeColor: const Color(0xFFD97706),
+                onPressed: onOpenNotifications,
+              ),
+            if (!handheld)
+              _HeaderIconButton(
+                tooltip: l10n.shellRefreshMenu,
+                icon: Icons.refresh_rounded,
+                onPressed: () => _refreshMenu(context, pos, l10n),
+              ),
           ],
         ),
         const SizedBox(width: 6),
         _HeaderSegment(
           children: [
-            if (!compact)
+            if (!compact && !handheld)
               PosMoreMenuButton(
                 accent: accent,
                 embedded: true,
@@ -2460,26 +2478,60 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
                 accent: accent,
                 embedded: true,
                 tooltip: l10n.shellMore,
-                sections: buildPosMoreMenuSections(
-                  context: context,
-                  l10n: l10n,
-                  storeAccepting: storeAccepting,
-                  storeStatusLabel: storeStatusLabel,
-                  canManageStore: canManageStore,
-                  canAccessAdmin: canAccessAdmin,
-                  canViewMenu: canViewMenu,
-                  marketplacePlatforms: marketplacePlatforms,
-                  showLanguageSwitcher: showLanguageSwitcher,
-                  terminalCount: terminalCount,
-                  canChangeLocation: canChangeLocation,
-                  hasPin: hasPin,
-                  canUseCaptain: canUseCaptain,
-                  canChooseWorkMode: canChooseWorkMode,
-                  checkingForUpdates: checkingForUpdates,
-                  pendingOrderCount: pendingOrderCount,
-                  hasDeviceBinding: hasDeviceBinding,
-                  includeShortcuts: false,
-                ),
+                sections: [
+                  if (handheld)
+                    PosMoreMenuSection(
+                      title: 'Quick actions',
+                      items: [
+                        PosMoreMenuItem(
+                          id: '_notifications',
+                          icon: Icons.notifications_outlined,
+                          label: l10n.waiterNavAlerts,
+                          badge: notificationCount > 0
+                              ? '$notificationCount'
+                              : null,
+                        ),
+                        if (allowDelivery)
+                          PosMoreMenuItem(
+                            id: '_delivery',
+                            icon: Icons.delivery_dining_rounded,
+                            label: context.posText(
+                              'shellDeliveryOrders',
+                              'Delivery orders',
+                            ),
+                          ),
+                        PosMoreMenuItem(
+                          id: pos.bootstrap?.currentShift == null
+                              ? 'open_shift'
+                              : 'close_shift',
+                          icon: Icons.schedule_rounded,
+                          label: pos.bootstrap?.currentShift == null
+                              ? l10n.opsOpenOptional
+                              : l10n.opsCloseShift,
+                        ),
+                      ],
+                    ),
+                  ...buildPosMoreMenuSections(
+                    context: context,
+                    l10n: l10n,
+                    storeAccepting: storeAccepting,
+                    storeStatusLabel: storeStatusLabel,
+                    canManageStore: canManageStore,
+                    canAccessAdmin: canAccessAdmin,
+                    canViewMenu: canViewMenu,
+                    marketplacePlatforms: marketplacePlatforms,
+                    showLanguageSwitcher: showLanguageSwitcher,
+                    terminalCount: terminalCount,
+                    canChangeLocation: canChangeLocation,
+                    hasPin: hasPin,
+                    canUseCaptain: canUseCaptain,
+                    canChooseWorkMode: canChooseWorkMode,
+                    checkingForUpdates: checkingForUpdates,
+                    pendingOrderCount: pendingOrderCount,
+                    hasDeviceBinding: hasDeviceBinding,
+                    includeShortcuts: false,
+                  ),
+                ],
                 onSelected: (value) async {
                   await _handleMoreMenuAction(
                     context: context,
@@ -2525,176 +2577,169 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
     required ValueChanged<String> onOpenPartnerOrders,
     required VoidCallback onOpenDayEndReports,
   }) async {
-    if (value == 'logout') {
-              final ok = await showPosConfirmDialog(
-                context,
-                title: l10n.authSignOutTitle,
-                message: hasPin
-                    ? l10n.authSignOutMessageWithPin
-                    : l10n.authSignOutMessageNoPin,
-                confirmLabel: l10n.commonSignOut,
-                destructive: true,
-              );
-              if (!ok || !context.mounted) return;
-              await pos.logout();
-            } else if (value.endsWith('_orders') &&
-                value != 'held_orders' &&
-                value.length > '_orders'.length) {
-              final provider =
-                  value.substring(0, value.length - '_orders'.length);
-              final enabled = context
-                      .read<PosController>()
-                      .bootstrap
-                      ?.marketplaceEnabled(provider) ??
-                  false;
-              if (enabled) {
-                onOpenPartnerOrders(provider);
-              }
-            } else if (value == 'refresh') {
-              await _refreshMenu(context, pos, l10n);
-            } else if (value == 'terminal') {
-              await pos.changeTerminal();
-            } else if (value == 'location') {
-              await pos.openLocationPicker();
-            } else if (value == 'lock') {
-              pos.lockSession();
-            } else if (value == 'pin') {
-              await SetPosPinScreen.open(context);
-            } else if (value == 'printer') {
-              await PrinterSetupScreen.open(context);
-            } else if (value == 'quick_pay_layout') {
-              if (context.mounted) {
-                await showCartQuickPayLayoutDialog(context);
-              }
-            } else if (value == 'sounds') {
-              if (context.mounted) {
-                await showPosSoundSettingsDialog(context);
-              }
-            } else if (value == 'customer_display') {
-              if (context.mounted) {
-                await showCustomerDisplayStatusDialog(context);
-              }
-            } else if (value == 'token_display') {
-              if (context.mounted) {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const CustomerDisplayPage(),
-                  ),
-                );
-              }
-            } else if (value == 'cart_display') {
-              if (context.mounted) {
-                final posState = context.read<PosController>();
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => CustomerCartDisplayPage(
-                      branchId: posState.session?.branchId,
-                      terminalCode: posState.selectedTerminalCode,
-                    ),
-                  ),
-                );
-              }
-            } else if (value == 'qr_pairing') {
-              if (context.mounted) {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const CustomerDisplaySetupPage(),
-                  ),
-                );
-              }
-            } else if (value == 'sync') {
-              final before = pos.pendingOrderCount;
-              await pos.syncPendingOrders();
-              if (!context.mounted) return;
-              final remaining = pos.pendingOrderCount;
-              if (before == 0 && remaining == 0) {
-                showPosSnackBar(context, l10n.offlineSyncNothingPending);
-              } else if (remaining > 0) {
-                showPosSnackBar(
-                  context,
-                  l10n.offlineSyncPartial(remaining),
-                  error: true,
-                );
-              } else {
-                showPosSnackBar(context, l10n.shellSyncCompleted);
-              }
-            } else if (value == 'updates') {
-              await openPosUpdateCheckScreen(context);
-            } else if (value == 'shortcuts') {
-              await showPosShortcutsDialog(context);
-            } else if (value == 'language') {
-              await showPosLanguagePicker(context);
-            } else if (value == 'unpair') {
-              await pos.clearDeviceBinding();
-              if (context.mounted) {
-                showPosSnackBar(context, l10n.shellPairingCleared);
-              }
-            } else if (value == 'reports') {
-              onOpenDayEndReports();
-            } else if (value == 'appearance') {
-              await showPosAppearancePicker(context);
-            } else if (value == 'item_images') {
-              await showPosCatalogLayoutPicker(context);
-            } else if (value == 'help') {
-              if (context.mounted) {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const PosHelpPage(),
-                  ),
-                );
-              }
-            } else if (value == 'dqr_images') {
-              if (context.mounted) {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const Dqr222AdvertisementPage(),
-                  ),
-                );
-              }
-            } else if (value == 'auto_lock') {
-              await showPosAutoLockPicker(context);
-            } else if (value == 'fullscreen') {
-              if (PosDisplayMode.supportsToggle) {
-                final enabled = await PosDisplayMode.toggle();
-                if (context.mounted) {
-                  showPosSnackBar(
-                    context,
-                    enabled
-                        ? context.posText(
-                            'shellFullscreenOn',
-                            'Fullscreen on',
-                          )
-                        : context.posText(
-                            'shellFullscreenOff',
-                            'Fullscreen off',
-                          ),
-                  );
-                }
-              }
-            } else if (value == 'store_toggle') {
-              await togglePosGuestStore(context);
-            } else if (value == 'open_shift') {
-              await PosOpenShiftDialog.show(context);
-            } else if (value == 'close_shift') {
-              await PosCloseShiftDialog.show(context);
-            } else if (value == 'waiter_mode') {
-              final ok = await showPosConfirmDialog(
-                context,
-                title: l10n.waiterSwitchToWaiter,
-                message: l10n.waiterSwitchToWaiterConfirm,
-                confirmLabel: l10n.commonContinue,
-              );
-              if (!ok || !context.mounted) return;
-              await pos.switchWorkMode(PosWorkMode.waiter);
-            } else if (value == 'change_mode') {
-              await pos.clearWorkModeAndPick();
-            } else if (value == 'status') {
-              await showPosSystemStatusDialog(context);
-            } else if (value == 'menu') {
-              await openPosAdminMenuSheet(context);
-            } else if (value == 'manage') {
-              await openPosAdminShell(context);
-            }
+    if (value == '_notifications') {
+      onOpenNotifications();
+    } else if (value == '_delivery') {
+      onOpenDelivery();
+    } else if (value == 'logout') {
+      final ok = await showPosConfirmDialog(
+        context,
+        title: l10n.authSignOutTitle,
+        message: hasPin
+            ? l10n.authSignOutMessageWithPin
+            : l10n.authSignOutMessageNoPin,
+        confirmLabel: l10n.commonSignOut,
+        destructive: true,
+      );
+      if (!ok || !context.mounted) return;
+      await pos.logout();
+    } else if (value.endsWith('_orders') &&
+        value != 'held_orders' &&
+        value.length > '_orders'.length) {
+      final provider = value.substring(0, value.length - '_orders'.length);
+      final enabled =
+          context.read<PosController>().bootstrap?.marketplaceEnabled(
+            provider,
+          ) ??
+          false;
+      if (enabled) {
+        onOpenPartnerOrders(provider);
+      }
+    } else if (value == 'refresh') {
+      await _refreshMenu(context, pos, l10n);
+    } else if (value == 'terminal') {
+      await pos.changeTerminal();
+    } else if (value == 'location') {
+      await pos.openLocationPicker();
+    } else if (value == 'lock') {
+      pos.lockSession();
+    } else if (value == 'pin') {
+      await SetPosPinScreen.open(context);
+    } else if (value == 'printer') {
+      await PrinterSetupScreen.open(context);
+    } else if (value == 'quick_pay_layout') {
+      if (context.mounted) {
+        await showCartQuickPayLayoutDialog(context);
+      }
+    } else if (value == 'sounds') {
+      if (context.mounted) {
+        await showPosSoundSettingsDialog(context);
+      }
+    } else if (value == 'customer_display') {
+      if (context.mounted) {
+        await showCustomerDisplayStatusDialog(context);
+      }
+    } else if (value == 'token_display') {
+      if (context.mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const CustomerDisplayPage()),
+        );
+      }
+    } else if (value == 'cart_display') {
+      if (context.mounted) {
+        final posState = context.read<PosController>();
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => CustomerCartDisplayPage(
+              branchId: posState.session?.branchId,
+              terminalCode: posState.selectedTerminalCode,
+            ),
+          ),
+        );
+      }
+    } else if (value == 'qr_pairing') {
+      if (context.mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const CustomerDisplaySetupPage(),
+          ),
+        );
+      }
+    } else if (value == 'sync') {
+      final before = pos.pendingOrderCount;
+      await pos.syncPendingOrders();
+      if (!context.mounted) return;
+      final remaining = pos.pendingOrderCount;
+      if (before == 0 && remaining == 0) {
+        showPosSnackBar(context, l10n.offlineSyncNothingPending);
+      } else if (remaining > 0) {
+        showPosSnackBar(
+          context,
+          l10n.offlineSyncPartial(remaining),
+          error: true,
+        );
+      } else {
+        showPosSnackBar(context, l10n.shellSyncCompleted);
+      }
+    } else if (value == 'updates') {
+      await openPosUpdateCheckScreen(context);
+    } else if (value == 'shortcuts') {
+      await showPosShortcutsDialog(context);
+    } else if (value == 'language') {
+      await showPosLanguagePicker(context);
+    } else if (value == 'unpair') {
+      await pos.clearDeviceBinding();
+      if (context.mounted) {
+        showPosSnackBar(context, l10n.shellPairingCleared);
+      }
+    } else if (value == 'reports') {
+      onOpenDayEndReports();
+    } else if (value == 'appearance') {
+      await showPosAppearancePicker(context);
+    } else if (value == 'item_images') {
+      await showPosCatalogLayoutPicker(context);
+    } else if (value == 'help') {
+      if (context.mounted) {
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const PosHelpPage()));
+      }
+    } else if (value == 'dqr_images') {
+      if (context.mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Dqr222AdvertisementPage(),
+          ),
+        );
+      }
+    } else if (value == 'auto_lock') {
+      await showPosAutoLockPicker(context);
+    } else if (value == 'fullscreen') {
+      if (PosDisplayMode.supportsToggle) {
+        final enabled = await PosDisplayMode.toggle();
+        if (context.mounted) {
+          showPosSnackBar(
+            context,
+            enabled
+                ? context.posText('shellFullscreenOn', 'Fullscreen on')
+                : context.posText('shellFullscreenOff', 'Fullscreen off'),
+          );
+        }
+      }
+    } else if (value == 'store_toggle') {
+      await togglePosGuestStore(context);
+    } else if (value == 'open_shift') {
+      await PosOpenShiftDialog.show(context);
+    } else if (value == 'close_shift') {
+      await PosCloseShiftDialog.show(context);
+    } else if (value == 'waiter_mode') {
+      final ok = await showPosConfirmDialog(
+        context,
+        title: l10n.waiterSwitchToWaiter,
+        message: l10n.waiterSwitchToWaiterConfirm,
+        confirmLabel: l10n.commonContinue,
+      );
+      if (!ok || !context.mounted) return;
+      await pos.switchWorkMode(PosWorkMode.waiter);
+    } else if (value == 'change_mode') {
+      await pos.clearWorkModeAndPick();
+    } else if (value == 'status') {
+      await showPosSystemStatusDialog(context);
+    } else if (value == 'menu') {
+      await openPosAdminMenuSheet(context);
+    } else if (value == 'manage') {
+      await openPosAdminShell(context);
+    }
   }
 }
 
@@ -2738,11 +2783,8 @@ class _HeaderBrandMark extends StatelessWidget {
           maxHeight: 28,
           portraitSide: 28,
           alignment: Alignment.center,
-          errorWidget: (context, url, error) => Icon(
-            Icons.storefront_rounded,
-            color: soft.fg,
-            size: 18,
-          ),
+          errorWidget: (context, url, error) =>
+              Icon(Icons.storefront_rounded, color: soft.fg, size: 18),
           placeholder: (context, url) => const SizedBox(
             width: 16,
             height: 16,
@@ -2771,8 +2813,10 @@ class _HeaderSegment extends StatelessWidget {
     }
 
     return Container(
-      height: 38,
-      margin: const EdgeInsets.symmetric(vertical: 9),
+      height: usePosHandheldLayout(context) ? 44 : 38,
+      margin: EdgeInsets.symmetric(
+        vertical: usePosHandheldLayout(context) ? 6 : 9,
+      ),
       decoration: BoxDecoration(
         color: PosTheme.surface,
         borderRadius: BorderRadius.circular(12),
@@ -2848,7 +2892,9 @@ class _HeaderIconButton extends StatelessWidget {
           hoverColor: PosTheme.surfaceMuted,
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: PosTheme.headerPx(showLabel ? 12 : 10),
+              horizontal: usePosHandheldLayout(context)
+                  ? 13
+                  : PosTheme.headerPx(showLabel ? 12 : 10),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -2907,10 +2953,10 @@ Future<void> showCustomerDisplayStatusDialog(BuildContext context) async {
       final message = error != null
           ? error.toString()
           : (status?.message ??
-              dialogContext.posText(
-                'shellCustomerDisplayUnavailable',
-                'No USB customer display is connected.',
-              ));
+                dialogContext.posText(
+                  'shellCustomerDisplayUnavailable',
+                  'No USB customer display is connected.',
+                ));
       return AlertDialog(
         title: Text(title),
         content: Column(
@@ -2956,4 +3002,3 @@ Future<void> showCustomerDisplayStatusDialog(BuildContext context) async {
     },
   );
 }
-  

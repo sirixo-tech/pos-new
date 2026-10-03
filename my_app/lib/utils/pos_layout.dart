@@ -17,6 +17,12 @@ const double kPosKotOverlayBreakpoint = 1150;
 /// Vertical category rail width in desktop register layout.
 const double kPosCategoryRailWidth = 128;
 
+/// Narrow portrait terminals such as the iMin NM2 Pro.
+bool usePosHandheldLayout(BuildContext context) {
+  final size = MediaQuery.sizeOf(context);
+  return size.width < 600 || (size.width <= 800 && size.height > size.width);
+}
+
 /// Minimum share of the window reserved for the menu grid.
 const double kPosMenuMinFraction = 0.40;
 
@@ -48,7 +54,10 @@ PosDesktopPanelLayout resolvePosDesktopPanelLayout({
   final kotInline = kotOpen && totalWidth >= kPosKotOverlayBreakpoint;
 
   if (!kotOpen) {
-    final cart = sideBudget.clamp(short ? 280.0 : 320.0, PosTheme.cartPanelWidth);
+    final cart = sideBudget.clamp(
+      short ? 280.0 : 320.0,
+      PosTheme.cartPanelWidth,
+    );
     return PosDesktopPanelLayout(
       kotColumnWidth: 0,
       cartWidth: cart,

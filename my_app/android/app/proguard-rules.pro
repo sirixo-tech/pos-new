@@ -1,8 +1,11 @@
 -keep class com.imin.** { *; }
+-keep class android.serialport.** { *; }
 -keep class com.zcs.** { *; }
 -keep class com.smartpos.** { *; }
 -keep class com.google.zxing.** { *; }
 -dontwarn com.imin.**
+-keep class com.imin.image.** { *; }
+-keep class com.htt.image.** { *; }
 -dontwarn com.zcs.**
 -dontwarn com.smartpos.**
 -dontwarn com.google.zxing.**

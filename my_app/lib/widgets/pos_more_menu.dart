@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/pos_l10n.dart';
 import '../services/pos_storage.dart';
 import '../theme/pos_theme.dart';
+import '../utils/pos_layout.dart';
 import 'pos_overlay.dart';
 
 class PosMoreMenuItem {
@@ -26,10 +27,7 @@ class PosMoreMenuItem {
 }
 
 class PosMoreMenuSection {
-  const PosMoreMenuSection({
-    this.title,
-    required this.items,
-  });
+  const PosMoreMenuSection({this.title, required this.items});
 
   final String? title;
   final List<PosMoreMenuItem> items;
@@ -59,10 +57,7 @@ Future<String?> showPosMoreMenu({
         return PosSidePanelShell(child: panel);
       }
 
-      return PosMobileSheetFrame(
-        maxWidth: 560,
-        child: panel,
-      );
+      return PosMobileSheetFrame(maxWidth: 560, child: panel);
     },
   );
 }
@@ -141,8 +136,7 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
         _PosMoreMenuHeader(
           title: widget.title,
           customizing: _customizing,
-          onToggleCustomize: () =>
-              setState(() => _customizing = !_customizing),
+          onToggleCustomize: () => setState(() => _customizing = !_customizing),
           onClose: widget.onClose,
         ),
         Expanded(
@@ -198,10 +192,10 @@ class _PosMoreMenuHeader extends StatelessWidget {
             child: Text(
               title,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                    color: PosTheme.ink,
-                  ),
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+                color: PosTheme.ink,
+              ),
             ),
           ),
           Material(
@@ -211,23 +205,21 @@ class _PosMoreMenuHeader extends StatelessWidget {
               onTap: onToggleCustomize,
               borderRadius: BorderRadius.circular(20),
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      customizing
-                          ? Icons.check_rounded
-                          : Icons.tune_rounded,
+                      customizing ? Icons.check_rounded : Icons.tune_rounded,
                       size: 15,
                       color: customizing ? Colors.white : soft.fg,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      customizing
-                          ? l10n.commonDone
-                          : l10n.shellMoreCustomize,
+                      customizing ? l10n.commonDone : l10n.shellMoreCustomize,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
@@ -334,43 +326,46 @@ class _PosMoreMenuBody extends StatelessWidget {
           if (visible[s].title != null && visible[s].title!.trim().isNotEmpty)
             _MoreSectionHeading(
               title: visible[s].title!,
-              expanded: expanded == null || expanded!.contains(visible[s].title),
+              expanded:
+                  expanded == null || expanded!.contains(visible[s].title),
               onTap: () => onToggleSection(visible[s].title!, titles),
             ),
           if (visible[s].title == null ||
               visible[s].title!.trim().isEmpty ||
               expanded == null ||
               expanded!.contains(visible[s].title))
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: PosTheme.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: PosTheme.border.withValues(alpha: 0.9)),
-            ),
-            child: Column(
-              children: [
-                for (var i = 0; i < visible[s].items.length; i++) ...[
-                  if (i > 0)
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      indent: 52,
-                      color: PosTheme.border.withValues(alpha: 0.75),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: PosTheme.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: PosTheme.border.withValues(alpha: 0.9),
+                ),
+              ),
+              child: Column(
+                children: [
+                  for (var i = 0; i < visible[s].items.length; i++) ...[
+                    if (i > 0)
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: 52,
+                        color: PosTheme.border.withValues(alpha: 0.75),
+                      ),
+                    _PosMoreMenuTile(
+                      item: visible[s].items[i],
+                      customizing: customizing,
+                      selected: !hidden.contains(visible[s].items[i].id),
+                      onToggleHidden: () =>
+                          onToggleHidden(visible[s].items[i].id),
+                      onTap: visible[s].items[i].enabled
+                          ? () => onSelect(visible[s].items[i].id)
+                          : null,
                     ),
-                  _PosMoreMenuTile(
-                    item: visible[s].items[i],
-                    customizing: customizing,
-                    selected: !hidden.contains(visible[s].items[i].id),
-                    onToggleHidden: () =>
-                        onToggleHidden(visible[s].items[i].id),
-                    onTap: visible[s].items[i].enabled
-                        ? () => onSelect(visible[s].items[i].id)
-                        : null,
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
         ],
       ],
     );
@@ -451,18 +446,18 @@ class _PosMoreMenuTile extends StatelessWidget {
     final fg = !enabled && !customizing
         ? PosTheme.inkFaint
         : destructive
-            ? cancelTone.fg
-            : PosTheme.ink;
+        ? cancelTone.fg
+        : PosTheme.ink;
     final iconFg = !enabled && !customizing
         ? PosTheme.inkFaint
         : destructive
-            ? cancelTone.fg
-            : PosTheme.inkMuted;
+        ? cancelTone.fg
+        : PosTheme.inkMuted;
     final iconBg = !enabled && !customizing
         ? PosTheme.surfaceMuted
         : destructive
-            ? cancelTone.bg
-            : PosTheme.surfaceMuted;
+        ? cancelTone.bg
+        : PosTheme.surfaceMuted;
     final accent = Theme.of(context).colorScheme.primary;
 
     return Material(
@@ -523,8 +518,10 @@ class _PosMoreMenuTile extends StatelessWidget {
               else if (item.badge != null && item.badge!.isNotEmpty) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: PosTheme.surfaceMuted,
                     borderRadius: BorderRadius.circular(999),
@@ -596,7 +593,9 @@ class PosMoreMenuButton extends StatelessWidget {
             onTap: () => _open(context),
             hoverColor: accent.withValues(alpha: 0.08),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: usePosHandheldLayout(context) ? 12 : 10,
+              ),
               child: icon,
             ),
           ),

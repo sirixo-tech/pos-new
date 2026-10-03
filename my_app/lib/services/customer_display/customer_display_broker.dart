@@ -34,12 +34,8 @@ class CustomerDisplayBroker {
   void updateBranding({String? name, String? logoUrl}) {
     final trimmedName = name?.trim();
     final trimmedLogo = logoUrl?.trim();
-    restaurantName = (trimmedName == null || trimmedName.isEmpty)
-        ? restaurantName
-        : trimmedName;
-    restaurantLogoUrl = (trimmedLogo == null || trimmedLogo.isEmpty)
-        ? restaurantLogoUrl
-        : trimmedLogo;
+    restaurantName = trimmedName?.isNotEmpty == true ? trimmedName : null;
+    restaurantLogoUrl = trimmedLogo?.isNotEmpty == true ? trimmedLogo : null;
   }
 
   Future<void> initialize() async {
@@ -52,12 +48,16 @@ class CustomerDisplayBroker {
       return;
     }
     _initialized = true;
-    unawaited(_safe(initializeWindowsCustomerDisplays));
+    unawaited(_safe(() => initializeWindowsCustomerDisplays(
+      restaurantName: restaurantName,
+      restaurantLogoUrl: restaurantLogoUrl,
+    )));
   }
 
   /// Cart updates must not replace an on-screen payment QR.
   void showCart(Map<String, dynamic> cart) {
-    if (_paymentActive) return;
+    // The device retains QR/result ownership, but must remember cart clears
+    // and edits so it cannot restore a stale bill after payment.
     final payload = <String, dynamic>{
       ...cart,
       if (restaurantName != null && restaurantName!.isNotEmpty)
@@ -67,6 +67,7 @@ class CustomerDisplayBroker {
   }
 
   void showIdleHome() {
+    unawaited(_safe(() => showDqr222Cart(<String, dynamic>{'items': <dynamic>[]})));
     if (_paymentActive) return;
     CustomerDisplayLanService.instance.clear(reason: 'idle');
     // Cart updates talk to the DQR directly. Idle must use that same path,
