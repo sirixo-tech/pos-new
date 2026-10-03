@@ -25,6 +25,7 @@ class PosMenuItemCard extends StatefulWidget {
     this.serverUrl,
     this.showImage = true,
     this.handheld = false,
+    this.photoGrid = false,
   });
 
   final MenuItem item;
@@ -39,6 +40,7 @@ class PosMenuItemCard extends StatefulWidget {
   final String? serverUrl;
   final bool showImage;
   final bool handheld;
+  final bool photoGrid;
 
   @override
   State<PosMenuItemCard> createState() => _PosMenuItemCardState();
@@ -389,6 +391,9 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     Color accent,
     bool stepper,
   ) {
+    if (widget.photoGrid) {
+      return _buildPhotoCard(name, imageUrl, accent, stepper);
+    }
     final inCart = widget.inTicketQty > 0;
     final unavailable = widget.item.isManuallyUnavailable;
     final status = unavailable
@@ -553,6 +558,211 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildPhotoCard(
+    String name,
+    String? imageUrl,
+    Color accent,
+    bool stepper,
+  ) {
+    final unavailable =
+        widget.item.isManuallyUnavailable || widget.item.isOutsideSchedule;
+    Widget action(IconData icon, String tooltip, VoidCallback? onPressed) =>
+        Expanded(
+          child: IconButton(
+            tooltip: tooltip,
+            onPressed: unavailable ? null : onPressed,
+            style: IconButton.styleFrom(
+              backgroundColor: icon == Icons.remove_rounded
+                  ? const Color(0xFFFDE7E7)
+                  : const Color(0xFFE5F4E9),
+              foregroundColor: icon == Icons.remove_rounded
+                  ? Colors.red.shade600
+                  : Colors.green.shade600,
+              minimumSize: const Size(0, 44),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
+              ),
+            ),
+            icon: Icon(icon, size: 22),
+          ),
+        );
+    return Material(
+      color: PosTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: PosTheme.border),
+      ),
+      child: InkWell(
+        onTap: unavailable ? null : _handleTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.showImage)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AspectRatio(
+                    aspectRatio: 2.2,
+                    child: imageUrl != null && !_imageFailed
+                        ? CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 480,
+                            placeholder: (_, _) => _colorMonogram(name, 48),
+                            errorWidget: (_, _, _) => _colorMonogram(name, 48),
+                          )
+                        : ColoredBox(
+                            color: _colorCardFill(),
+                            child: Center(
+                              child: Icon(
+                                Icons.restaurant_rounded,
+                                color: accent,
+                                size: 30,
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: MediaQuery.textScalerOf(context).scale(12) * 1.15 * 2,
+                child: Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: PosTheme.ink,
+                    fontSize: 12,
+                    height: 1.15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  if (normalizePosItemType(widget.item.itemType) != null) ...[
+                    PosItemTypeMark(type: widget.item.itemType!, size: 12),
+                    const SizedBox(width: 4),
+                  ],
+                  Expanded(
+                    child: Text(
+                      '${widget.item.variants.isNotEmpty ? '${context.l10n.menuFrom} ' : ''}${formatMoney(_minDisplayPrice(), widget.currency)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (unavailable)
+                Text(
+                  'Not available',
+                  maxLines: 1,
+                  style: TextStyle(color: PosTheme.inkMuted, fontSize: 10),
+                ),
+              const Spacer(),
+              SizedBox(
+                height: 44,
+                width: double.infinity,
+                child: stepper
+                    ? Container(
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: accent.withValues(alpha: 0.3)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            action(
+                              Icons.remove_rounded,
+                              'Decrease quantity',
+                              () => widget.onDecrementSimple?.call(
+                                widget.simpleCartLine!,
+                              ),
+                            ),
+                            Expanded(
+                              child: SizedBox(
+                                height: 44,
+                                child: ColoredBox(
+                                  color: Colors.white,
+                                  child: Center(
+                                    child: Text(
+                                      '${widget.inTicketQty}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF1F2937),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            action(
+                              Icons.add_rounded,
+                              'Increase quantity',
+                              () => widget.onIncrementSimple?.call(
+                                widget.simpleCartLine!,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Tooltip(
+                        message: widget.item.hasOptions
+                            ? 'Choose options'
+                            : 'Add item',
+                        child: OutlinedButton(
+                          onPressed: unavailable ? null : _handleTap,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: accent,
+                            minimumSize: const Size(0, 44),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.standard,
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            side: BorderSide(color: accent.withValues(alpha: 0.4)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_rounded, size: 18),
+                        SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            'ADD',
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

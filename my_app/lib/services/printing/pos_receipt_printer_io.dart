@@ -559,14 +559,14 @@ class PosReceiptPrinter {
     UsbPrinterConfig config,
     DateTime checkedAt, {
     required bool allowScan,
-  }) async {
+  }) => _withBluetooth(() async {
     final printer = _bluetoothPrinterFromConfig(config);
     if (printer == null) {
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
     final radioOn = await _bluetoothRadioOn();
     if (radioOn == false) {
-      await _withBluetooth(() => _dropBluetooth(printer));
+      await _dropBluetooth(printer);
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
     try {
@@ -590,7 +590,7 @@ class PosReceiptPrinter {
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
 
-    final connected = await _withBluetooth(() => _connectBluetooth(printer));
+    final connected = await _connectBluetooth(printer);
     if (!connected) {
       bleLinkIsLive = false;
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
@@ -602,7 +602,7 @@ class PosReceiptPrinter {
       message: 'Ready',
       lastCheckedAt: checkedAt,
     );
-  }
+  });
 
   /// Short ESC/POS slip — no order API required.
   static Future<PrinterHealth> printTestPage({
@@ -610,7 +610,7 @@ class PosReceiptPrinter {
     String? branchName,
     String? terminalName,
   }) async {
-    final health = await probe();
+    final health = await probe(allowBluetoothScan: true);
     final config = health.config ?? await UsbPrinterStorage.load();
     if (config == null) {
       return health;

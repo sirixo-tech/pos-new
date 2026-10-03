@@ -102,6 +102,7 @@ class _KitchenShellState extends State<KitchenShell> {
     final locale = context.watch<PosLocaleController>();
     final branch = kitchen.bootstrap?.branchName?.trim();
     final canGoBack = pos.canUseRegister || pos.canUseCaptain;
+    final narrow = MediaQuery.sizeOf(context).width < 900;
     final live = posStatusColors('ready');
     final showLanguage =
         locale.showSwitcher || locale.availableLocales.length > 1;
@@ -135,7 +136,7 @@ class _KitchenShellState extends State<KitchenShell> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            if (branch != null && branch.isNotEmpty)
+                            if (!narrow && branch != null && branch.isNotEmpty)
                               Flexible(
                                 child: Text(
                                   branch,
@@ -144,57 +145,60 @@ class _KitchenShellState extends State<KitchenShell> {
                                 ),
                               ),
                             const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: live.bg,
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                  color: live.fg.withValues(alpha: 0.4),
+                            if (!narrow)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: live.bg,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: live.fg.withValues(alpha: 0.4),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.circle, size: 8, color: live.fg),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      context.posText('kitchenLive', 'Live'),
+                                      style: TextStyle(
+                                        color: live.fg,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.circle, size: 8, color: live.fg),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    context.posText('kitchenLive', 'Live'),
-                                    style: TextStyle(
-                                      color: live.fg,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                             const SizedBox(width: 8),
-                            Text(
-                              '${kitchen.totalActive} ${context.posText('kitchenActiveOrders', 'active')}',
-                              style: TextStyle(
-                                color: PosTheme.inkMuted,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                            if (!narrow)
+                              Text(
+                                '${kitchen.totalActive} ${context.posText('kitchenActiveOrders', 'active')}',
+                                style: TextStyle(
+                                  color: PosTheme.inkMuted,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
                           ],
                         ),
                       ),
-                      const KitchenKotFilterTuneButton(),
-                      if (showLanguage)
+                      if (!narrow) const KitchenKotFilterTuneButton(),
+                      if (showLanguage && !narrow)
                         IconButton(
                           tooltip: context.l10n.shellLanguage,
                           onPressed: () =>
                               showPosLanguagePicker(context, force: true),
                           icon: const Icon(Icons.language_rounded),
                         ),
-                      PosAppBarThemeButton(
-                        accent: Theme.of(context).colorScheme.primary,
-                      ),
+                      if (!narrow)
+                        PosAppBarThemeButton(
+                          accent: Theme.of(context).colorScheme.primary,
+                        ),
                       IconButton(
                         tooltip: context.posText('kitchenRefresh', 'Refresh'),
                         onPressed: kitchen.refreshing
@@ -210,30 +214,40 @@ class _KitchenShellState extends State<KitchenShell> {
                               )
                             : const Icon(Icons.refresh_rounded),
                       ),
-                      IconButton(
-                        tooltip: PosDisplayMode.enabled
-                            ? context.posText(
-                                'kitchenExitFullscreen',
-                                'Exit fullscreen',
-                              )
-                            : context.posText(
-                                'kitchenFullscreen',
-                                'Fullscreen',
-                              ),
-                        onPressed: () => PosDisplayMode.toggle(),
-                        icon: Icon(
-                          PosDisplayMode.enabled
-                              ? Icons.fullscreen_exit_rounded
-                              : Icons.fullscreen_rounded,
+                      if (!narrow)
+                        IconButton(
+                          tooltip: PosDisplayMode.enabled
+                              ? context.posText(
+                                  'kitchenExitFullscreen',
+                                  'Exit fullscreen',
+                                )
+                              : context.posText(
+                                  'kitchenFullscreen',
+                                  'Fullscreen',
+                                ),
+                          onPressed: () => PosDisplayMode.toggle(),
+                          icon: Icon(
+                            PosDisplayMode.enabled
+                                ? Icons.fullscreen_exit_rounded
+                                : Icons.fullscreen_rounded,
+                          ),
                         ),
-                      ),
                       PopupMenuButton<String>(
                         tooltip: context.posText(
                           'kitchenSwitchMode',
                           'Switch mode',
                         ),
                         onSelected: (value) async {
+                          if (!mounted) return;
                           switch (value) {
+                            case 'appearance':
+                              await showPosAppearancePicker(context);
+                            case 'language':
+                              await showPosLanguagePicker(context, force: true);
+                            case 'filters':
+                              await showKotFilterOrderDialog(context);
+                            case 'fullscreen':
+                              await PosDisplayMode.toggle();
                             case 'register':
                               if (pos.canUseRegister) {
                                 await _switchMode(PosWorkMode.register);
@@ -257,6 +271,32 @@ class _KitchenShellState extends State<KitchenShell> {
                           }
                         },
                         itemBuilder: (context) => [
+                          if (narrow) ...[
+                            PopupMenuItem(
+                              value: 'appearance',
+                              child: Text(context.l10n.appearancePickerTitle),
+                            ),
+                            if (showLanguage)
+                              PopupMenuItem(
+                                value: 'language',
+                                child: Text(context.l10n.shellLanguage),
+                              ),
+                            PopupMenuItem(
+                              value: 'filters',
+                              child: Text(
+                                context.posText('kitchenFilters', 'Filters'),
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'fullscreen',
+                              child: Text(
+                                context.posText(
+                                  'kitchenFullscreen',
+                                  'Fullscreen',
+                                ),
+                              ),
+                            ),
+                          ],
                           if (pos.canUseRegister)
                             PopupMenuItem(
                               value: 'register',
@@ -321,11 +361,14 @@ class _KitchenShellState extends State<KitchenShell> {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
-                        child: KitchenKotFilterChips(
-                          orders: kitchen.allActiveOrders,
-                          selectedChannel: kitchen.selectedChannel,
-                          onChanged: kitchen.setChannelFilter,
-                          wrap: true,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: KitchenKotFilterChips(
+                            orders: kitchen.allActiveOrders,
+                            selectedChannel: kitchen.selectedChannel,
+                            onChanged: kitchen.setChannelFilter,
+                            wrap: !narrow,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 6),

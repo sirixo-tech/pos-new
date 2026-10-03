@@ -30,10 +30,7 @@ class KitchenBoardScreen extends StatelessWidget {
                 children: [
                   const Icon(Icons.error_outline, size: 48),
                   const SizedBox(height: 12),
-                  Text(
-                    kitchen.errorMessage!,
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(kitchen.errorMessage!, textAlign: TextAlign.center),
                   const SizedBox(height: 16),
                   FilledButton(
                     onPressed: () => kitchen.refresh(userInitiated: true),
@@ -45,12 +42,54 @@ class KitchenBoardScreen extends StatelessWidget {
           );
         }
 
-        final lanes = kitchenLanesFor(kitchen.bootstrap?.queueRequired ?? false);
+        final lanes = kitchenLanesFor(
+          kitchen.bootstrap?.queueRequired ?? false,
+        );
         final laneMap = kitchen.lanes;
 
         return LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 900;
+            if (constraints.maxWidth < 900) {
+              return DefaultTabController(
+                length: lanes.length,
+                child: Column(
+                  children: [
+                    TabBar(
+                      isScrollable: true,
+                      tabs: [
+                        for (final lane in lanes)
+                          Tab(
+                            text:
+                                '${kitchenLaneTitle(context, lane)} (${kitchenOrdersMatchingChannel(laneMap[lane.key] ?? const [], kitchen.selectedChannel).length})',
+                          ),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          for (final lane in lanes)
+                            _KitchenLaneColumn(
+                              lane: lane,
+                              orders: kitchenOrdersMatchingChannel(
+                                laneMap[lane.key] ?? const [],
+                                kitchen.selectedChannel,
+                              ),
+                              queueRequired:
+                                  kitchen.bootstrap?.queueRequired ?? false,
+                              compact: true,
+                              onAdvance: (order, status) => kitchen
+                                  .advanceOrder(order, status, lane: lane),
+                              onBump: kitchen.bumpPriority,
+                              onItemToggle: kitchen.toggleItemReady,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -64,11 +103,8 @@ class KitchenBoardScreen extends StatelessWidget {
                       ),
                       queueRequired: kitchen.bootstrap?.queueRequired ?? false,
                       compact: compact,
-                      onAdvance: (order, status) => kitchen.advanceOrder(
-                        order,
-                        status,
-                        lane: lane,
-                      ),
+                      onAdvance: (order, status) =>
+                          kitchen.advanceOrder(order, status, lane: lane),
                       onBump: kitchen.bumpPriority,
                       onItemToggle: kitchen.toggleItemReady,
                     ),
@@ -104,7 +140,8 @@ class _KitchenLaneColumn extends StatelessWidget {
     KitchenBoardOrder order,
     KitchenBoardItem item, {
     String? status,
-  }) onItemToggle;
+  })
+  onItemToggle;
 
   Color _accent(BuildContext context) =>
       kitchenLaneStyle(lane.key, context).color;
@@ -215,8 +252,7 @@ class _KitchenLaneColumn extends StatelessWidget {
                               inPreparingLane: lane.key == 'preparing',
                             ),
                             primaryActionLabel: _actionLabel(context, order),
-                            onPrimaryAction: () =>
-                                onAdvance(order, nextStatus),
+                            onPrimaryAction: () => onAdvance(order, nextStatus),
                             secondaryActionLabel: skipStatus == null
                                 ? null
                                 : context.posText(
@@ -226,7 +262,8 @@ class _KitchenLaneColumn extends StatelessWidget {
                             onSecondaryAction: skipStatus == null
                                 ? null
                                 : () => onAdvance(order, skipStatus),
-                            moveToReadyLabel: kitchenShowsMarkAsReady(lane, order)
+                            moveToReadyLabel:
+                                kitchenShowsMarkAsReady(lane, order)
                                 ? kitchenMoveToReadyLabel(context)
                                 : null,
                             onMoveToReady: kitchenShowsMarkAsReady(lane, order)

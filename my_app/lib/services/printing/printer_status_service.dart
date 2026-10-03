@@ -7,7 +7,7 @@ import 'print_skipped.dart';
 import 'printer_health.dart';
 
 /// App-bar printer health: USB / LAN / built-in are probed every few seconds.
-/// Bluetooth uses a cheap isConnected check on the timer (no scan / no connect).
+/// Bluetooth checks live links without scanning and reconnects after a drop.
 class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
   PrinterStatusService({
     Future<PrinterHealth> Function(bool reconnect)? probe,
@@ -128,12 +128,17 @@ class PrinterStatusService extends ChangeNotifier with WidgetsBindingObserver {
 
     _probing = true;
     notifyListeners();
+    final reconnect = allowBluetoothScan ||
+        (config.connection == PosPrinterConnection.bluetooth &&
+            _health.config?.address == config.address &&
+            (_health.state == PrinterHealthState.missing ||
+                _health.state == PrinterHealthState.error));
     try {
-      final next = await _probe(allowBluetoothScan).timeout(
+      final next = await _probe(reconnect).timeout(
         Duration(
           seconds:
               config.connection == PosPrinterConnection.bluetooth &&
-                  allowBluetoothScan
+                  reconnect
               ? 25
               : 6,
         ),

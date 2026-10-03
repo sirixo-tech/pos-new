@@ -5,6 +5,39 @@ import 'package:my_app/services/printing/printer_health.dart';
 import 'package:my_app/services/printing/printer_status_service.dart';
 
 void main() {
+  testWidgets('Bluetooth drop reconnects on the next poll without scanning', (
+    tester,
+  ) async {
+    final attempts = <bool>[];
+    final config = UsbPrinterConfig(
+      name: 'Bluetooth',
+      address: 'AA:BB:CC:DD:EE:FF',
+      connection: PosPrinterConnection.bluetooth,
+    );
+    final service = PrinterStatusService(
+      loadConfig: () async => config,
+      probe: (reconnect) async {
+        attempts.add(reconnect);
+        return PrinterHealth(
+          state: attempts.length == 2
+              ? PrinterHealthState.missing
+              : PrinterHealthState.ready,
+          config: config,
+        );
+      },
+    );
+    final started = service.start();
+    await tester.pump();
+    await started;
+    await tester.pump(const Duration(seconds: 5));
+    expect(service.health.state, PrinterHealthState.missing);
+    await tester.pump(const Duration(seconds: 5));
+    expect(service.health.state, PrinterHealthState.ready);
+    await tester.pump(const Duration(seconds: 5));
+    expect(attempts, [true, false, true, false]);
+    service.dispose();
+  });
+
   testWidgets('periodic Bluetooth polls do not attempt reconnects', (
     tester,
   ) async {

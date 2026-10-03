@@ -1,3 +1,4 @@
+import 'pos_cart_summary_bar.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -92,8 +93,9 @@ class _PosRegisterWorkspaceState extends State<PosRegisterWorkspace> {
         desktop ? _desktopLayout(accent) : _phoneLayout(accent),
         if (!desktop && !_cartOpen)
           Positioned(
-            right: 16,
-            bottom: 16,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: _ViewCartPillHost(accent: accent, onTap: _openCart),
           ),
       ],
@@ -404,7 +406,7 @@ class _MenuScrollBody extends StatelessWidget {
                   ),
                 ),
               ),
-            if (searchQuery.isEmpty && items.isNotEmpty)
+            if (!handheld && searchQuery.isEmpty && items.isNotEmpty)
               SliverToBoxAdapter(
                 child: _CategorySectionHeader(
                   categoryName: categoryTitle,
@@ -419,7 +421,7 @@ class _MenuScrollBody extends StatelessWidget {
                   handheld ? 10 : 16,
                   handheld ? 88 : 24,
                 ),
-                sliver: handheld && paneWidth < 400
+                sliver: handheld && paneWidth < 220
                     ? SliverList(
                         delegate: SliverChildBuilderDelegate((context, index) {
                           final item = items[index];
@@ -447,7 +449,11 @@ class _MenuScrollBody extends StatelessWidget {
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: handheld ? 2 : crossAxisCount,
                           mainAxisExtent: handheld
-                              ? 96 * MediaQuery.textScalerOf(context).scale(1)
+                              ? (paneWidth - 34) / 4.4 +
+                                    140 *
+                                        MediaQuery.textScalerOf(
+                                          context,
+                                        ).scale(1)
                               : null,
                           mainAxisSpacing: 14,
                           crossAxisSpacing: 14,
@@ -461,6 +467,7 @@ class _MenuScrollBody extends StatelessWidget {
                           final item = items[index];
                           return PosMenuItemCard(
                             handheld: handheld,
+                            photoGrid: handheld,
                             key: ValueKey(item.id),
                             item: item,
                             currency: currency,
@@ -687,67 +694,7 @@ class _ViewCartPillHost extends StatelessWidget {
   Widget build(BuildContext context) {
     final count = context.select((PosController p) => p.cartItemCount);
     if (count <= 0) return const SizedBox.shrink();
-    return _ViewCartPill(count: count, accent: accent, onTap: onTap);
-  }
-}
-
-class _ViewCartPill extends StatelessWidget {
-  const _ViewCartPill({
-    required this.count,
-    required this.accent,
-    required this.onTap,
-  });
-
-  final int count;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 8,
-      shadowColor: accent.withValues(alpha: 0.35),
-      borderRadius: BorderRadius.circular(999),
-      color: accent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.shopping_cart_rounded, color: Colors.white),
-              const SizedBox(width: 8),
-              Text(
-                context.l10n.shellViewCart,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '$count',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return PosCartSummaryBar(accent: accent, onTap: onTap);
   }
 }
 

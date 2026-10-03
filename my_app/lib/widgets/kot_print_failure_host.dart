@@ -72,9 +72,7 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
           coordinator.onHealthChanged(
             overlayContext.read<PrinterStatusService>().health,
           );
-          unawaited(
-            coordinator.retryFailed(includeMayHavePrinted: false),
-          );
+          unawaited(coordinator.retryFailed(includeMayHavePrinted: false));
         },
       ),
     ).whenComplete(() {
@@ -106,23 +104,25 @@ class _PrintFailureDialog extends StatefulWidget {
 class _PrintFailureDialogState extends State<_PrintFailureDialog> {
   bool _resumed = false;
   bool _busy = false;
+  late final PrinterStatusService _printerStatus;
 
   @override
   void initState() {
     super.initState();
-    context.read<PrinterStatusService>().addListener(_watchHealth);
-    unawaited(context.read<PrinterStatusService>().refresh());
+    _printerStatus = context.read<PrinterStatusService>();
+    _printerStatus.addListener(_watchHealth);
+    unawaited(_printerStatus.refresh());
   }
 
   @override
   void dispose() {
-    context.read<PrinterStatusService>().removeListener(_watchHealth);
+    _printerStatus.removeListener(_watchHealth);
     super.dispose();
   }
 
   void _watchHealth() {
     if (!mounted || _resumed) return;
-    final health = context.read<PrinterStatusService>().health;
+    final health = _printerStatus.health;
     final paperOut = health.issues.contains('paper_out');
     final down =
         health.hasIssue &&
@@ -149,9 +149,7 @@ class _PrintFailureDialogState extends State<_PrintFailureDialog> {
         ? 'Printing resumed'
         : (paper
               ? 'Printer paper roll over'
-              : (missing
-                    ? 'No printer selected'
-                    : 'KOT printing failed'));
+              : (missing ? 'No printer selected' : 'KOT printing failed'));
     final body = _resumed
         ? 'KOT for ${widget.event.orderNumber} is printing again.'
         : paper

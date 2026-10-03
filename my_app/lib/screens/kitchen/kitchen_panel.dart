@@ -53,13 +53,13 @@ class _KitchenDockPanelState extends State<KitchenDockPanel> {
         final channelScoped = kitchen.selectedChannel == null
             ? entries
             : entries
-                .where(
-                  (entry) => kitchenOrderMatchesChannel(
-                    entry.order,
-                    kitchen.selectedChannel,
-                  ),
-                )
-                .toList();
+                  .where(
+                    (entry) => kitchenOrderMatchesChannel(
+                      entry.order,
+                      kitchen.selectedChannel,
+                    ),
+                  )
+                  .toList();
 
         return ColoredBox(
           color: PosTheme.canvas,
@@ -82,6 +82,8 @@ class _KitchenDockPanelState extends State<KitchenDockPanel> {
                   final pos = context.read<PosController>();
                   if (!pos.canUseKitchen) return;
                   final branchId = pos.session?.branchId;
+                  // Remove the modal dock before changing the underlying route.
+                  widget.onClose();
                   if (branchId != null) {
                     await KitchenDockStorage.persistOpen(branchId, true);
                   }
@@ -225,8 +227,10 @@ class _DockHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  tooltip:
-                      context.posText('kitchenOpenFullBoard', 'Full display'),
+                  tooltip: context.posText(
+                    'kitchenOpenFullBoard',
+                    'Full display',
+                  ),
                   visualDensity: VisualDensity.compact,
                   style: IconButton.styleFrom(
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -243,8 +247,7 @@ class _DockHeader extends StatelessWidget {
                 if (showCloseButton) ...[
                   const SizedBox(width: 8),
                   IconButton(
-                    tooltip:
-                        context.posText('kitchenDockClose', 'Close panel'),
+                    tooltip: context.posText('kitchenDockClose', 'Close panel'),
                     visualDensity: VisualDensity.compact,
                     style: IconButton.styleFrom(
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -329,13 +332,15 @@ class _DockUnifiedList extends StatelessWidget {
     KitchenBoardOrder order,
     String nextStatus, {
     required KitchenLane lane,
-  }) onAdvance;
+  })
+  onAdvance;
   final Future<void> Function(KitchenBoardOrder order) onBump;
   final Future<void> Function(
     KitchenBoardOrder order,
     KitchenBoardItem item, {
     String? status,
-  }) onItemToggle;
+  })
+  onItemToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -453,10 +458,7 @@ class _DockEmptyState extends StatelessWidget {
 }
 
 class _DockFilteredEmptyState extends StatelessWidget {
-  const _DockFilteredEmptyState({
-    required this.filter,
-    this.channelFilter,
-  });
+  const _DockFilteredEmptyState({required this.filter, this.channelFilter});
 
   final KitchenDockFilter filter;
   final String? channelFilter;
@@ -468,15 +470,10 @@ class _DockFilteredEmptyState extends StatelessWidget {
         : kitchenChannelLabel(context, channelFilter!);
     final _ = filter;
     final message = channel.isNotEmpty
-        ? context.posText(
-            'kitchenDockChannelEmpty',
-            'No {channel} tickets',
-            {'channel': channel},
-          )
-        : context.posText(
-            'kitchenDockFilterEmpty',
-            'No matching orders',
-          );
+        ? context.posText('kitchenDockChannelEmpty', 'No {channel} tickets', {
+            'channel': channel,
+          })
+        : context.posText('kitchenDockFilterEmpty', 'No matching orders');
 
     return Center(
       child: Padding(

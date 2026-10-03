@@ -207,7 +207,10 @@ class _CategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final soft = accent.withValues(alpha: isActive ? 0.12 : 0.0);
+    final handheld = usePosHandheldLayout(context);
+    final soft = handheld && isActive
+        ? accent
+        : accent.withValues(alpha: isActive ? 0.12 : 0.0);
 
     return Material(
       color: Colors.transparent,
@@ -246,11 +249,13 @@ class _CategoryTile extends StatelessWidget {
                 maxLines: usePosHandheldLayout(context) ? 3 : 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: handheld ? 10.5 : 11.5,
                   fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
                   height: 1.15,
                   letterSpacing: -0.1,
-                  color: isActive ? accent : PosTheme.inkMuted,
+                  color: isActive
+                      ? (handheld ? Colors.white : accent)
+                      : PosTheme.inkMuted,
                 ),
               ),
             ],

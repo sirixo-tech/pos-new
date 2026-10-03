@@ -5,10 +5,14 @@ import android.os.Build
 import android.os.Handler
 import android.util.Log
 import com.imin.printerlib.IminPrintUtils
+import com.imin.printerlib.Callback
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /** iMin SDK 1.x: NM2 Pro / I21M01 uses the terminal's SPI printer. */
 class IminPrinterHandler(private val context: Context, private val mainHandler: Handler) {
@@ -23,7 +27,11 @@ class IminPrinterHandler(private val context: Context, private val mainHandler: 
         queue.execute {
             try {
                 initialize()
-                val status = status()
+                var status = status()
+                if (status == "unavailable") {
+                    initialize()
+                    status = status()
+                }
                 when (call.method) {
                     "getPrinterStatus" -> mainHandler.post { result.success(status) }
                     "warmUpPrinter", "warmUpSmartPos" -> mainHandler.post { result.success(status == "ready") }
@@ -70,16 +78,26 @@ class IminPrinterHandler(private val context: Context, private val mainHandler: 
     private fun initialize() {
         if (initialized) return
         printer.initPrinter(transport)
-        // The SDK connects asynchronously; allow its first status to arrive.
-        val deadline = android.os.SystemClock.elapsedRealtime() + 2000
-        while (printer.getPrinterStatus(transport) == -1 && android.os.SystemClock.elapsedRealtime() < deadline) {
-            Thread.sleep(100)
-        }
         initialized = true
     }
 
+    private fun readStatus(): Int {
+        if (!isMobileSpiDevice()) return printer.getPrinterStatus(transport)
+        // SPI reports status through the callback, not the USB synchronous API.
+        // Wait only on the worker queue; never block the Android main thread.
+        val response = AtomicInteger(-1)
+        val received = CountDownLatch(1)
+        printer.getPrinterStatus(transport, object : Callback {
+            override fun callback(value: Int) {
+                response.set(value)
+                received.countDown()
+            }
+        })
+        return if (received.await(1500, TimeUnit.MILLISECONDS)) response.get() else -1
+    }
+
     private fun status(): String {
-        return when (printer.getPrinterStatus(transport)) {
+        return when (readStatus()) {
             0, 8 -> "ready"
             7 -> "paperOut"
             3 -> "coverOpen"
