@@ -54,11 +54,25 @@ class PosReceiptPrinter {
     }
   }
 
+  /// iMin heads that are 58mm cannot print an 80mm rule. Load that once
+  /// before any slip is built.
+  static Future<void> _prepareBuiltInPaper() async {
+    if (!Platform.isAndroid) {
+      ReceiptTypography.headWidth = null;
+      return;
+    }
+    final info = await builtInDeviceInfo();
+    final paper = info['paper']?.toString().trim().toLowerCase();
+    ReceiptTypography.headWidth =
+        paper == '58mm' || paper == '56mm' ? '56mm' : null;
+  }
+
   static String get unsupportedMessage => thermalPrinterUnsupportedMessage();
 
   /// Open USB/BLE transport ahead of the first ticket so checkout is not delayed.
   static Future<void> warmUp() async {
     try {
+      await _prepareBuiltInPaper();
       final config = await UsbPrinterStorage.load();
       if (config == null) return;
       if (config.connection == PosPrinterConnection.bluetooth) {
@@ -610,6 +624,7 @@ class PosReceiptPrinter {
     String? branchName,
     String? terminalName,
   }) async {
+    await _prepareBuiltInPaper();
     final health = await probe(allowBluetoothScan: true);
     final config = health.config ?? await UsbPrinterStorage.load();
     if (config == null) {
@@ -738,6 +753,7 @@ class PosReceiptPrinter {
     required int orderId,
     String? orderNumber,
   }) async {
+    await _prepareBuiltInPaper();
     final config = await UsbPrinterStorage.load();
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
@@ -762,6 +778,7 @@ class PosReceiptPrinter {
     required String orderNumber,
     bool handoff = false,
   }) async {
+    await _prepareBuiltInPaper();
     final config = await UsbPrinterStorage.load();
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
@@ -798,6 +815,7 @@ class PosReceiptPrinter {
     required PosSession session,
     required String orderNumber,
   }) async {
+    await _prepareBuiltInPaper();
     final config = await UsbPrinterStorage.load();
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
@@ -852,6 +870,7 @@ class PosReceiptPrinter {
     required PosBootstrap bootstrap,
     required PendingOrder order,
   }) async {
+    await _prepareBuiltInPaper();
     final config = await UsbPrinterStorage.load();
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
@@ -866,7 +885,7 @@ class PosReceiptPrinter {
       throw StateError('Offline receipt has no printable content.');
     }
 
-    await _dispatchPrintBytes(config: config, bytes: bytes);
+    await _dispatchOfflineBytes(config: config, bytes: bytes);
   }
 
   /// Kitchen ticket from the cart saved on this device. No server call.
@@ -874,13 +893,16 @@ class PosReceiptPrinter {
     required PosBootstrap bootstrap,
     required PendingOrder order,
   }) async {
+    await _prepareBuiltInPaper();
     final config = await UsbPrinterStorage.load();
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
     }
     final bytes = _buildOfflineKotBytes(bootstrap: bootstrap, order: order);
-    if (bytes.isEmpty) return;
-    await _dispatchPrintBytes(config: config, bytes: bytes);
+    if (bytes.isEmpty) {
+      throw StateError('Offline kitchen ticket has no items to print.');
+    }
+    await _dispatchOfflineBytes(config: config, bytes: bytes);
   }
 
   static List<int> _buildOfflineKotBytes({
@@ -888,7 +910,9 @@ class PosReceiptPrinter {
     required PendingOrder order,
   }) {
     final snapshot = order.orderData['cart_snapshot'];
-    if (snapshot is! List || snapshot.isEmpty) return const [];
+    if (snapshot is! List || snapshot.isEmpty) {
+      throw StateError('Offline kitchen ticket has no items to print.');
+    }
     final settings = bootstrap.receiptSettings ?? PosReceiptSettings();
     final builder = EscPosBuilder(
       typography: ReceiptTypography(
@@ -958,6 +982,7 @@ class PosReceiptPrinter {
     required String serverUrl,
     required int orderId,
   }) async {
+    await _prepareBuiltInPaper();
     final config = await UsbPrinterStorage.load();
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
@@ -983,6 +1008,7 @@ class PosReceiptPrinter {
     String? dateFrom,
     String? dateTo,
   }) async {
+    await _prepareBuiltInPaper();
     final config = await UsbPrinterStorage.load();
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
@@ -1004,6 +1030,7 @@ class PosReceiptPrinter {
   }
 
   static Future<void> openCashDrawer() async {
+    await _prepareBuiltInPaper();
     final config = await UsbPrinterStorage.load();
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
@@ -1019,6 +1046,26 @@ class PosReceiptPrinter {
 
   static Map<String, dynamic> _printPayloadFrom(Map<String, dynamic> data) {
     return PrintObjectExecutor.payloadFrom(data);
+  }
+
+  static Future<void> _dispatchOfflineBytes({
+    required UsbPrinterConfig config,
+    required List<int> bytes,
+  }) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        await _dispatchPrintBytes(config: config, bytes: bytes);
+        return;
+      } catch (error) {
+        lastError = error;
+        final text = error.toString().toLowerCase();
+        if (text.contains('paper') || text.contains('cover')) rethrow;
+        if (attempt == 2) break;
+        await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
+      }
+    }
+    throw lastError ?? StateError('Built-in printer is unavailable.');
   }
 
   static Future<void> _dispatchPrintBytes({

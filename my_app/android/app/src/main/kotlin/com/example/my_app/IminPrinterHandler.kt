@@ -14,7 +14,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-/** iMin SDK 1.x: NM2 Pro / I21M01 uses the terminal's SPI printer. */
+/** iMin SDK 1.x inner printer. Handhelds use SPI. Counter units use USB. */
 class IminPrinterHandler(private val context: Context, private val mainHandler: Handler) {
     private val queue = Executors.newSingleThreadExecutor()
     private var initialized = false
@@ -41,15 +41,19 @@ class IminPrinterHandler(private val context: Context, private val mainHandler: 
                             bytes == null || bytes.isEmpty() -> mainHandler.post {
                                 result.error("SMARTPOS_EMPTY_DATA", "Receipt did not contain printable data.", null)
                             }
-                            status != "ready" -> mainHandler.post {
+                            status == "paperOut" || status == "coverOpen" -> mainHandler.post {
                                 result.error("SMARTPOS_NOT_READY", when (status) {
                                     "paperOut" -> "Load paper in the iMin printer, then try again."
-                                    "coverOpen" -> "Close the iMin printer cover, then try again."
-                                    else -> "iMin printer is unavailable. Check paper and restart the terminal."
+                                    else -> "Close the iMin printer cover, then try again."
                                 }, null)
                             }
                             else -> {
-                                // Submit once. A retry after a transport error could duplicate a receipt.
+                                // A status miss on the handheld must not cancel an
+                                // offline ticket. Paper-out and an open cover still stop it.
+                                if (status != "ready") {
+                                    initialized = false
+                                    initialize()
+                                }
                                 printer.sendRAWData(bytes)
                                 mainHandler.post { result.success(0) }
                             }
@@ -115,8 +119,23 @@ class IminPrinterHandler(private val context: Context, private val mainHandler: 
         }
         private fun isMobileSpiDevice(): Boolean {
             val model = Build.MODEL.lowercase(Locale.ROOT)
-            return model == "i21m01" || ((model.contains("m2") || model.contains("m2 pro")) && !model.contains("max"))
+            if (model.contains("max")) return false
+            // Counter units with a customer screen speak USB.
+            if (listOf("swan", "d1", "d3", "d4", "crane", "falcon").any { model.contains(it) }) {
+                return false
+            }
+            return model == "i21m01" ||
+                model.contains("m2") ||
+                model.contains("swift") ||
+                model.contains("i22") ||
+                model.contains("i23")
         }
+
+        fun paperWidth(): String {
+            val model = Build.MODEL.lowercase(Locale.ROOT)
+            return if (listOf("swan", "d3", "d4", "crane").any { model.contains(it) }) "80mm" else "58mm"
+        }
+
         fun deviceName(): String = if (Build.MODEL.equals("I21M01", true))
             "iMin NM2 Pro (I21M01)" else "iMin ${Build.MODEL}"
     }

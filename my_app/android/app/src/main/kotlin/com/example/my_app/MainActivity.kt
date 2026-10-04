@@ -126,6 +126,7 @@ class MainActivity : FlutterActivity() {
                 result.success(mapOf(
                     "hasBuiltInPrinter" to (imin || listOf("tvs", "zcs", "smartpos").any { identity.contains(it) }),
                     "name" to if (imin) IminPrinterHandler.deviceName() else Build.MODEL,
+                    "paper" to if (imin) IminPrinterHandler.paperWidth() else "80mm",
                 ))
                 return@MethodCallHandler
             }

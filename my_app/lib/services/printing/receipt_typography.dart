@@ -1,9 +1,20 @@
 /// Line widths and ESC/POS sizing for thermal receipt printers.
 class ReceiptTypography {
-  ReceiptTypography({required this.receiptWidth, required this.fontSize});
+  ReceiptTypography({required String receiptWidth, required this.fontSize})
+    : receiptWidth = capToHead(receiptWidth);
 
   final String receiptWidth;
   final String fontSize;
+
+  /// Set from the built-in head before a slip is built. `56mm` means the
+  /// mechanism cannot print an 80mm line, so rules and rows are capped.
+  static String? headWidth;
+
+  static String capToHead(String? width) {
+    final paper = normalizeReceiptWidth(width);
+    if (headWidth == '56mm' && paper != '56mm') return '56mm';
+    return paper;
+  }
 
   static String normalizeReceiptWidth(String? width) {
     switch ((width ?? '').trim().toLowerCase().replaceAll(' ', '')) {

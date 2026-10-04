@@ -47,6 +47,9 @@ class PrintObjectExecutor {
           _row(esc, command);
         case 'divider':
         case 'dottedLine':
+        case 'dotted_line':
+        case 'separator':
+        case 'line':
         case 'hr':
           if (!initialized) {
             esc.initialize();

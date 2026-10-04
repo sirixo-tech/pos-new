@@ -186,8 +186,10 @@ class PrintJobCoordinator extends ChangeNotifier {
     final number = orderNumber.trim();
     if (number.isEmpty && orderId <= 0) return;
 
+    // This register's switch decides automatic tickets, including a sale
+    // taken at the counter. The backend KOT switch must not force a print.
+    if (!await AutoPrintKotSettings.enabled()) return;
     if (!cashierCheckout) {
-      if (!await AutoPrintKotSettings.enabled()) return;
       if (order != null &&
           !canAutomaticallyFulfillOrder(order, source: source)) {
         return;

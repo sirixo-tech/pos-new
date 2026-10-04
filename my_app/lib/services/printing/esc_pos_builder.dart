@@ -170,10 +170,13 @@ class EscPosBuilder {
   void hr() {
     final preserveBold = _emphasis;
     _resetCharacterSizeToBase();
+    // A bold full-width rule is dropped by some iMin heads. Print it plain.
+    bold(false);
+    alignLeft();
+    text('-' * lineWidth);
     if (preserveBold) {
       bold(true);
     }
-    text('-' * lineWidth);
   }
 
   void row(String left, String right) {
