@@ -2,6 +2,7 @@ import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 import '../../services/menu_spreadsheet_export.dart';
 import 'menu_export_section.dart';
+import 'menu_import_progress.dart';
 
 const _green = Color(0xFF009C73);
 const _ink = Color(0xFF12253E);
@@ -776,7 +777,9 @@ class _MenuImportViewState extends State<MenuImportView> {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              if (!widget.review && !published) ...[
+              if (!widget.review &&
+                  !published &&
+                  (widget.import == null || widget.terminal)) ...[
                 _panel(
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -832,7 +835,21 @@ class _MenuImportViewState extends State<MenuImportView> {
               ],
               if (widget.review) _reviewPanel(),
               if (published) _published(),
-              if (widget.import != null && !widget.review && !published) ...[
+              if (widget.import != null && !widget.review && !widget.terminal)
+                MenuImportProgress(
+                  key: ValueKey(widget.import?['id']),
+                  progress: progress,
+                  items: widget.rows.where((r) => !_removed(r)).length,
+                  filename: '${widget.import?['filename'] ?? 'Menu file'}',
+                  publishing: status == 'importing' || status == 'confirmed',
+                  busy: widget.busy,
+                  onRetry: widget.onRetry,
+                  onCancel: widget.onCancel,
+                ),
+              if (widget.import != null &&
+                  !widget.review &&
+                  !published &&
+                  widget.terminal) ...[
                 _panel(
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
