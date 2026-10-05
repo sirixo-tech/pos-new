@@ -40,6 +40,7 @@ class MenuImportView extends StatefulWidget {
     this.onViewMenu,
     this.onOpenPos,
     this.onAnother,
+    this.onCamera,
   });
   final Map<String, dynamic>? capabilities, import;
   final List<Map<String, dynamic>> rows;
@@ -61,6 +62,7 @@ class MenuImportView extends StatefulWidget {
   final void Function(String, MenuExportOptions)? onExport;
   final VoidCallback? onTemplate;
   final VoidCallback? onViewMenu, onOpenPos, onAnother;
+  final VoidCallback? onCamera;
   @override
   State<MenuImportView> createState() => _MenuImportViewState();
 }
@@ -214,6 +216,8 @@ class _MenuImportViewState extends State<MenuImportView> {
   }
 
   Widget _uploadPanel() {
+    final platform = Theme.of(context).platform;
+    final mobile = platform == TargetPlatform.android || platform == TargetPlatform.iOS;
     final caps = widget.capabilities;
     final spreadsheet = [
       'csv',
@@ -304,6 +308,14 @@ class _MenuImportViewState extends State<MenuImportView> {
             ),
           ),
           const SizedBox(height: 14),
+          if (mobile && widget.onCamera != null) ...[
+            OutlinedButton.icon(
+              onPressed: widget.busy || caps?['image_import_available'] != true ? null : widget.onCamera,
+              icon: const Icon(Icons.photo_camera_outlined),
+              label: const Text('Take photo of menu'),
+            ),
+            const SizedBox(height: 10),
+          ],
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,

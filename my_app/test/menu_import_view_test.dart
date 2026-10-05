@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/screens/admin/menu_import_view.dart';
 
-Widget view({bool review = true, bool published = false}) => MaterialApp(
+Widget view({bool review = true, bool published = false, VoidCallback? onCamera, TargetPlatform platform = TargetPlatform.windows}) => MaterialApp(
+  theme: ThemeData(platform: platform),
   home: MenuImportView(
     capabilities: {
       'max_upload_kb': 20480,
       'pdf_max_pages': 5,
       'ai_assist_available': true,
+      'image_import_available': true,
     },
     import: published ? {'id': 42, 'status': 'completed', 'result': {'created': 0, 'updated': 0, 'skipped': 48, 'failed': 0}} : review
         ? {
@@ -36,6 +38,7 @@ Widget view({bool review = true, bool published = false}) => MaterialApp(
     selectedFile: null,
     selectedBytes: 0,
     onPick: () {},
+    onCamera: onCamera,
     onUpload: () {},
     onClear: () {},
     onAiChanged: (_) {},
@@ -52,6 +55,23 @@ Widget view({bool review = true, bool published = false}) => MaterialApp(
 );
 
 void main() {
+  testWidgets('phone offers camera capture and desktop keeps file upload', (tester) async {
+    var captures = 0;
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(view(review: false, onCamera: () => captures++, platform: TargetPlatform.android));
+    await tester.scrollUntilVisible(find.text('Take photo of menu'), 200);
+    await tester.ensureVisible(find.text('Take photo of menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Take photo of menu'));
+    expect(captures, 1);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(view(review: false, onCamera: () => captures++));
+    await tester.pumpAndSettle();
+    expect(find.text('Take photo of menu'), findsNothing);
+  });
   testWidgets('published screen shows counts and actions without storefront preview', (tester) async {
     tester.view.physicalSize = const Size(1000, 1000);
     tester.view.devicePixelRatio = 1;

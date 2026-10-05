@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../providers/pos_controller.dart';
 import '../../models/pos_models.dart';
@@ -155,8 +156,10 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     }
   }
 
-  Future<void> _pick() => _run(() async {
-    final file = await openFile();
+  Future<void> _pick({bool camera = false}) => _run(() async {
+    final file = camera
+        ? await ImagePicker().pickImage(source: ImageSource.camera)
+        : await openFile();
     if (file == null) return;
     final maxKb = num.tryParse('${_caps?['max_upload_kb']}') ?? 20480;
     if (await file.length() > maxKb * 1024) {
@@ -399,7 +402,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     errors: _errors,
     selectedFile: _selectedFile,
     selectedBytes: _selectedBytes,
-    onPick: _pick,
+    onPick: () => _pick(),
+    onCamera: () => _pick(camera: true),
     onUpload: _upload,
     onClear: () => setState(() {
       _selectedFile = null;

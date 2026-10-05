@@ -47,6 +47,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Capture a photo of your menu to extract menu items and prices.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Select menu photos and item images for your restaurant.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>SELFX POS scans and connects to nearby Bluetooth receipt printers.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
