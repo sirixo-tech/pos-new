@@ -15,6 +15,7 @@ import '../../widgets/pos_ui.dart';
 import '../pos_billing_screen.dart';
 import 'admin_chrome.dart';
 import 'admin_menu_screen.dart';
+import 'admin_menu_import_screen.dart';
 import 'admin_modifiers_screen.dart';
 import 'admin_opening_hours_screen.dart';
 import 'admin_orders_screen.dart';
@@ -207,6 +208,7 @@ class _AdminShellState extends State<AdminShell> {
             showHours: showHours,
             showReports: showReports,
             showBilling: showBilling,
+            canImportMenu: caps.canManageMenu || caps.canManageMenuItems,
             canManageModifiers:
                 caps.canManageMenuModifiers || caps.canManageMenu,
             canManageTimeSlots:
@@ -264,6 +266,7 @@ class _AdminHub extends StatelessWidget {
     required this.showHours,
     required this.showReports,
     required this.showBilling,
+    required this.canImportMenu,
     required this.canManageModifiers,
     required this.canManageTimeSlots,
     required this.onOpen,
@@ -280,6 +283,7 @@ class _AdminHub extends StatelessWidget {
   final bool showHours;
   final bool showReports;
   final bool showBilling;
+  final bool canImportMenu;
   final bool canManageModifiers;
   final bool canManageTimeSlots;
   final ValueChanged<AdminShellSection> onOpen;
@@ -294,6 +298,15 @@ class _AdminHub extends StatelessWidget {
     final l10n = context.l10n;
     context.watch<PosLocaleController>().catalogGeneration;
     final tiles = <_HubItem>[
+      if (canImportMenu)
+        _HubItem(
+          icon: Icons.auto_awesome_rounded,
+          title: context.posText('adminAiMenuUpload', 'AI Menu Upload'),
+          subtitle: context.posText('adminAiMenuUploadSubtitle', 'Upload, review, and import your menu'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => const AdminMenuImportScreen(),
+          )),
+        ),
       if (showHours)
         _HubItem(
           icon: Icons.storefront_rounded,

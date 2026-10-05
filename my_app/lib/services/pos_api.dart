@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cross_file/cross_file.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../config/platform_config.dart';
 import '../config/pos_app_info.dart';
@@ -12,6 +13,7 @@ import '../models/billing_models.dart';
 import '../models/kitchen_models.dart';
 import '../models/pos_models.dart';
 import '../utils/json_parse.dart';
+import '../utils/menu_import_file_types.dart';
 import '../utils/kitchen_board.dart';
 import '../utils/platform_info.dart';
 
@@ -1359,6 +1361,97 @@ class PosApi {
     return _unwrapData(await _decode(response));
   }
 
+  Future<PosSession> createMenuImportSession(PosSession session) async {
+    final token = await issueScopedToken(session, ability: 'admin');
+    return PosSession.fromJson({...session.toJson(), 'token': token});
+  }
+
+  Future<Map<String, dynamic>> menuImportGet(
+    PosSession session, [
+    int? id,
+  ]) async {
+    final response = await _client
+        .get(
+          Uri.parse(
+            '${session.v1BaseUrl}/admin/menu-import/${id ?? 'capabilities'}',
+          ),
+          headers: _adminHeaders(session),
+        )
+        .timeout(const Duration(seconds: 30));
+    return _unwrapData(await _decode(response));
+  }
+
+  Future<Map<String, dynamic>> menuImportAction(
+    PosSession session,
+    int id,
+    String action, {
+    List<Map<String, dynamic>>? rows,
+  }) async {
+    final uri = Uri.parse('${session.v1BaseUrl}/admin/menu-import/$id/$action');
+    final body = jsonEncode(rows == null ? {} : {'rows': rows});
+    final response =
+        await (action == 'draft'
+                ? _client.put(uri, headers: _adminHeaders(session), body: body)
+                : _client.post(
+                    uri,
+                    headers: _adminHeaders(session),
+                    body: body,
+                  ))
+            .timeout(const Duration(seconds: 30));
+    return _unwrapData(await _decode(response));
+  }
+
+  Future<Map<String, dynamic>> menuImportUpload(
+    PosSession session, {
+    required XFile file,
+    int? id,
+    int? rowIndex,
+    bool aiAssist = true,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse(
+        '${session.v1BaseUrl}/admin/menu-import${id == null ? '' : '/$id/draft-image'}',
+      ),
+    );
+    request.headers.addAll(_adminAuthHeaders(session));
+    request.fields.addAll(
+      id == null
+          ? {'ai_assist': aiAssist ? '1' : '0'}
+          : {'row_index': '$rowIndex', 'remove': '0'},
+    );
+    final mime =
+        menuImportMimeTypes[file.name.split('.').last.toLowerCase()] ?? file.mimeType;
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        id == null ? 'file' : 'image',
+        await file.readAsBytes(),
+        filename: file.name,
+        contentType: mime == null ? null : MediaType.parse(mime),
+      ),
+    );
+    final response = await http.Response.fromStream(
+      await _client.send(request).timeout(const Duration(minutes: 2)),
+    );
+    return _unwrapData(await _decode(response));
+  }
+
+  Future<String> menuImportErrors(PosSession session, int id) async {
+    final response = await _client
+        .get(
+          Uri.parse('${session.v1BaseUrl}/admin/menu-import/$id/errors'),
+          headers: {
+            ..._adminHeaders(session),
+            'Accept': 'text/csv, application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      await _decode(response);
+    }
+    return response.body;
+  }
+
   Future<AdminMenuPayload> fetchAdminMenu(PosSession session) async {
     final response = await _client.get(
       Uri.parse(_adminUrl(session, '/menu')),
@@ -1366,6 +1459,14 @@ class PosApi {
     );
     final json = await _decode(response);
     return AdminMenuPayload.fromJson(_unwrapData(json));
+  }
+
+  Future<Map<String, dynamic>> fetchMenuExportData(PosSession session) async {
+    final response = await _client.get(
+      Uri.parse('${session.v1BaseUrl}/admin/menu'),
+      headers: _adminHeaders(session),
+    ).timeout(const Duration(seconds: 30));
+    return _unwrapData(await _decode(response));
   }
 
   Future<PosOpeningHoursPayload> fetchOpeningHours(PosSession session) async {
