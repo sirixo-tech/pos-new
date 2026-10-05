@@ -63,8 +63,9 @@ class PosReceiptPrinter {
     }
     final info = await builtInDeviceInfo();
     final paper = info['paper']?.toString().trim().toLowerCase();
-    ReceiptTypography.headWidth =
-        paper == '58mm' || paper == '56mm' ? '56mm' : null;
+    ReceiptTypography.headWidth = paper == '58mm' || paper == '56mm'
+        ? '56mm'
+        : null;
   }
 
   static String get unsupportedMessage => thermalPrinterUnsupportedMessage();
@@ -753,6 +754,7 @@ class PosReceiptPrinter {
     required int orderId,
     String? orderNumber,
   }) async {
+    final timing = Stopwatch()..start();
     await _prepareBuiltInPaper();
     final config = await UsbPrinterStorage.load();
     if (config == null) {
@@ -764,12 +766,18 @@ class PosReceiptPrinter {
       serverUrl: serverUrl,
       orderId: orderId,
     );
+    final preparedMs = timing.elapsedMilliseconds;
 
     if (bytes.isEmpty) {
       throw const PrintSkipped('Receipt has no printable content.');
     }
 
     await _dispatchPrintBytes(config: config, bytes: bytes);
+    debugPrint(
+      '[PRINT] receipt $orderId: prepare=${preparedMs}ms, '
+      'delivery=${timing.elapsedMilliseconds - preparedMs}ms, '
+      'bytes=${bytes.length}, connection=${config.connection.name}',
+    );
   }
 
   /// Reprint by scanned order number (USB wedge / QR).
@@ -1154,7 +1162,16 @@ class PosReceiptPrinter {
       return;
     }
 
-    final saved = await _resolveSavedPrinter();
+    final cached = _lastResolvedPrinter;
+    // Windows sends directly to the spooler queue. Reuse the identified queue
+    // rather than starting another discovery scan for every slip. Probes still
+    // discover devices, and a changed configuration must resolve afresh.
+    final saved =
+        Platform.isWindows &&
+            cached != null &&
+            _matchesSavedPrinter(cached, config)
+        ? cached
+        : await _resolveSavedPrinter();
     if (saved == null) {
       throw StateError(
         thermalPrinterConnectError(
@@ -1164,8 +1181,16 @@ class PosReceiptPrinter {
       );
     }
 
-    await _ensureThermalConnected(saved);
-    await _writeThermal(saved, bytes);
+    try {
+      await _ensureThermalConnected(saved);
+      await _writeThermal(saved, bytes);
+    } catch (_) {
+      if (identical(_lastResolvedPrinter, saved)) {
+        _lastResolvedPrinter = null;
+      }
+      // Do not resend: the spooler may already have accepted this receipt.
+      rethrow;
+    }
   }
 
   static Future<void> _printBytesMacOS({

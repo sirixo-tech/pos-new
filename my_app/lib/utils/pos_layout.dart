@@ -90,10 +90,12 @@ PosDesktopPanelLayout resolvePosDesktopPanelLayout({
 }
 
 int posMenuGridCrossAxisCount(double width) {
-  if (width >= 1280) return 6;
-  if (width >= 980) return 5;
-  if (width >= 740) return 4;
-  if (width >= 520) return 3;
+  // Keep cards near 140–170 logical pixels on registers with a narrow
+  // menu pane after the category rail and ticket have taken their space.
+  if (width >= 1040) return 6;
+  if (width >= 860) return 5;
+  if (width >= 680) return 4;
+  if (width >= 440) return 3;
   return 2;
 }
 
@@ -108,7 +110,7 @@ double posMenuGridChildAspectRatio(
 }) {
   final crossAxisCount = posMenuGridCrossAxisCount(width);
   const horizontalPadding = 32.0;
-  const spacing = 10.0;
+  const spacing = 14.0;
   final cellWidth =
       (width - horizontalPadding - spacing * (crossAxisCount - 1)) /
       crossAxisCount;

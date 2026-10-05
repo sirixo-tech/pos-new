@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -80,7 +81,10 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   bool _testing = false;
   bool _openingDrawer = false;
   bool _selectingBuiltIn = false;
-  bool _hasBuiltInPrinter = false;
+  // OEM Android terminals can report an unrecognized brand/model. Keep
+  // manual built-in setup accessible; detection only decides auto-selection.
+  bool _hasBuiltInPrinter =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   String? _deviceName;
   String? _usbError;
   String? _bluetoothError;
@@ -113,12 +117,17 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
     if (!mounted) return;
     setState(() {
       _hasBuiltInPrinter =
+          (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ||
           device['hasBuiltInPrinter'] == true ||
           _savedConfig?.connection == PosPrinterConnection.smartpos;
       _deviceName = device['hasBuiltInPrinter'] == true
           ? device['name'] as String?
           : null;
-      if (_hasBuiltInPrinter && _savedConfig == null && _tab == 0) _tab = 3;
+      if (device['hasBuiltInPrinter'] == true &&
+          _savedConfig == null &&
+          _tab == 0) {
+        _tab = 3;
+      }
     });
   }
 
@@ -236,6 +245,8 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   }
 
   Future<void> _refreshCurrent() async {
+    await _loadDevice();
+    if (!mounted) return;
     if (_onBluetooth) {
       await _scanBluetooth();
     } else if (_onNetwork || _onSmartPos) {

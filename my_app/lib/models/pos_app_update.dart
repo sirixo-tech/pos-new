@@ -34,10 +34,8 @@ class PosAppUpdate {
   bool get hasChecksum =>
       sha256 != null && RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(sha256!);
 
-  factory PosAppUpdate.none() => const PosAppUpdate(
-        status: 'none',
-        currentVersion: '',
-      );
+  factory PosAppUpdate.none() =>
+      const PosAppUpdate(status: 'none', currentVersion: '');
 
   factory PosAppUpdate.fromJson(Map<String, dynamic>? json) {
     if (json == null || json.isEmpty) {
@@ -71,20 +69,16 @@ class PosAppUpdate {
         value(const ['release_notes', 'notes', 'changelog']),
       ),
       downloadUrl: _nullable(
-        value(const [
-          'download_url',
-          'installer_url',
-          'apk_url',
-          'url',
-        ]),
+        value(const ['download_url', 'installer_url', 'apk_url', 'url']),
       ),
       downloadLabel: _nullable(value(const ['download_label'])),
       sha256: _checksum(json),
       signature: _nullable(
         value(const ['signature', 'signature_base64', 'rsa_signature']),
       ),
-      platform: _nullable(value(const ['platform', 'target_platform']))
-          ?.toLowerCase(),
+      platform: _nullable(
+        value(const ['platform', 'target_platform']),
+      )?.toLowerCase(),
     );
     return parsed.resolvedAgainstInstalled();
   }
@@ -99,7 +93,8 @@ class PosAppUpdate {
     final build = installedBuild ?? int.tryParse(PosAppInfo.buildNumber) ?? 0;
     final latest = latestVersion?.trim() ?? '';
     final minimum = minVersion?.trim() ?? '';
-    final newer = latest.isNotEmpty &&
+    final newer =
+        latest.isNotEmpty &&
         compareAppVersions(
               current,
               latest,
@@ -107,16 +102,17 @@ class PosAppUpdate {
               candidateBuild: latestBuild,
             ) <
             0;
-    final belowMinimum = minimum.isNotEmpty &&
-        compareAppVersions(current, minimum) < 0;
+    final belowMinimum =
+        minimum.isNotEmpty &&
+        compareAppVersions(current, minimum, currentBuild: build) < 0;
     final available = newer || belowMinimum;
     final nextStatus = !available
         ? 'none'
         : (status == 'required' || belowMinimum)
-            ? 'required'
-            : (status == 'optional' || newer)
-                ? 'optional'
-                : 'none';
+        ? 'required'
+        : (status == 'optional' || newer)
+        ? 'optional'
+        : 'none';
     return PosAppUpdate(
       status: nextStatus,
       currentVersion: current,
@@ -194,14 +190,24 @@ int compareAppVersions(
 
   final left = parts(current);
   final right = parts(candidate);
-  final count = left.length > right.length ? left.length : right.length;
+  // Windows manifests may include the build as a fourth component, while
+  // Android reports the same release as three components plus versionCode.
+  const count = 3;
   for (var index = 0; index < count; index++) {
     final a = index < left.length ? left[index] : 0;
     final b = index < right.length ? right[index] : 0;
     if (a != b) return a.compareTo(b);
   }
-  if (currentBuild != null && candidateBuild != null) {
-    return currentBuild.compareTo(candidateBuild);
+  int? embeddedBuild(String version, List<int> numbers) {
+    final suffix = version.trim().split('+');
+    if (suffix.length > 1) return int.tryParse(suffix.last);
+    return numbers.length > 3 ? numbers[3] : null;
+  }
+
+  final leftBuild = currentBuild ?? embeddedBuild(current, left);
+  final rightBuild = candidateBuild ?? embeddedBuild(candidate, right);
+  if (leftBuild != null && rightBuild != null) {
+    return leftBuild.compareTo(rightBuild);
   }
   return 0;
 }
@@ -211,9 +217,5 @@ Map<String, dynamic>? mergedPosAppUpdateJson(Map<String, dynamic> json) {
   if (raw is! Map) {
     return raw is Map<String, dynamic> ? raw : null;
   }
-  return <String, dynamic>{
-    ...json,
-    ...Map<String, dynamic>.from(raw),
-  };
+  return <String, dynamic>{...json, ...Map<String, dynamic>.from(raw)};
 }
-
