@@ -1430,9 +1430,9 @@ class PosApi {
         contentType: mime == null ? null : MediaType.parse(mime),
       ),
     );
-    final response = await http.Response.fromStream(
-      await _client.send(request).timeout(const Duration(minutes: 2)),
-    );
+    final response = await (() async {
+      return http.Response.fromStream(await _client.send(request));
+    })().timeout(const Duration(minutes: 2));
     return _unwrapData(await _decode(response));
   }
 

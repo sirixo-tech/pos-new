@@ -217,7 +217,8 @@ class _MenuImportViewState extends State<MenuImportView> {
 
   Widget _uploadPanel() {
     final platform = Theme.of(context).platform;
-    final mobile = platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+    final mobile =
+        platform == TargetPlatform.android || platform == TargetPlatform.iOS;
     final caps = widget.capabilities;
     final spreadsheet = [
       'csv',
@@ -310,7 +311,9 @@ class _MenuImportViewState extends State<MenuImportView> {
           const SizedBox(height: 14),
           if (mobile && widget.onCamera != null) ...[
             OutlinedButton.icon(
-              onPressed: widget.busy || caps?['image_import_available'] != true ? null : widget.onCamera,
+              onPressed: widget.busy || caps?['image_import_available'] != true
+                  ? null
+                  : widget.onCamera,
               icon: const Icon(Icons.photo_camera_outlined),
               label: const Text('Take photo of menu'),
             ),
@@ -552,27 +555,59 @@ class _MenuImportViewState extends State<MenuImportView> {
               color: Colors.white,
               border: Border.all(color: _border),
               borderRadius: BorderRadius.circular(14),
-              boxShadow: const [BoxShadow(color: Color(0x0C12253E), blurRadius: 12, offset: Offset(0, -2))],
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0C12253E),
+                  blurRadius: 12,
+                  offset: Offset(0, -2),
+                ),
+              ],
             ),
-            child: LayoutBuilder(builder: (context, constraints) {
-              final summary = Text('${_active.length} items ready',
-                style: const TextStyle(fontWeight: FontWeight.w700, color: _ink));
-              final actions = Wrap(spacing: 8, runSpacing: 8, children: [
-                TextButton(onPressed: widget.busy ? null : widget.onCancel,
-                  child: const Text('Discard draft')),
-                OutlinedButton(onPressed: widget.busy ? null : widget.onSave,
-                  child: const Text('Save edits')),
-                FilledButton.icon(onPressed: widget.busy || _active.isEmpty ? null : widget.onConfirm,
-                  icon: const Icon(Icons.arrow_forward, size: 17),
-                  label: const Text('Confirm and go live')),
-              ]);
-              if (constraints.maxWidth >= 720) {
-                return Row(children: [Expanded(child: summary), actions]);
-              }
-              return Column(mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [summary, const SizedBox(height: 8), actions]);
-            }),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final summary = Text(
+                  '${_active.length} items ready',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: _ink,
+                  ),
+                );
+                final actions = Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: widget.busy ? null : widget.onCancel,
+                      child: const Text('Discard draft'),
+                    ),
+                    OutlinedButton(
+                      onPressed: widget.busy ? null : widget.onSave,
+                      child: const Text('Save edits'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: widget.busy || _active.isEmpty
+                          ? null
+                          : widget.onConfirm,
+                      icon: const Icon(Icons.arrow_forward, size: 17),
+                      label: const Text('Confirm and go live'),
+                    ),
+                  ],
+                );
+                if (constraints.maxWidth >= 720) {
+                  return Row(
+                    children: [
+                      Expanded(child: summary),
+                      actions,
+                    ],
+                  );
+                }
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [summary, const SizedBox(height: 8), actions],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -582,41 +617,132 @@ class _MenuImportViewState extends State<MenuImportView> {
   Widget _published() {
     final result = widget.import?['result'];
     final values = result is Map ? result : const <String, dynamic>{};
-    final stats = [('CREATE', values['created'] ?? values['items_created'] ?? 0, _green),
-      ('UPDATE', values['updated'] ?? values['items_updated'] ?? 0, const Color(0xFF008ABD)),
+    final stats = [
+      ('CREATE', values['created'] ?? values['items_created'] ?? 0, _green),
+      (
+        'UPDATE',
+        values['updated'] ?? values['items_updated'] ?? 0,
+        const Color(0xFF008ABD),
+      ),
       ('SKIP', values['skipped'] ?? 0, _muted),
-      ('ERROR', values['failed'] ?? values['total_errors'] ?? widget.import?['error_count'] ?? 0, const Color(0xFFD83C61))];
-    return _panel(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Align(alignment: Alignment.centerLeft, child: _badge('Published')),
-      const SizedBox(height: 12),
-      _heading(Icons.task_alt, 'Menu is live', 'Items are on this branch and ready to sell. You can continue managing your menu or open the POS.'),
-      const SizedBox(height: 22),
-      LayoutBuilder(builder: (context, constraints) => Wrap(spacing: 8, runSpacing: 8,
-        children: stats.map((stat) => Container(
-          width: (constraints.maxWidth - (constraints.maxWidth < 450 ? 8 : 24)) / (constraints.maxWidth < 450 ? 2 : 4),
-          padding: const EdgeInsets.symmetric(vertical: 18), decoration: BoxDecoration(
-            color: stat.$3.withValues(alpha: 0.04), border: Border.all(color: stat.$3.withValues(alpha: 0.25)),
-            borderRadius: BorderRadius.circular(10)),
-          child: Column(children: [Text('${stat.$2}', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: stat.$3)),
-            const SizedBox(height: 5), Text(stat.$1, style: TextStyle(fontSize: 10, color: stat.$3))]),
-        )).toList())),
-      const SizedBox(height: 16),
-      LayoutBuilder(builder: (context, constraints) {
-        final menu = FilledButton.icon(onPressed: widget.busy ? null : widget.onViewMenu,
-          icon: const Icon(Icons.restaurant_menu, size: 18), label: const Text('View menu items'));
-        final pos = OutlinedButton.icon(onPressed: widget.busy ? null : widget.onOpenPos,
-          icon: const Icon(Icons.point_of_sale, size: 18), label: const Text('Open POS'));
-        return constraints.maxWidth < 450 ? Column(crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [menu, const SizedBox(height: 8), pos]) : Row(children: [Expanded(child: menu), const SizedBox(width: 8), Expanded(child: pos)]);
-      }),
-      const SizedBox(height: 8),
-      const Tooltip(message: 'AI enhancement requires an additional backend API.',
-        child: OutlinedButton(onPressed: null, child: Row(mainAxisAlignment: MainAxisAlignment.center,
-          children: [Icon(Icons.auto_awesome, size: 16), SizedBox(width: 8), Text('Enhance with AI')]))),
-      const SizedBox(height: 12), const Divider(), const SizedBox(height: 8),
-      Align(alignment: Alignment.centerLeft, child: OutlinedButton(
-        onPressed: widget.busy ? null : widget.onAnother, child: const Text('Upload another menu'))),
-    ]), tint: true);
+      (
+        'ERROR',
+        values['failed'] ??
+            values['total_errors'] ??
+            widget.import?['error_count'] ??
+            0,
+        const Color(0xFFD83C61),
+      ),
+    ];
+    return _panel(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(alignment: Alignment.centerLeft, child: _badge('Published')),
+          const SizedBox(height: 12),
+          _heading(
+            Icons.task_alt,
+            'Menu is live',
+            'Items are on this branch and ready to sell. You can continue managing your menu or open the POS.',
+          ),
+          const SizedBox(height: 22),
+          LayoutBuilder(
+            builder: (context, constraints) => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: stats
+                  .map(
+                    (stat) => Container(
+                      width:
+                          (constraints.maxWidth -
+                              (constraints.maxWidth < 450 ? 8 : 24)) /
+                          (constraints.maxWidth < 450 ? 2 : 4),
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      decoration: BoxDecoration(
+                        color: stat.$3.withValues(alpha: 0.04),
+                        border: Border.all(
+                          color: stat.$3.withValues(alpha: 0.25),
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            '${stat.$2}',
+                            style: TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.w700,
+                              color: stat.$3,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            stat.$1,
+                            style: TextStyle(fontSize: 10, color: stat.$3),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final menu = FilledButton.icon(
+                onPressed: widget.busy ? null : widget.onViewMenu,
+                icon: const Icon(Icons.restaurant_menu, size: 18),
+                label: const Text('View menu items'),
+              );
+              final pos = OutlinedButton.icon(
+                onPressed: widget.busy ? null : widget.onOpenPos,
+                icon: const Icon(Icons.point_of_sale, size: 18),
+                label: const Text('Open POS'),
+              );
+              return constraints.maxWidth < 450
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [menu, const SizedBox(height: 8), pos],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(child: menu),
+                        const SizedBox(width: 8),
+                        Expanded(child: pos),
+                      ],
+                    );
+            },
+          ),
+          const SizedBox(height: 8),
+          const Tooltip(
+            message: 'AI enhancement requires an additional backend API.',
+            child: OutlinedButton(
+              onPressed: null,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.auto_awesome, size: 16),
+                  SizedBox(width: 8),
+                  Text('Enhance with AI'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
+              onPressed: widget.busy ? null : widget.onAnother,
+              child: const Text('Upload another menu'),
+            ),
+          ),
+        ],
+      ),
+      tint: true,
+    );
   }
 
   @override
@@ -627,7 +753,8 @@ class _MenuImportViewState extends State<MenuImportView> {
     final maxKb = num.tryParse('${caps?['max_upload_kb']}') ?? 20480;
     final progress = num.tryParse('${widget.import?['progress']}');
     final status = '${widget.import?['status'] ?? ''}';
-    final published = widget.terminal && ['completed', 'complete'].contains(status);
+    final published =
+        widget.terminal && ['completed', 'complete'].contains(status);
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
       appBar: AppBar(
@@ -732,6 +859,15 @@ class _MenuImportViewState extends State<MenuImportView> {
                               : (progress / 100).clamp(0, 1).toDouble(),
                         ),
                         const SizedBox(height: 12),
+                        const Text(
+                          'Your file is uploaded. AI extraction may take a few minutes.',
+                          style: TextStyle(fontSize: 12, color: _muted),
+                        ),
+                        TextButton.icon(
+                          onPressed: widget.busy ? null : widget.onRetry,
+                          icon: const Icon(Icons.refresh, size: 17),
+                          label: const Text('Check status'),
+                        ),
                         TextButton(
                           onPressed: widget.busy ? null : widget.onCancel,
                           child: const Text('Cancel import'),

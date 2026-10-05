@@ -10,6 +10,7 @@ import '../../models/pos_models.dart';
 import '../../services/pos_api.dart';
 import '../../utils/pos_user_facing_error.dart';
 import '../../utils/menu_import_file_types.dart';
+import '../../utils/menu_import_retry.dart';
 import 'menu_import_view.dart';
 import 'admin_shell.dart';
 import '../../services/menu_spreadsheet_export.dart';
@@ -29,6 +30,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   Timer? _timer;
   bool _busy = false;
   bool _polling = false;
+  int _pollFailures = 0;
   bool _ai = true;
   String? _error;
   String? _errors;
@@ -133,6 +135,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   });
 
   Future<void> _poll() async {
+    _timer?.cancel();
+    if (!mounted || _terminal || _review) return;
     if (_id == null || _polling || _busy) {
       if (mounted && _id != null) {
         _timer = Timer(const Duration(seconds: 3), _poll);
@@ -140,17 +144,27 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
       return;
     }
     _polling = true;
+    final importId = _id;
     try {
-      final data = await _api.menuImportGet(_session, _id);
-      if (!mounted) return;
+      final data = await _api.menuImportGet(_session, importId);
+      if (!mounted || _id != importId || _terminal) return;
+      _pollFailures = 0;
       setState(() => _error = null);
       _accept(data);
       if ({'completed', 'complete'}.contains(_status)) {
         await _pos.refreshBootstrap();
       }
     } catch (e) {
-      if (mounted) setState(() => _error = posUserFacingError(e));
-      // Explicit retry avoids repeatedly hitting an unavailable or rate-limited API.
+      if (!mounted || _id != importId || _terminal) return;
+      final delay = menuImportRetryDelay(e, ++_pollFailures);
+      setState(
+        () => _error = delay == null
+            ? posUserFacingError(e)
+            : e is TimeoutException
+            ? 'The status check took too long. Your menu is uploaded. Checking again automatically.'
+            : 'Unable to refresh import progress. Your menu is uploaded. Checking again automatically.',
+      );
+      if (delay != null) _timer = Timer(delay, _poll);
     } finally {
       _polling = false;
     }
@@ -212,6 +226,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     }
     if (!mounted) return;
     _accept({'id': id, 'status': 'queued', 'filename': file.name});
+    _pollFailures = 0;
   });
 
   Future<void> _save({bool confirm = false}) => _run(() async {
@@ -430,7 +445,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     }),
     onExport: (format, options) => _export(format, options),
     onTemplate: () => _export('xlsx', MenuExportOptions(), template: true),
-    onViewMenu: () => openPosAdminShell(context, initialSection: AdminShellSection.menu),
+    onViewMenu: () =>
+        openPosAdminShell(context, initialSection: AdminShellSection.menu),
     onOpenPos: () => Navigator.of(context).popUntil((route) => route.isFirst),
     onAnother: () => setState(() {
       _timer?.cancel();
