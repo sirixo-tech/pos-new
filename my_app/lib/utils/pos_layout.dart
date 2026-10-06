@@ -121,3 +121,13 @@ double posMenuGridChildAspectRatio(
       : cellWidth * 0.9;
   return cellWidth / (imageHeight + footerHeight);
 }
+
+/// Phone menu card height. Matches the photo/color header plus name, price, and ADD.
+double handheldMenuCardExtent(BuildContext context, double paneWidth) {
+  final scale = MediaQuery.textScalerOf(context).scale(1);
+  final cellWidth = (paneWidth - 34) / 2;
+  final imageHeight = (cellWidth - 16) / 2.2;
+  final nameHeight = 12 * 1.15 * 2 * scale;
+  final priceHeight = 18 * scale;
+  return imageHeight + 16 + 6 + nameHeight + 4 + priceHeight + 6 + 44 + 8;
+}

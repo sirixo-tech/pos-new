@@ -82,6 +82,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     final canManageCategories =
         admin.canManageMenuCategories || admin.canManageMenu;
     final canManageItems = admin.canManageMenuItems || admin.canManageMenu;
+    final canEditItems = admin.canManageMenuItems;
     final canToggle = admin.canToggleMenuAvailability ||
         admin.canManageMenuItems ||
         admin.canManageMenu;
@@ -240,6 +241,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                             expanded: expanded,
                             canManageCategories: canManageCategories,
                             canManageItems: canManageItems,
+                            canEditItems: canEditItems,
                             canToggle: canToggle,
                             busy: admin.mutating,
                             onToggleExpanded: () {
@@ -485,6 +487,7 @@ class _CategoryCard extends StatelessWidget {
     required this.expanded,
     required this.canManageCategories,
     required this.canManageItems,
+    required this.canEditItems,
     required this.canToggle,
     required this.busy,
     required this.onToggleExpanded,
@@ -502,6 +505,7 @@ class _CategoryCard extends StatelessWidget {
   final bool expanded;
   final bool canManageCategories;
   final bool canManageItems;
+  final bool canEditItems;
   final bool canToggle;
   final bool busy;
   final VoidCallback onToggleExpanded;
@@ -686,6 +690,7 @@ class _CategoryCard extends StatelessWidget {
                           item: item,
                           currency: currency,
                           canManageItems: canManageItems,
+                          canEditItems: canEditItems,
                           canToggle: canToggle,
                           busy: busy,
                           accent: accent,
@@ -735,6 +740,7 @@ class _ItemRow extends StatelessWidget {
     required this.item,
     required this.currency,
     required this.canManageItems,
+    required this.canEditItems,
     required this.canToggle,
     required this.busy,
     required this.accent,
@@ -746,6 +752,7 @@ class _ItemRow extends StatelessWidget {
   final AdminMenuItem item;
   final String currency;
   final bool canManageItems;
+  final bool canEditItems;
   final bool canToggle;
   final bool busy;
   final Color accent;
@@ -785,7 +792,7 @@ class _ItemRow extends StatelessWidget {
         color: PosTheme.surfaceMuted.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          onTap: canManageItems && !busy ? onEdit : null,
+          onTap: canEditItems && !busy ? onEdit : null,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
@@ -831,7 +838,7 @@ class _ItemRow extends StatelessWidget {
                     value: item.isAvailable,
                     onChanged: busy ? null : (_) => onToggle(),
                   ),
-                if (canManageItems)
+                if (canEditItems)
                   IconButton(
                     tooltip: context.posText('adminEdit', 'Edit'),
                     onPressed: busy ? null : onEdit,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -12,12 +13,15 @@ import '../../utils/pos_user_facing_error.dart';
 import '../../utils/menu_import_file_types.dart';
 import '../../utils/menu_import_retry.dart';
 import 'menu_import_view.dart';
+import 'pos_voice_menu_capture.dart';
 import 'admin_shell.dart';
 import '../../services/menu_spreadsheet_export.dart';
 import '../../services/menu_export_download.dart';
 
 class AdminMenuImportScreen extends StatefulWidget {
-  const AdminMenuImportScreen({super.key});
+  const AdminMenuImportScreen({super.key, this.enableVoice = true});
+
+  final bool enableVoice;
 
   @override
   State<AdminMenuImportScreen> createState() => _AdminMenuImportScreenState();
@@ -96,7 +100,9 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     try {
       await action();
     } catch (e) {
-      if (mounted) setState(() => _error = posUserFacingError(e));
+      if (mounted && !_isRateLimit(e)) {
+        setState(() => _error = posUserFacingError(e));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -120,10 +126,19 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   Future<void> _load() => _run(() async {
     final current = _pos.session;
     if (current == null) throw PosApiException('Not signed in.');
-    final admin = await _api.createMenuImportSession(current);
+    var admin = await _api.createMenuImportSession(current);
     if (!mounted) return;
     _adminSession = admin;
-    final data = await _api.menuImportGet(_session);
+    Map<String, dynamic> data;
+    try {
+      data = await _api.menuImportGet(_session);
+    } on PosApiException catch (e) {
+      if (e.statusCode != 401) rethrow;
+      admin = await _api.createMenuImportSession(current, refresh: true);
+      if (!mounted) return;
+      _adminSession = admin;
+      data = await _api.menuImportGet(_session);
+    }
     if (!mounted) return;
     setState(() {
       _caps = Map<String, dynamic>.from(data['capabilities'] as Map? ?? {});
@@ -157,13 +172,15 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     } catch (e) {
       if (!mounted || _id != importId || _terminal) return;
       final delay = menuImportRetryDelay(e, ++_pollFailures);
-      setState(
-        () => _error = delay == null
-            ? posUserFacingError(e)
-            : e is TimeoutException
-            ? 'The status check took too long. Your menu is uploaded. Checking again automatically.'
-            : 'Unable to refresh import progress. Your menu is uploaded. Checking again automatically.',
-      );
+      if (!_isRateLimit(e)) {
+        setState(
+          () => _error = delay == null
+              ? posUserFacingError(e)
+              : e is TimeoutException
+              ? 'The status check took too long. Your menu is uploaded. Checking again automatically.'
+              : 'Unable to refresh import progress. Your menu is uploaded. Checking again automatically.',
+        );
+      }
       if (delay != null) _timer = Timer(delay, _poll);
     } finally {
       _polling = false;
@@ -212,14 +229,52 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     });
   });
 
-  Future<void> _upload() => _run(() async {
+  Future<void> _upload() => _run(_uploadSelected);
+
+  Future<void> _submitVoice(Uint8List bytes) => _run(() async {
+    final file = XFile.fromData(
+      bytes,
+      name: 'voice-menu.csv',
+      mimeType: 'text/csv',
+    );
+    final maxKb = num.tryParse('${_caps?['max_upload_kb']}') ?? 20480;
+    if (bytes.length > maxKb * 1024) {
+      throw PosApiException('Choose a file smaller than ${maxKb / 1024} MB.');
+    }
+    if (!mounted) return;
+    setState(() {
+      _selectedFile = file;
+      _selectedBytes = bytes.length;
+      _ai = _caps?['ai_assist_available'] == true;
+    });
+    await _uploadSelected();
+  });
+
+  bool _isRateLimit(Object error) {
+    if (error is PosApiException && error.statusCode == 429) return true;
+    return error.toString().toLowerCase().contains('too many');
+  }
+
+  Future<void> _uploadSelected() async {
     final file = _selectedFile;
     if (file == null) return;
-    final data = await _api.menuImportUpload(
-      _session,
-      file: file,
-      aiAssist: _ai,
-    );
+    Map<String, dynamic> data;
+    try {
+      data = await _api.menuImportUpload(
+        _session,
+        file: file,
+        aiAssist: _ai,
+      );
+    } on PosApiException catch (e) {
+      if (e.statusCode != 429) rethrow;
+      await Future<void>.delayed(e.retryAfter ?? const Duration(seconds: 5));
+      if (!mounted) return;
+      data = await _api.menuImportUpload(
+        _session,
+        file: file,
+        aiAssist: _ai,
+      );
+    }
     final id = int.tryParse('${data['import_id']}');
     if (id == null) {
       throw PosApiException('The server did not return an import ID.');
@@ -227,7 +282,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     if (!mounted) return;
     _accept({'id': id, 'status': 'queued', 'filename': file.name});
     _pollFailures = 0;
-  });
+  }
 
   Future<void> _save({bool confirm = false}) => _run(() async {
     final id = _id!;
@@ -448,6 +503,9 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     onViewMenu: () =>
         openPosAdminShell(context, initialSection: AdminShellSection.menu),
     onOpenPos: () => Navigator.of(context).popUntil((route) => route.isFirst),
+    voiceSection: widget.enableVoice
+        ? PosVoiceMenuCapture(busy: _busy, onSubmit: _submitVoice)
+        : null,
     onAnother: () => setState(() {
       _timer?.cancel();
       _import = null;

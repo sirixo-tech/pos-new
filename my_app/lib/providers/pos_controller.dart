@@ -264,10 +264,23 @@ class PosController extends ChangeNotifier {
   bool get isOnline => _connectivity?.isOnline ?? true;
   int get pendingOrderCount => _syncService?.pendingCount ?? 0;
   bool get updateRequired => appUpdate.isRequired;
-  bool get showOptionalUpdateBanner =>
-      appUpdate.isOptional &&
-      appUpdate.hasDownload &&
-      appUpdate.latestVersion != _dismissedOptionalLatest;
+
+  /// Version key for the header strip. A newer published build uses a new key.
+  String? get _updateNoticeKey {
+    final latest = appUpdate.latestVersion?.trim() ?? '';
+    if (latest.isNotEmpty) return latest;
+    final minimum = appUpdate.minVersion?.trim() ?? '';
+    if (minimum.isNotEmpty) return minimum;
+    if (appUpdate.isOptional || appUpdate.isRequired) return 'available';
+    return null;
+  }
+
+  /// Header strip for any published update. Later hides it until the next launch
+  /// or until Check for updates. The register is never blocked.
+  bool get showOptionalUpdateBanner {
+    final key = _updateNoticeKey;
+    return key != null && key != _dismissedOptionalLatest;
+  }
 
   void setConnectivityService(ConnectivityService service) {
     if (_connectivityListener != null) {
@@ -1843,7 +1856,7 @@ class PosController extends ChangeNotifier {
   }
 
   void dismissOptionalUpdate() {
-    _dismissedOptionalLatest = appUpdate.latestVersion;
+    _dismissedOptionalLatest = _updateNoticeKey;
     notifyListeners();
   }
 
@@ -1891,13 +1904,11 @@ class PosController extends ChangeNotifier {
 
   void _applyAppUpdate(PosAppUpdate update, {bool manual = false}) {
     final resolved = update.resolvedAgainstInstalled();
-    // A newer optional build stays quiet until More → Check for updates.
-    // A minimum version marked required still applies on its own.
-    if (!manual && resolved.isOptional) {
-      return;
-    }
+    // Required and optional updates both surface as the header strip.
+    // Later keeps the current version hidden until the next launch, or until
+    // staff open Check for updates (that path clears the dismissal first).
     appUpdate = resolved;
-    if (resolved.isRequired) {
+    if (manual) {
       _dismissedOptionalLatest = null;
     }
   }

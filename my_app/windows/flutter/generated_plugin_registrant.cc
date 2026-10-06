@@ -12,6 +12,7 @@
 #include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
 #include <flutter_thermal_printer/flutter_thermal_printer_plugin_c_api.h>
 #include <screen_retriever_windows/screen_retriever_windows_plugin_c_api.h>
+#include <speech_to_text_windows/speech_to_text_windows.h>
 #include <universal_ble/universal_ble_plugin_c_api.h>
 #include <url_launcher_windows/url_launcher_windows.h>
 #include <window_manager/window_manager_plugin.h>
@@ -29,6 +30,8 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FlutterThermalPrinterPluginCApi"));
   ScreenRetrieverWindowsPluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("ScreenRetrieverWindowsPluginCApi"));
+  SpeechToTextWindowsRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("SpeechToTextWindows"));
   UniversalBlePluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("UniversalBlePluginCApi"));
   UrlLauncherWindowsRegisterWithRegistrar(

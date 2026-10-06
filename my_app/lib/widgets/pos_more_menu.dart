@@ -50,7 +50,8 @@ Future<String?> showPosMoreMenu({
         sections: sections,
         title: label,
         onSelect: (id) => Navigator.of(ctx).pop(id),
-        onClose: () => Navigator.of(ctx).pop(),
+          onClose: () => Navigator.of(ctx).pop(),
+          showClose: true,
       );
 
       if (side) {
@@ -62,18 +63,48 @@ Future<String?> showPosMoreMenu({
   );
 }
 
+/// The More menu as a full page. Used by the phone Settings tab.
+class PosMoreMenuPage extends StatelessWidget {
+  const PosMoreMenuPage({
+    super.key,
+    required this.sections,
+    required this.onSelect,
+    this.title = 'Settings',
+  });
+
+  final List<PosMoreMenuSection> sections;
+  final ValueChanged<String> onSelect;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: PosTheme.canvas,
+      child: _PosMoreMenuPanel(
+        sections: sections,
+        title: title,
+        onSelect: onSelect,
+        onClose: () {},
+        showClose: false,
+      ),
+    );
+  }
+}
+
 class _PosMoreMenuPanel extends StatefulWidget {
   const _PosMoreMenuPanel({
     required this.sections,
     required this.title,
     required this.onSelect,
     required this.onClose,
+    this.showClose = true,
   });
 
   final List<PosMoreMenuSection> sections;
   final String title;
   final ValueChanged<String> onSelect;
   final VoidCallback onClose;
+  final bool showClose;
 
   @override
   State<_PosMoreMenuPanel> createState() => _PosMoreMenuPanelState();
@@ -137,7 +168,7 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
           title: widget.title,
           customizing: _customizing,
           onToggleCustomize: () => setState(() => _customizing = !_customizing),
-          onClose: widget.onClose,
+          onClose: widget.showClose ? widget.onClose : null,
         ),
         Expanded(
           child: _PosMoreMenuBody(
@@ -167,7 +198,7 @@ class _PosMoreMenuHeader extends StatelessWidget {
   final String title;
   final bool customizing;
   final VoidCallback onToggleCustomize;
-  final VoidCallback onClose;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -231,20 +262,22 @@ class _PosMoreMenuHeader extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          Material(
-            color: soft.bg,
-            borderRadius: BorderRadius.circular(PosTheme.radiusSm),
-            child: InkWell(
-              onTap: onClose,
+          if (onClose != null) ...[
+            const SizedBox(width: 6),
+            Material(
+              color: soft.bg,
               borderRadius: BorderRadius.circular(PosTheme.radiusSm),
-              child: SizedBox(
-                width: 36,
-                height: 36,
-                child: Icon(Icons.close_rounded, color: soft.fg),
+              child: InkWell(
+                onTap: onClose,
+                borderRadius: BorderRadius.circular(PosTheme.radiusSm),
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Icon(Icons.close_rounded, color: soft.fg),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

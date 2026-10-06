@@ -22,6 +22,7 @@ import 'pos_channel_print_policy.dart';
 import 'printer_paper_sensor.dart';
 import 'pos_print_payload_filter.dart';
 import 'print_object_executor.dart';
+import 'report_slip_layout.dart';
 import 'print_skipped.dart';
 import 'printer_health.dart';
 import 'receipt_typography.dart';
@@ -1542,7 +1543,7 @@ class PosReceiptPrinter {
       }
 
       final executor = PrintObjectExecutor.fromPayload(data);
-      return executor.buildBytes(commands);
+      return executor.buildBytes(wrapLongReportItemNames(data, commands));
     }
 
     throw StateError(failure ?? 'Failed to fetch report');

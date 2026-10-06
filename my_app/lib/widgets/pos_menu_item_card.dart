@@ -605,31 +605,21 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (widget.showImage)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 2.2,
-                    child: imageUrl != null && !_imageFailed
-                        ? CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 480,
-                            placeholder: (_, _) => _colorMonogram(name, 48),
-                            errorWidget: (_, _, _) => _colorMonogram(name, 48),
-                          )
-                        : ColoredBox(
-                            color: _colorCardFill(),
-                            child: Center(
-                              child: Icon(
-                                Icons.restaurant_rounded,
-                                color: accent,
-                                size: 30,
-                              ),
-                            ),
-                          ),
-                  ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AspectRatio(
+                  aspectRatio: 2.2,
+                  child: widget.showImage && imageUrl != null && !_imageFailed
+                      ? CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 480,
+                          placeholder: (_, _) => _handheldColorMark(accent),
+                          errorWidget: (_, _, _) => _handheldColorMark(accent),
+                        )
+                      : _handheldColorMark(accent),
                 ),
+              ),
               const SizedBox(height: 6),
               SizedBox(
                 height: MediaQuery.textScalerOf(context).scale(12) * 1.15 * 2,
@@ -793,6 +783,15 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
           color: const Color(0xFF1F2937),
           height: 1,
         ),
+      ),
+    );
+  }
+
+  Widget _handheldColorMark(Color accent) {
+    return ColoredBox(
+      color: _colorCardFill(),
+      child: Center(
+        child: Icon(Icons.restaurant_rounded, color: accent, size: 30),
       ),
     );
   }

@@ -449,11 +449,7 @@ class _MenuScrollBody extends StatelessWidget {
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: handheld ? 2 : crossAxisCount,
                           mainAxisExtent: handheld
-                              ? (paneWidth - 34) / 4.4 +
-                                    140 *
-                                        MediaQuery.textScalerOf(
-                                          context,
-                                        ).scale(1)
+                              ? handheldMenuCardExtent(context, paneWidth)
                               : null,
                           mainAxisSpacing: 14,
                           crossAxisSpacing: 14,

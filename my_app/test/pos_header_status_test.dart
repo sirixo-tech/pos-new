@@ -114,13 +114,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final l10n = tester.element(find.byType(PosRegisterAppBar)).l10n;
-      expect(find.byTooltip(l10n.shellMore).hitTestable(), findsOneWidget);
+      expect(find.byTooltip(l10n.shellMore), findsNothing);
       expect(find.byTooltip(l10n.shellOrders).hitTestable(), findsOneWidget);
-      await tester.tap(find.byTooltip(l10n.shellMore));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.waiterNavAlerts));
-      await tester.pumpAndSettle();
-      expect(alertsOpened, isTrue);
+      expect(alertsOpened, isFalse);
       await tester.tap(find.byTooltip('System status'));
       await tester.pumpAndSettle();
       expect(printer.probing, isTrue);

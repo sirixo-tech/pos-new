@@ -61,18 +61,6 @@ List<DayEndReportType> dayEndReportTypes(AppLocalizations l10n) => [
         description: l10n.reportsTaxSummaryDesc,
         icon: Icons.sell_outlined,
       ),
-      DayEndReportType(
-        value: 'staff',
-        label: 'Staff',
-        description: 'Staff sales for today',
-        icon: Icons.badge_outlined,
-      ),
-      DayEndReportType(
-        value: 'voids',
-        label: 'Voids & cancellations',
-        description: 'Voided and cancelled orders for today',
-        icon: Icons.block_outlined,
-      ),
     ];
 
 /// Day-end reports for today’s branch sales (side panel on desktop).
@@ -81,10 +69,14 @@ class DayEndReportsSheet extends StatefulWidget {
     super.key,
     required this.onPrint,
     this.asSidePanel = false,
+    this.embedded = false,
   });
 
   final Future<void> Function(String type) onPrint;
   final bool asSidePanel;
+
+  /// Full page inside the phone reports tab. Printing stays on this page.
+  final bool embedded;
 
   static Future<void> open(
     BuildContext context, {
@@ -114,7 +106,7 @@ class _DayEndReportsSheetState extends State<DayEndReportsSheet> {
     setState(() => _printingType = report.value);
     try {
       await widget.onPrint(report.value);
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && !widget.embedded) Navigator.of(context).pop();
     } finally {
       if (mounted) setState(() => _printingType = null);
     }
@@ -167,13 +159,14 @@ class _DayEndReportsSheetState extends State<DayEndReportsSheet> {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: l10n.commonClose,
-                onPressed: _printingType == null
-                    ? () => Navigator.of(context).pop()
-                    : null,
-                icon: const Icon(Icons.close_rounded),
-              ),
+              if (!widget.embedded)
+                IconButton(
+                  tooltip: l10n.commonClose,
+                  onPressed: _printingType == null
+                      ? () => Navigator.of(context).pop()
+                      : null,
+                  icon: const Icon(Icons.close_rounded),
+                ),
             ],
           ),
         ),
@@ -263,6 +256,12 @@ class _DayEndReportsSheetState extends State<DayEndReportsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return ColoredBox(
+        color: PosTheme.canvas,
+        child: _buildContent(context),
+      );
+    }
     if (widget.asSidePanel) {
       return PosSidePanelShell(child: _buildContent(context));
     }

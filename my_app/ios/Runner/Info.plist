@@ -47,6 +47,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SELFX POS uses the microphone so you can add menu items by voice.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SELFX POS turns your spoken menu items into text for AI menu import.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Capture a photo of your menu to extract menu items and prices.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -406,7 +406,6 @@ class _KitchenShellState extends State<KitchenShell> {
               ],
             ),
           ),
-          const PosRequiredUpdateOverlay(),
         ],
       ),
     );

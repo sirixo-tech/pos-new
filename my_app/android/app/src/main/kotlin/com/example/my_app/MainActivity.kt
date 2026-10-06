@@ -119,6 +119,23 @@ class MainActivity : FlutterActivity() {
             "selfx_pos/device_sound",
         ).setMethodCallHandler(soundHandler)
 
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "pos_main/presence",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "start" -> {
+                    startPosPresence()
+                    result.success(true)
+                }
+                "stop" -> {
+                    stopPosPresence()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         val smartPosHandler = MethodChannel.MethodCallHandler { call, result ->
             if (call.method == "getPrinterDeviceInfo") {
                 val imin = IminPrinterHandler.isIminDevice()
@@ -485,7 +502,38 @@ class MainActivity : FlutterActivity() {
         pending.success(hasBluetoothAccess())
     }
 
+    private fun startPosPresence() {
+        if (
+            Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                REQUEST_NOTIFICATIONS,
+            )
+        }
+        val intent = Intent(this, PosPresenceService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun stopPosPresence() {
+        val intent =
+            Intent(this, PosPresenceService::class.java).setAction(
+                PosPresenceService.ACTION_STOP,
+            )
+        startService(intent)
+    }
+
     companion object {
         private const val REQUEST_BLUETOOTH = 4811
+        private const val REQUEST_NOTIFICATIONS = 4812
     }
 }

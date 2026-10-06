@@ -76,6 +76,7 @@ class PosApi {
   static String get appVersion => PosAppInfo.version;
 
   static DateTime? _rateLimitedUntil;
+  static final Map<String, String> _scopedTokens = {};
 
   /// True while the server has asked us to wait after HTTP 429.
   static bool get isRateLimited {
@@ -1361,8 +1362,20 @@ class PosApi {
     return _unwrapData(await _decode(response));
   }
 
-  Future<PosSession> createMenuImportSession(PosSession session) async {
+  Future<PosSession> createMenuImportSession(
+    PosSession session, {
+    bool refresh = false,
+  }) async {
+    final key =
+        '${session.token}|${session.restaurantId}|${session.branchId}|admin';
+    if (!refresh) {
+      final cached = _scopedTokens[key];
+      if (cached != null && cached.isNotEmpty) {
+        return PosSession.fromJson({...session.toJson(), 'token': cached});
+      }
+    }
     final token = await issueScopedToken(session, ability: 'admin');
+    _scopedTokens[key] = token;
     return PosSession.fromJson({...session.toJson(), 'token': token});
   }
 

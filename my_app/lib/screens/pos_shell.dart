@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import 'customer_display/customer_display_page.dart';
-import 'customer_display/customer_display_setup_page.dart';
 import '../l10n/pos_l10n.dart';
 import '../models/pos_models.dart';
 import '../payments/payment_session.dart';
@@ -35,7 +33,6 @@ import '../utils/media_url.dart';
 import '../utils/outside_schedule.dart';
 import '../utils/order_barcode_scan.dart';
 import '../utils/pos_layout.dart';
-import '../widgets/cart_quick_pay_layout_dialog.dart';
 import '../widgets/cash_register_sheet.dart';
 import '../widgets/collect_payment_sheet.dart';
 import '../widgets/day_end_reports_sheet.dart';
@@ -48,32 +45,24 @@ import '../widgets/pos_hardware_status.dart';
 import '../widgets/pos_payment_qr_sheet.dart';
 import '../widgets/pos_cart_panel.dart';
 import '../widgets/pos_category_rail.dart';
-import '../widgets/pos_appearance_picker.dart';
-import '../widgets/pos_auto_lock_picker.dart';
-import '../widgets/pos_language_switcher.dart';
 import '../widgets/pos_menu_item_card.dart';
-import '../widgets/pos_catalog_layout_picker.dart';
 import '../widgets/pos_more_menu.dart';
 import '../widgets/pos_more_menu_sections.dart';
-import 'customer_display/dqr222_advertisement_page.dart';
-import 'help/pos_help_page.dart';
 import '../widgets/pos_network_logo.dart';
-import '../widgets/pos_close_shift_dialog.dart';
-import '../widgets/pos_open_shift_dialog.dart';
 import '../widgets/pos_ops_bar.dart';
 import '../widgets/pos_order_barcode_listener.dart';
 import '../widgets/pos_overlay.dart';
 import '../widgets/pos_scan_to_print_dialog.dart';
-import '../widgets/pos_shortcuts_help.dart';
-import '../widgets/pos_sound_settings_dialog.dart';
 import '../widgets/pos_system_status_dialog.dart';
 import '../widgets/pos_ui.dart';
 import '../widgets/staff_notifications_panel.dart';
 import 'admin/admin_shell.dart';
 import 'kitchen/kitchen_panel.dart';
 import 'pos_orders_sheet.dart';
-import 'pos_update_check_screen.dart';
-import 'printer_setup_screen.dart';
+import 'pos_register_more_actions.dart';
+import 'admin/admin_menu_import_screen.dart';
+import 'pos_mobile_reports_page.dart';
+import 'pos_mobile_settings_page.dart';
 import 'shift_open_overlay.dart';
 import 'set_pos_pin_screen.dart';
 
@@ -116,6 +105,8 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
   bool _cartOpen = false;
+  int _mobileTab = 0;
+  final Set<int> _seenMobileTabs = {0};
   BuildContext? _cartSheetContext;
   bool _scanPrintBusy = false;
   bool _kotDockOpen = false;
@@ -157,6 +148,81 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     if (_cartOpen && mounted) {
       setState(() => _cartOpen = false);
     }
+  }
+
+  void _selectMobileTab(int index) {
+    setState(() {
+      _mobileTab = index;
+      _seenMobileTabs.add(index);
+    });
+  }
+
+  Future<void> _onMobileSettings(String value) {
+    final pos = context.read<PosController>();
+    return handlePosRegisterMoreAction(
+      context: context,
+      pos: pos,
+      l10n: context.l10n,
+      value: value,
+      hasPin: pos.session?.hasPosPin == true,
+      onOpenPartnerOrders: _openPartnerOrders,
+      onOpenDayEndReports: () => _selectMobileTab(3),
+      onOpenNotifications: _openNotifications,
+      onOpenDelivery: _openDeliveryOrders,
+      onRefreshMenu: _refreshMenuFromShell,
+      onOpenCustomerDisplay: () => showCustomerDisplayStatusDialog(context),
+    );
+  }
+
+  Future<void> _refreshMenuFromShell() async {
+    final pos = context.read<PosController>();
+    try {
+      await pos.refreshBootstrap();
+      if (!mounted) return;
+      showPosSnackBar(context, context.l10n.shellMenuRefreshed);
+    } catch (e) {
+      if (mounted) showPosErrorSnackBar(context, e);
+    }
+  }
+
+  Widget _handheldTabs(Color accent) {
+    Widget tab(int index, Widget child) {
+      if (!_seenMobileTabs.contains(index)) return const SizedBox.shrink();
+      return child;
+    }
+
+    return IndexedStack(
+      index: _mobileTab,
+      children: [
+        _phoneLayout(accent),
+        tab(1, _mobileCart()),
+        tab(
+          2,
+          const AdminMenuImportScreen(enableVoice: true),
+        ),
+        tab(
+          3,
+          PosMobileReportsPage(onPrint: _printThermalReport),
+        ),
+        tab(
+          4,
+          PosMobileSettingsPage(onSelected: _onMobileSettings),
+        ),
+      ],
+    );
+  }
+
+  Widget _mobileCart() {
+    return ColoredBox(
+      color: PosTheme.surface,
+      child: PosCartPanel(
+        compact: true,
+        onPay: () => _onPay(quickMethod: 'more'),
+        onPayMethod: (method) => _onPay(quickMethod: method),
+        onPark: _onPark,
+        onOpenHeld: _openHeldOrders,
+      ),
+    );
   }
 
   @override
@@ -1268,7 +1334,9 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
                         opacity: blocked ? 0.38 : 1,
                         child: IgnorePointer(
                           ignoring: blocked,
-                          child: desktop
+                          child: usePosHandheldLayout(context)
+                              ? _handheldTabs(accent)
+                              : desktop
                               ? _desktopLayout(accent)
                               : _phoneLayout(accent),
                         ),
@@ -1280,7 +1348,9 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
                 ),
               ],
             ),
-            if (!desktop && !_cartOpen)
+            if (!desktop &&
+                !usePosHandheldLayout(context) &&
+                !_cartOpen)
               Positioned(
                 left: 0,
                 right: 0,
@@ -1288,9 +1358,17 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
                 child: _ViewCartPillHost(accent: accent, onTap: _openCart),
               ),
             const NewOrderAlertBannerHost(),
-            const PosRequiredUpdateOverlay(),
           ],
         ),
+        bottomNavigationBar: usePosHandheldLayout(context)
+            ? PosMobileNavBar(
+                index: _mobileTab,
+                cartCount: context.select(
+                  (PosController p) => p.cartItemCount,
+                ),
+                onSelected: _selectMobileTab,
+              )
+            : null,
       ),
     );
 
@@ -1624,6 +1702,7 @@ class _SearchStripState extends State<_SearchStrip> {
             onClear: _onClear,
             onSubmitted: widget.onSubmitted,
             onScan: widget.onScan,
+            voiceSearch: true,
             onHeldQr: held == null || widget.onHeldQr == null
                 ? null
                 : () => widget.onHeldQr!(held),
@@ -1769,11 +1848,7 @@ class _MenuScrollBody extends StatelessWidget {
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: handheld ? 2 : crossAxisCount,
                           mainAxisExtent: handheld
-                              ? (paneWidth - 34) / 4.4 +
-                                    140 *
-                                        MediaQuery.textScalerOf(
-                                          context,
-                                        ).scale(1)
+                              ? handheldMenuCardExtent(context, paneWidth)
                               : null,
                           mainAxisSpacing: 14,
                           crossAxisSpacing: 14,
@@ -2414,10 +2489,10 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
           ],
         ),
-        const SizedBox(width: 6),
-        _HeaderSegment(
-          children: [
-            if (!compact && !handheld)
+        if (!handheld) ...[
+          const SizedBox(width: 6),
+          _HeaderSegment(
+            children: [
               PosMoreMenuButton(
                 accent: accent,
                 embedded: true,
@@ -2440,7 +2515,7 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
                   checkingForUpdates: checkingForUpdates,
                   pendingOrderCount: pendingOrderCount,
                   hasDeviceBinding: hasDeviceBinding,
-                  includeShortcuts: true,
+                  includeShortcuts: !compact,
                 ),
                 onSelected: (value) async {
                   await _handleMoreMenuAction(
@@ -2453,80 +2528,10 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
                     onOpenDayEndReports: onOpenDayEndReports,
                   );
                 },
-              )
-            else
-              PosMoreMenuButton(
-                accent: accent,
-                embedded: true,
-                tooltip: l10n.shellMore,
-                sections: [
-                  if (handheld)
-                    PosMoreMenuSection(
-                      title: 'Quick actions',
-                      items: [
-                        PosMoreMenuItem(
-                          id: '_notifications',
-                          icon: Icons.notifications_outlined,
-                          label: l10n.waiterNavAlerts,
-                          badge: notificationCount > 0
-                              ? '$notificationCount'
-                              : null,
-                        ),
-                        if (allowDelivery)
-                          PosMoreMenuItem(
-                            id: '_delivery',
-                            icon: Icons.delivery_dining_rounded,
-                            label: context.posText(
-                              'shellDeliveryOrders',
-                              'Delivery orders',
-                            ),
-                          ),
-                        PosMoreMenuItem(
-                          id: pos.bootstrap?.currentShift == null
-                              ? 'open_shift'
-                              : 'close_shift',
-                          icon: Icons.schedule_rounded,
-                          label: pos.bootstrap?.currentShift == null
-                              ? l10n.opsOpenOptional
-                              : l10n.opsCloseShift,
-                        ),
-                      ],
-                    ),
-                  ...buildPosMoreMenuSections(
-                    context: context,
-                    l10n: l10n,
-                    storeAccepting: storeAccepting,
-                    storeStatusLabel: storeStatusLabel,
-                    canManageStore: canManageStore,
-                    canAccessAdmin: canAccessAdmin,
-                    canViewMenu: canViewMenu,
-                    marketplacePlatforms: marketplacePlatforms,
-                    showLanguageSwitcher: showLanguageSwitcher,
-                    terminalCount: terminalCount,
-                    canChangeLocation: canChangeLocation,
-                    hasPin: hasPin,
-                    canUseCaptain: canUseCaptain,
-                    canChooseWorkMode: canChooseWorkMode,
-                    checkingForUpdates: checkingForUpdates,
-                    pendingOrderCount: pendingOrderCount,
-                    hasDeviceBinding: hasDeviceBinding,
-                    includeShortcuts: false,
-                  ),
-                ],
-                onSelected: (value) async {
-                  await _handleMoreMenuAction(
-                    context: context,
-                    pos: pos,
-                    l10n: l10n,
-                    value: value,
-                    hasPin: hasPin,
-                    onOpenPartnerOrders: onOpenPartnerOrders,
-                    onOpenDayEndReports: onOpenDayEndReports,
-                  );
-                },
               ),
-          ],
-        ),
+            ],
+          ),
+        ],
         const SizedBox(width: 10),
       ],
     );
@@ -2557,170 +2562,20 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
     required bool hasPin,
     required ValueChanged<String> onOpenPartnerOrders,
     required VoidCallback onOpenDayEndReports,
-  }) async {
-    if (value == '_notifications') {
-      onOpenNotifications();
-    } else if (value == '_delivery') {
-      onOpenDelivery();
-    } else if (value == 'logout') {
-      final ok = await showPosConfirmDialog(
-        context,
-        title: l10n.authSignOutTitle,
-        message: hasPin
-            ? l10n.authSignOutMessageWithPin
-            : l10n.authSignOutMessageNoPin,
-        confirmLabel: l10n.commonSignOut,
-        destructive: true,
-      );
-      if (!ok || !context.mounted) return;
-      await pos.logout();
-    } else if (value.endsWith('_orders') &&
-        value != 'held_orders' &&
-        value.length > '_orders'.length) {
-      final provider = value.substring(0, value.length - '_orders'.length);
-      final enabled =
-          context.read<PosController>().bootstrap?.marketplaceEnabled(
-            provider,
-          ) ??
-          false;
-      if (enabled) {
-        onOpenPartnerOrders(provider);
-      }
-    } else if (value == 'refresh') {
-      await _refreshMenu(context, pos, l10n);
-    } else if (value == 'terminal') {
-      await pos.changeTerminal();
-    } else if (value == 'location') {
-      await pos.openLocationPicker();
-    } else if (value == 'lock') {
-      pos.lockSession();
-    } else if (value == 'pin') {
-      await SetPosPinScreen.open(context);
-    } else if (value == 'printer') {
-      await PrinterSetupScreen.open(context);
-    } else if (value == 'quick_pay_layout') {
-      if (context.mounted) {
-        await showCartQuickPayLayoutDialog(context);
-      }
-    } else if (value == 'sounds') {
-      if (context.mounted) {
-        await showPosSoundSettingsDialog(context);
-      }
-    } else if (value == 'customer_display') {
-      if (context.mounted) {
-        await showCustomerDisplayStatusDialog(context);
-      }
-    } else if (value == 'token_display') {
-      if (context.mounted) {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const CustomerDisplayPage()),
-        );
-      }
-    } else if (value == 'cart_display') {
-      if (context.mounted) {
-        final posState = context.read<PosController>();
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => CustomerCartDisplayPage(
-              branchId: posState.session?.branchId,
-              terminalCode: posState.selectedTerminalCode,
-            ),
-          ),
-        );
-      }
-    } else if (value == 'qr_pairing') {
-      if (context.mounted) {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const CustomerDisplaySetupPage(),
-          ),
-        );
-      }
-    } else if (value == 'sync') {
-      final before = pos.pendingOrderCount;
-      await pos.syncPendingOrders();
-      if (!context.mounted) return;
-      final remaining = pos.pendingOrderCount;
-      if (before == 0 && remaining == 0) {
-        showPosSnackBar(context, l10n.offlineSyncNothingPending);
-      } else if (remaining > 0) {
-        showPosSnackBar(
-          context,
-          l10n.offlineSyncPartial(remaining),
-          error: true,
-        );
-      } else {
-        showPosSnackBar(context, l10n.shellSyncCompleted);
-      }
-    } else if (value == 'updates') {
-      await openPosUpdateCheckScreen(context);
-    } else if (value == 'shortcuts') {
-      await showPosShortcutsDialog(context);
-    } else if (value == 'language') {
-      await showPosLanguagePicker(context);
-    } else if (value == 'unpair') {
-      await pos.clearDeviceBinding();
-      if (context.mounted) {
-        showPosSnackBar(context, l10n.shellPairingCleared);
-      }
-    } else if (value == 'reports') {
-      onOpenDayEndReports();
-    } else if (value == 'appearance') {
-      await showPosAppearancePicker(context);
-    } else if (value == 'item_images') {
-      await showPosCatalogLayoutPicker(context);
-    } else if (value == 'help') {
-      if (context.mounted) {
-        await Navigator.of(
-          context,
-        ).push(MaterialPageRoute<void>(builder: (_) => const PosHelpPage()));
-      }
-    } else if (value == 'dqr_images') {
-      if (context.mounted) {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const Dqr222AdvertisementPage(),
-          ),
-        );
-      }
-    } else if (value == 'auto_lock') {
-      await showPosAutoLockPicker(context);
-    } else if (value == 'fullscreen') {
-      if (PosDisplayMode.supportsToggle) {
-        final enabled = await PosDisplayMode.toggle();
-        if (context.mounted) {
-          showPosSnackBar(
-            context,
-            enabled
-                ? context.posText('shellFullscreenOn', 'Fullscreen on')
-                : context.posText('shellFullscreenOff', 'Fullscreen off'),
-          );
-        }
-      }
-    } else if (value == 'store_toggle') {
-      await togglePosGuestStore(context);
-    } else if (value == 'open_shift') {
-      await PosOpenShiftDialog.show(context);
-    } else if (value == 'close_shift') {
-      await PosCloseShiftDialog.show(context);
-    } else if (value == 'waiter_mode') {
-      final ok = await showPosConfirmDialog(
-        context,
-        title: l10n.waiterSwitchToWaiter,
-        message: l10n.waiterSwitchToWaiterConfirm,
-        confirmLabel: l10n.commonContinue,
-      );
-      if (!ok || !context.mounted) return;
-      await pos.switchWorkMode(PosWorkMode.waiter);
-    } else if (value == 'change_mode') {
-      await pos.clearWorkModeAndPick();
-    } else if (value == 'status') {
-      await showPosSystemStatusDialog(context);
-    } else if (value == 'menu') {
-      await openPosAdminMenuSheet(context);
-    } else if (value == 'manage') {
-      await openPosAdminShell(context);
-    }
+  }) {
+    return handlePosRegisterMoreAction(
+      context: context,
+      pos: pos,
+      l10n: l10n,
+      value: value,
+      hasPin: hasPin,
+      onOpenPartnerOrders: onOpenPartnerOrders,
+      onOpenDayEndReports: onOpenDayEndReports,
+      onOpenNotifications: onOpenNotifications,
+      onOpenDelivery: onOpenDelivery,
+      onRefreshMenu: () => _refreshMenu(context, pos, l10n),
+      onOpenCustomerDisplay: () => showCustomerDisplayStatusDialog(context),
+    );
   }
 }
 

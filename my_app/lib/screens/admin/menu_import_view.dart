@@ -1,5 +1,7 @@
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
+
+import '../../utils/pos_layout.dart';
 import '../../services/menu_spreadsheet_export.dart';
 import 'menu_export_section.dart';
 import 'menu_import_progress.dart';
@@ -42,6 +44,7 @@ class MenuImportView extends StatefulWidget {
     this.onOpenPos,
     this.onAnother,
     this.onCamera,
+    this.voiceSection,
   });
   final Map<String, dynamic>? capabilities, import;
   final List<Map<String, dynamic>> rows;
@@ -64,6 +67,7 @@ class MenuImportView extends StatefulWidget {
   final VoidCallback? onTemplate;
   final VoidCallback? onViewMenu, onOpenPos, onAnother;
   final VoidCallback? onCamera;
+  final Widget? voiceSection;
   @override
   State<MenuImportView> createState() => _MenuImportViewState();
 }
@@ -154,8 +158,47 @@ class _MenuImportViewState extends State<MenuImportView> {
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width =
-            (constraints.maxWidth - 24) / (constraints.maxWidth < 550 ? 2 : 4);
+        if (constraints.maxWidth < 550) {
+          return Row(
+            children: [
+              for (var i = 0; i < 4; i++) ...[
+                if (i > 0)
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      color: i <= stage ? _green : _border,
+                    ),
+                  ),
+                Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 11,
+                      backgroundColor: i <= stage ? _green : _border,
+                      child: Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: i <= stage ? Colors.white : _muted,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      titles[i].split(' ').first,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: i == stage ? FontWeight.w800 : FontWeight.w600,
+                        color: i == stage ? _ink : _muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          );
+        }
+        final width = (constraints.maxWidth - 24) / 4;
         return Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -228,87 +271,209 @@ class _MenuImportViewState extends State<MenuImportView> {
     final credits = caps?['ai_credits'];
     final unlimited = credits is Map && credits['unlimited'] == true;
     final costs = caps?['ai_credit_costs'];
+    final compact = usePosHandheldLayout(context);
+    final fileName = widget.selectedFile?.name;
     return _panel(
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _heading(
-            Icons.file_upload_outlined,
-            'Upload your menu',
-            'Photo or PDF preferred — CSV / Excel also supported',
-          ),
-          const SizedBox(height: 14),
-          Text(
-            unlimited
-                ? 'Unlimited AI credits on your plan.'
-                : 'AI credits remaining: ${caps?['ai_credits_remaining'] ?? '—'}',
-            style: const TextStyle(fontSize: 11, color: _muted),
-          ),
-          if (costs is Map)
-            Text(
-              'AI column mapping: ${costs['text']} credits · Photo / PDF: ${costs['vision_page']} credits per page',
-              style: const TextStyle(fontSize: 11, color: _muted),
-            ),
-          const SizedBox(height: 22),
-          InkWell(
-            onTap: widget.busy || caps == null ? null : widget.onPick,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 210),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFD),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _border),
+          if (compact)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Text(
+                'Add items by speaking them, or by uploading a menu. You check every price before anything is saved.',
+                style: TextStyle(fontSize: 13, height: 1.4, color: _muted),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+            ),
+          if (widget.voiceSection != null) ...[
+            widget.voiceSection!,
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: widget.selectedFile == null
-                          ? Colors.white
-                          : const Color(0xFFDCF9EB),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      widget.selectedFile == null
-                          ? Icons.upload_file_outlined
-                          : Icons.description_outlined,
-                      color: _green,
-                      size: 30,
+                  Expanded(child: Divider(color: _border, height: 1)),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'or',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _muted,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    widget.selectedFile?.name ?? 'Choose a menu photo or PDF',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: _ink,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    widget.selectedFile == null
-                        ? 'Click to browse photo, PDF, CSV, or Excel'
-                        : '${(widget.selectedBytes / 1024).toStringAsFixed(1)} KB · Click to replace file',
-                    style: const TextStyle(fontSize: 12, color: _muted),
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 6,
-                    children: [
-                      'Photo',
-                      'PDF',
-                      'CSV / Excel',
-                    ].map(_badge).toList(),
-                  ),
+                  Expanded(child: Divider(color: _border, height: 1)),
                 ],
               ),
             ),
-          ),
+          ],
+          if (!compact) ...[
+            _heading(
+              Icons.file_upload_outlined,
+              'Upload a menu',
+              'A photo or PDF is turned into items and prices. A spreadsheet keeps the columns you already use.',
+            ),
+            const SizedBox(height: 14),
+          ] else ...[
+            const Text(
+              'Upload a menu',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: _ink,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Use a photo, PDF, or spreadsheet of the menu.',
+              style: TextStyle(fontSize: 13, height: 1.4, color: _muted),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (!compact) ...[
+            Text(
+              unlimited
+                  ? 'Unlimited AI credits on your plan.'
+                  : 'AI credits remaining: ${caps?['ai_credits_remaining'] ?? '—'}',
+              style: const TextStyle(fontSize: 11, color: _muted),
+            ),
+            if (costs is Map)
+              Text(
+                'AI column mapping: ${costs['text']} credits · Photo / PDF: ${costs['vision_page']} credits per page',
+                style: const TextStyle(fontSize: 11, color: _muted),
+              ),
+            const SizedBox(height: 12),
+          ],
+          if (compact)
+            Material(
+              color: const Color(0xFFF8FAFD),
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                onTap: widget.busy || caps == null ? null : widget.onPick,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: fileName == null
+                              ? Colors.white
+                              : const Color(0xFFDCF9EB),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          fileName == null
+                              ? Icons.upload_file_outlined
+                              : Icons.description_outlined,
+                          color: _green,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              fileName ?? 'Photo, PDF, or spreadsheet',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _ink,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              fileName == null
+                                  ? 'Tap to choose a file'
+                                  : '${(widget.selectedBytes / 1024).toStringAsFixed(1)} KB · Tap to replace',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: _muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right_rounded, color: _muted),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            InkWell(
+              onTap: widget.busy || caps == null ? null : widget.onPick,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 210),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFD),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _border),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: widget.selectedFile == null
+                            ? Colors.white
+                            : const Color(0xFFDCF9EB),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        widget.selectedFile == null
+                            ? Icons.upload_file_outlined
+                            : Icons.description_outlined,
+                        color: _green,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.selectedFile?.name ?? 'Choose a menu photo or PDF',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _ink,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      widget.selectedFile == null
+                          ? 'Click to browse photo, PDF, CSV, or Excel'
+                          : '${(widget.selectedBytes / 1024).toStringAsFixed(1)} KB · Click to replace file',
+                      style: const TextStyle(fontSize: 12, color: _muted),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 6,
+                      children: [
+                        'Photo',
+                        'PDF',
+                        'CSV / Excel',
+                      ].map(_badge).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           const SizedBox(height: 14),
           if (mobile && widget.onCamera != null) ...[
             OutlinedButton.icon(
@@ -329,15 +494,15 @@ class _MenuImportViewState extends State<MenuImportView> {
                 ? null
                 : (v) => widget.onAiChanged(v!),
             title: Text(
-              spreadsheet ? 'AI column mapping' : 'Use AI extraction',
+              spreadsheet ? 'Match my column names' : 'Read items and prices',
               style: const TextStyle(fontSize: 13, color: _ink),
             ),
             subtitle: Text(
               caps?['ai_assist_available'] == true
                   ? spreadsheet
-                        ? 'Map columns such as “Dish” or “Amount” to your menu format.'
-                        : 'Extract menu items and prices from your file.'
-                  : 'AI unavailable: ${caps?['ai_unavailable_reason'] ?? 'Checking availability'}',
+                        ? 'Columns such as “Dish” or “Amount” are matched to your menu. You still confirm each price.'
+                        : 'Items and prices are read from the file. You still confirm each price.'
+                  : 'Reading is unavailable: ${caps?['ai_unavailable_reason'] ?? 'Checking availability'}',
               style: const TextStyle(fontSize: 11, color: _muted),
             ),
           ),
@@ -350,7 +515,7 @@ class _MenuImportViewState extends State<MenuImportView> {
                       : widget.onUpload,
                   icon: const Icon(Icons.arrow_forward, size: 16),
                   label: Text(
-                    widget.ai ? 'Extract menu with AI' : 'Import spreadsheet',
+                    widget.ai ? 'Read this menu' : 'Import spreadsheet',
                   ),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 19),
@@ -756,18 +921,21 @@ class _MenuImportViewState extends State<MenuImportView> {
     final status = '${widget.import?['status'] ?? ''}';
     final published =
         widget.terminal && ['completed', 'complete'].contains(status);
+    final handheld = usePosHandheldLayout(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
       appBar: AppBar(
         title: const Text('AI Menu Upload'),
         backgroundColor: Colors.white,
+        automaticallyImplyLeading: !handheld,
         actions: [
-          IconButton(
-            tooltip: 'Close',
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.close_rounded),
-          ),
-          const SizedBox(width: 8),
+          if (!handheld)
+            IconButton(
+              tooltip: 'Close',
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.close_rounded),
+            ),
+          if (!handheld) const SizedBox(width: 8),
         ],
       ),
       bottomNavigationBar: widget.review ? _actionBar() : null,
@@ -775,9 +943,10 @@ class _MenuImportViewState extends State<MenuImportView> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1000),
           child: ListView(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.fromLTRB(handheld ? 16 : 24, handheld ? 12 : 24, handheld ? 16 : 24, 24),
             children: [
-              if (!widget.review &&
+              if (!handheld &&
+                  !widget.review &&
                   !published &&
                   (widget.import == null || widget.terminal)) ...[
                 _panel(
@@ -785,9 +954,9 @@ class _MenuImportViewState extends State<MenuImportView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _heading(
-                        Icons.cloud_upload_outlined,
-                        'AI Menu Upload',
-                        'Upload a photo or PDF of your menu. Review extracted items and prices, then start selling.',
+                        Icons.auto_awesome_rounded,
+                        'Add items to your menu',
+                        'Speak the items, or upload a photo, PDF, or spreadsheet. You review every price before anything is saved.',
                       ),
                       const SizedBox(height: 16),
                       Wrap(
@@ -806,8 +975,18 @@ class _MenuImportViewState extends State<MenuImportView> {
                 ),
                 const SizedBox(height: 20),
               ],
-              _steps(),
-              const SizedBox(height: 20),
+              if (handheld) ...[
+                _steps(),
+                const SizedBox(height: 16),
+              ],
+              if (handheld && canUpload && !published) ...[
+                _uploadPanel(),
+                const SizedBox(height: 16),
+              ],
+              if (!handheld) ...[
+                _steps(),
+                const SizedBox(height: 20),
+              ],
               if (widget.busy) ...[
                 const LinearProgressIndicator(color: _green),
                 const SizedBox(height: 12),
@@ -902,7 +1081,7 @@ class _MenuImportViewState extends State<MenuImportView> {
                   child: const Text('View import errors'),
                 ),
               if (widget.errors != null) _panel(SelectableText(widget.errors!)),
-              if (canUpload && !published) ...[
+              if (!handheld && canUpload && !published) ...[
                 _uploadPanel(),
                 const SizedBox(height: 20),
                 MenuExportSection(

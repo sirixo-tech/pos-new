@@ -13,6 +13,8 @@ import 'pos_navigator.dart';
 import 'pos_network_logo.dart';
 import 'pos_platform_logo.dart';
 import 'pos_powered_by.dart';
+import 'pos_listening_bars.dart';
+import 'pos_voice_search_button.dart';
 
 class PosPrimaryButton extends StatelessWidget {
   const PosPrimaryButton({
@@ -736,6 +738,7 @@ class PosSearchField extends StatefulWidget {
     this.onClear,
     this.onSubmitted,
     this.onScan,
+    this.voiceSearch = false,
     this.onHeldQr,
     this.heldQrLabel,
     this.focusNode,
@@ -749,6 +752,7 @@ class PosSearchField extends StatefulWidget {
   final VoidCallback? onHeldQr;
   final String? heldQrLabel;
   final VoidCallback? onScan;
+  final bool voiceSearch;
   final FocusNode? focusNode;
 
   @override
@@ -758,6 +762,9 @@ class PosSearchField extends StatefulWidget {
 class _PosSearchFieldState extends State<PosSearchField> {
   late FocusNode _focusNode;
   bool _ownedFocus = false;
+  bool _voiceListening = false;
+  String _voiceTranscript = '';
+  Future<void> Function()? _stopVoice;
 
   @override
   void initState() {
@@ -813,7 +820,10 @@ class _PosSearchFieldState extends State<PosSearchField> {
     final wide = MediaQuery.sizeOf(context).width >= 720;
     final l10n = context.l10n;
 
-    return AnimatedContainer(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
       height: 48,
@@ -974,6 +984,24 @@ class _PosSearchFieldState extends State<PosSearchField> {
                 ),
               ),
             ),
+          if (widget.voiceSearch)
+            PosVoiceSearchButton(
+              onBindStop: (stop) => _stopVoice = stop,
+              onListening: (listening, transcript) {
+                if (!mounted) return;
+                setState(() {
+                  _voiceListening = listening;
+                  _voiceTranscript = transcript;
+                });
+              },
+              onText: (words) {
+                widget.controller.value = TextEditingValue(
+                  text: words,
+                  selection: TextSelection.collapsed(offset: words.length),
+                );
+                widget.onChanged(words);
+              },
+            ),
           if (widget.onScan != null)
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -1027,6 +1055,16 @@ class _PosSearchFieldState extends State<PosSearchField> {
             ),
         ],
       ),
+        ),
+        if (_voiceListening) ...[
+          const SizedBox(height: 8),
+          PosListeningStatus(
+            transcript: _voiceTranscript,
+            hint: 'Searching the menu',
+            onStop: () => _stopVoice?.call(),
+          ),
+        ],
+      ],
     );
   }
 }
