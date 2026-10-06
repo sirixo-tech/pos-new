@@ -18,6 +18,7 @@ import 'bluetooth_print_transport.dart';
 import 'macos_usb_discovery.dart';
 import 'network_printer.dart';
 import 'offline_receipt_builder.dart';
+import 'offline_kot_builder.dart';
 import 'pos_channel_print_policy.dart';
 import 'printer_paper_sensor.dart';
 import 'pos_print_payload_filter.dart';
@@ -907,83 +908,11 @@ class PosReceiptPrinter {
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
     }
-    final bytes = _buildOfflineKotBytes(bootstrap: bootstrap, order: order);
+    final bytes = OfflineKotBuilder.buildBytes(bootstrap: bootstrap, order: order);
     if (bytes.isEmpty) {
       throw StateError('Offline kitchen ticket has no items to print.');
     }
     await _dispatchOfflineBytes(config: config, bytes: bytes);
-  }
-
-  static List<int> _buildOfflineKotBytes({
-    required PosBootstrap bootstrap,
-    required PendingOrder order,
-  }) {
-    final snapshot = order.orderData['cart_snapshot'];
-    if (snapshot is! List || snapshot.isEmpty) {
-      throw StateError('Offline kitchen ticket has no items to print.');
-    }
-    final settings = bootstrap.receiptSettings ?? PosReceiptSettings();
-    final builder = EscPosBuilder(
-      typography: ReceiptTypography(
-        receiptWidth: settings.receiptWidth,
-        fontSize: settings.fontSize,
-      ),
-    );
-    builder.initialize();
-    builder.alignCenter();
-    builder.applyBlockStyle('title');
-    builder.text('KOT');
-    builder.clearBlockStyle('title');
-    builder.alignLeft();
-    builder.text(order.displayOrderNumber);
-    final type = (order.orderData['type'] as String?)?.replaceAll('_', ' ');
-    if (type != null && type.trim().isNotEmpty) {
-      builder.text(type.trim());
-    }
-    final tableName = order.orderData['table_name'];
-    final tableId = order.orderData['table_id'];
-    if (tableName is String && tableName.trim().isNotEmpty) {
-      builder.text(tableName.trim());
-    } else if (tableId != null && '$tableId'.trim().isNotEmpty) {
-      builder.text('Table $tableId');
-    }
-    final customer = (order.orderData['customer_name'] as String?)?.trim();
-    if (customer != null && customer.isNotEmpty) {
-      builder.text(customer);
-    }
-    builder.text('--------------------------------');
-    for (final raw in snapshot.whereType<Map>()) {
-      final line = Map<String, dynamic>.from(raw);
-      final name = (line['name'] as String?)?.trim();
-      if (name == null || name.isEmpty) continue;
-      final qty = (line['quantity'] as num?)?.toInt() ?? 1;
-      builder.applyBlockStyle('bold');
-      builder.text('$qty  $name');
-      builder.clearBlockStyle('bold');
-      final mods = line['modifiers'];
-      if (mods is List) {
-        for (final mod in mods.whereType<Map>()) {
-          final modName = (mod['name'] ?? mod['option_name'])
-              ?.toString()
-              .trim();
-          if (modName != null && modName.isNotEmpty) {
-            builder.text('   + $modName');
-          }
-        }
-      }
-      final notes = (line['notes'] as String?)?.trim();
-      if (notes != null && notes.isNotEmpty) {
-        builder.text('   $notes');
-      }
-    }
-    final notes = (order.orderData['notes'] as String?)?.trim();
-    if (notes != null && notes.isNotEmpty) {
-      builder.text('--------------------------------');
-      builder.text(notes);
-    }
-    builder.feed(4);
-    builder.raw(EscPosBuilder.cutSequence(feedLines: 4));
-    return builder.build();
   }
 
   static Future<void> printPaymentQrSlip({

@@ -5,13 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import 'pos_database.dart';
+import 'offline_token_store.dart';
 
-enum PendingOrderStatus {
-  pending,
-  syncing,
-  synced,
-  failed,
-}
+enum PendingOrderStatus { pending, syncing, synced, failed }
 
 class PendingOrder {
   PendingOrder({
@@ -45,6 +41,8 @@ class PendingOrder {
   final DateTime? printedAt;
 
   String get displayOrderNumber => serverOrderNumber ?? localOrderNumber;
+  int? get offlineToken =>
+      int.tryParse(orderData['offline_token']?.toString() ?? '');
   bool get isSynced => status == PendingOrderStatus.synced;
   bool get isPrinted => printedAt != null;
   bool get hasSyncError =>
@@ -56,7 +54,8 @@ class PendingOrder {
       id: row['id'] as int?,
       localUuid: row['local_uuid'] as String,
       branchId: row['branch_id'] as int,
-      orderData: jsonDecode(row['order_data'] as String) as Map<String, dynamic>,
+      orderData:
+          jsonDecode(row['order_data'] as String) as Map<String, dynamic>,
       localOrderNumber: row['local_order_number'] as String,
       status: PendingOrderStatus.values.firstWhere(
         (s) => s.name == row['status'],
@@ -133,8 +132,9 @@ class PendingOrderStore {
 
   static String generateLocalOrderNumber() {
     _localOrderCounter++;
-    final timestamp =
-        DateTime.now().millisecondsSinceEpoch.toString().substring(7);
+    final timestamp = DateTime.now().millisecondsSinceEpoch
+        .toString()
+        .substring(7);
     return 'L$timestamp-$_localOrderCounter';
   }
 
@@ -142,61 +142,70 @@ class PendingOrderStore {
     required int branchId,
     required Map<String, dynamic> orderData,
     String? idempotencyKey,
+    String? tokenScope,
+    OfflineTokenStore? tokenStore,
   }) async {
     final supplied = idempotencyKey?.trim();
-    final localUuid =
-        supplied != null && supplied.isNotEmpty ? supplied : _uuid.v4();
+    final localUuid = supplied != null && supplied.isNotEmpty
+        ? supplied
+        : _uuid.v4();
     final localOrderNumber = generateLocalOrderNumber();
     final now = DateTime.now();
     final data = Map<String, dynamic>.from(orderData)
       ..['idempotency_key'] = localUuid;
 
-    final order = PendingOrder(
-      id: now.millisecondsSinceEpoch,
-      localUuid: localUuid,
-      branchId: branchId,
-      orderData: data,
-      localOrderNumber: localOrderNumber,
-      status: PendingOrderStatus.pending,
-      retryCount: 0,
-      createdAt: now,
-    );
-
-    if (kIsWeb) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          '$_webOrderPrefix$localUuid',
-          jsonEncode(order.toRow()),
+    return (tokenStore ?? OfflineTokenStore.instance).allocate(
+      tokenScope ?? 'branch:$branchId',
+      (token, tx) async {
+        data['offline_token'] = token;
+        final order = PendingOrder(
+          id: now.millisecondsSinceEpoch,
+          localUuid: localUuid,
+          branchId: branchId,
+          orderData: data,
+          localOrderNumber: localOrderNumber,
+          status: PendingOrderStatus.pending,
+          retryCount: 0,
+          createdAt: now,
         );
-        final uuids = prefs.getStringList('$_webBranchList$branchId') ?? [];
-        if (!uuids.contains(localUuid)) {
-          uuids.add(localUuid);
-          await prefs.setStringList('$_webBranchList$branchId', uuids);
+
+        if (kIsWeb) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(
+            '$_webOrderPrefix$localUuid',
+            jsonEncode(order.toRow()),
+          );
+          final uuids = prefs.getStringList('$_webBranchList$branchId') ?? [];
+          if (!uuids.contains(localUuid)) {
+            uuids.add(localUuid);
+            await prefs.setStringList('$_webBranchList$branchId', uuids);
+          }
+          return order;
         }
-      } catch (e) {
-        debugPrint('PendingOrderStore web create failed: $e');
-      }
-      return order;
-    }
 
-    try {
-      final db = await PosDatabase.instance.database;
-      await db.insert('pending_orders', {
-        'local_uuid': localUuid,
-        'branch_id': branchId,
-        'order_data': jsonEncode(data),
-        'local_order_number': localOrderNumber,
-        'status': PendingOrderStatus.pending.name,
-        'retry_count': 0,
-        'created_at': now.millisecondsSinceEpoch,
-      });
+        await tx!.insert('pending_orders', {
+          'local_uuid': localUuid,
+          'branch_id': branchId,
+          'order_data': jsonEncode(data),
+          'local_order_number': localOrderNumber,
+          'status': PendingOrderStatus.pending.name,
+          'retry_count': 0,
+          'created_at': now.millisecondsSinceEpoch,
+        });
 
-      return order;
-    } catch (e) {
-      debugPrint('PendingOrderStore create failed: $e');
-      return order;
-    }
+        return order;
+      },
+      existing: (tx) async {
+        if (tx != null) {
+          final rows = await tx.query('pending_orders',
+            where: 'local_uuid = ? AND branch_id = ?', whereArgs: [localUuid, branchId]);
+          return rows.isEmpty ? null : PendingOrder.fromRow(rows.first);
+        }
+        final prefs = await SharedPreferences.getInstance();
+        final raw = prefs.getString('$_webOrderPrefix$localUuid');
+        return raw == null ? null : PendingOrder.fromRow(Map<String, dynamic>.from(jsonDecode(raw) as Map));
+      },
+    );
   }
 
   /// Orders waiting to sync — includes orphaned `syncing` rows after a crash.

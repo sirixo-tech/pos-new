@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'pos_database_platform.dart';
+import 'offline_token_store.dart';
 
 class PosDatabase {
   PosDatabase._();
@@ -37,7 +38,7 @@ class PosDatabase {
     return factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 3,
+        version: 4,
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       ),
@@ -111,9 +112,13 @@ class PosDatabase {
 
     await _createLocalHeldOrdersTable(db);
     await _createPendingPrintJobsTable(db);
+    await OfflineTokenStore.createTable(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 4) {
+      await OfflineTokenStore.createTable(db);
+    }
     if (oldVersion < 2) {
       await _createLocalHeldOrdersTable(db);
     }

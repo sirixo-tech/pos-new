@@ -17,6 +17,8 @@ class PosBootstrapScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brand = accent ?? PosTheme.defaultAccent;
+    final logoSize = (MediaQuery.sizeOf(context).shortestSide * 0.65)
+        .clamp(120.0, 280.0);
 
     return Scaffold(
       backgroundColor: _canvas,
@@ -42,7 +44,8 @@ class PosBootstrapScreen extends StatelessWidget {
                 children: [
                   Image.asset(
                     PosAppInfo.logoAsset,
-                    height: 64,
+                    width: logoSize,
+                    height: logoSize,
                     fit: BoxFit.contain,
                     filterQuality: FilterQuality.high,
                     semanticLabel: PosAppInfo.displayName,

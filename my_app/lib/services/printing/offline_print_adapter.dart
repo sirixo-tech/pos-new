@@ -43,7 +43,9 @@ class OfflinePrintAdapter {
     final hasPayment = payment != null;
 
     return OfflinePrintOrder(
-      orderNumber: order.displayOrderNumber,
+      // Local IDs are for syncing, not customer-facing bill numbers.
+      orderNumber: order.serverOrderNumber ?? '',
+      token: order.offlineToken,
       orderType: orderType,
       createdAt: order.createdAt,
       customerName: (order.orderData['customer_name'] as String?)?.trim(),
@@ -66,10 +68,7 @@ class OfflinePrintAdapter {
       extraCharges: [
         for (final extra in totals.extraChargeLines)
           if (extra.amount > 0)
-            OfflinePrintExtraCharge(
-              label: extra.label,
-              amount: extra.amount,
-            ),
+            OfflinePrintExtraCharge(label: extra.label, amount: extra.amount),
       ],
       serviceCharge: totals.serviceChargeAmount,
       serviceChargeLabel: bootstrap.restaurant.serviceCharge.label,
@@ -122,7 +121,8 @@ class OfflinePrintAdapter {
             .map((mod) {
               final modMap = Map<String, dynamic>.from(mod);
               return OfflinePrintModifier(
-                optionName: modMap['name'] as String? ??
+                optionName:
+                    modMap['name'] as String? ??
                     modMap['option_name'] as String? ??
                     'Option',
                 priceAdjustment: _asDouble(modMap['price_adjustment']),
@@ -183,7 +183,7 @@ class OfflinePrintAdapter {
       final name = variant != null && menuItem != null
           ? '${menuItem.name} (${variant.name})'
           : menuItem?.name ??
-              (menuItemId != null ? 'Item #$menuItemId' : 'Item');
+                (menuItemId != null ? 'Item #$menuItemId' : 'Item');
 
       return OfflinePrintItem(
         name: name,
@@ -211,7 +211,7 @@ class OfflinePrintAdapter {
           'quantity': map['quantity'] ?? 1,
           'order_type_surcharges':
               catalog.findItem(menuItemId)?.orderTypeSurcharges ??
-                  const <String, dynamic>{},
+              const <String, dynamic>{},
         };
       }).toList();
     }
@@ -226,7 +226,7 @@ class OfflinePrintAdapter {
             'quantity': map['quantity'] ?? 1,
             'order_type_surcharges':
                 catalog.findItem(menuItemId)?.orderTypeSurcharges ??
-                    const <String, dynamic>{},
+                const <String, dynamic>{},
           };
         })
         .toList();

@@ -8,6 +8,7 @@ import '../pos_api.dart';
 import 'connectivity_service.dart';
 import 'offline_order_payload.dart';
 import 'pending_order.dart';
+import 'offline_token_store.dart';
 
 typedef OrderSyncCallback = void Function(PendingOrder order, bool success);
 
@@ -129,6 +130,7 @@ class OrderSyncService extends ChangeNotifier {
       branchId: session.branchId,
       orderData: orderData,
       idempotencyKey: idempotencyKey,
+      tokenScope: OfflineTokenStore.scopeFor(session),
     );
 
     await _refreshCounts();

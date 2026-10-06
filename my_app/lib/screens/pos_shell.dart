@@ -143,10 +143,12 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     final sheetContext = _cartSheetContext;
     if (sheetContext != null && sheetContext.mounted) {
       Navigator.of(sheetContext).maybePop();
-      return;
     }
-    if (_cartOpen && mounted) {
-      setState(() => _cartOpen = false);
+    if (mounted && (_cartOpen || _mobileTab == 1)) {
+      setState(() {
+        _cartOpen = false;
+        if (_mobileTab == 1) _mobileTab = 0;
+      });
     }
   }
 
@@ -1361,12 +1363,22 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
           ],
         ),
         bottomNavigationBar: usePosHandheldLayout(context)
-            ? PosMobileNavBar(
-                index: _mobileTab,
-                cartCount: context.select(
-                  (PosController p) => p.cartItemCount,
-                ),
-                onSelected: _selectMobileTab,
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_mobileTab == 0 && !blocked)
+                    _ViewCartPillHost(
+                      accent: accent,
+                      onTap: () => _selectMobileTab(1),
+                    ),
+                  PosMobileNavBar(
+                    index: _mobileTab,
+                    cartCount: context.select(
+                      (PosController p) => p.cartItemCount,
+                    ),
+                    onSelected: _selectMobileTab,
+                  ),
+                ],
               )
             : null,
       ),

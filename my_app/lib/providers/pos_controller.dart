@@ -11,6 +11,7 @@ import '../models/waiter_alert.dart';
 import '../payments/payment_session.dart';
 import '../payments/payment_session_manager.dart';
 import '../services/offline/offline.dart';
+import '../services/offline/offline_token_store.dart';
 import '../services/order_fulfillment_policy.dart';
 import '../services/pos_api.dart';
 import '../services/pos_cart_sound.dart';
@@ -2306,6 +2307,9 @@ class PosController extends ChangeNotifier {
     if (isOnline) {
       try {
         final orders = await _api.fetchOpenOrders(current);
+        for (final order in orders) {
+          await _rememberOnlineToken(current, order['token']);
+        }
         final drafts = await _paymentDraftRows(current);
         final seen = orders
             .map((order) => parseJsonIntOrNull(order['id']))
@@ -2326,6 +2330,12 @@ class PosController extends ChangeNotifier {
           page: 1,
           perPage: 5,
         );
+        final recentOrders = data['orders'];
+        if (recentOrders is List) {
+          for (final order in recentOrders.whereType<Map>()) {
+            await _rememberOnlineToken(current, order['token']);
+          }
+        }
         final meta = data['meta'];
         if (meta is Map) {
           todayCount = parseJsonInt(meta['total']);
@@ -2802,6 +2812,7 @@ class PosController extends ChangeNotifier {
         );
       }
       lastOrder = order;
+      await _rememberOnlineToken(current, order.token);
       registerSelfPlacedOrder(order.id);
       lastOfflineOrder = null;
       clearCart();
@@ -2880,6 +2891,7 @@ class PosController extends ChangeNotifier {
         );
         await LocalHeldOrderStore.delete(localUuid);
         lastOrder = order;
+        await _rememberOnlineToken(current, order.token);
         registerSelfPlacedOrder(order.id);
         lastOfflineOrder = null;
         clearCart();
@@ -2992,6 +3004,7 @@ class PosController extends ChangeNotifier {
             clearCart();
           }
           lastOrder = order;
+          await _rememberOnlineToken(current, order.token);
           registerSelfPlacedOrder(order.id);
           lastOfflineOrder = null;
           unawaited(refreshHeldOrderCount());
@@ -3071,6 +3084,18 @@ class PosController extends ChangeNotifier {
         msg.contains('timeout');
   }
 
+  Future<void> _rememberOnlineToken(PosSession current, Object? token) async {
+    try {
+      await OfflineTokenStore.instance.observe(
+        OfflineTokenStore.scopeFor(current),
+        token,
+      );
+    } catch (error) {
+      // Cache failure must not turn a successful online sale into another sale.
+      debugPrint('Could not cache token for offline continuation: $error');
+    }
+  }
+
   /// Cart clearing wipes lastOrder. Return the placed sale after that clear.
   PlacedPosOrder _finishOfflineSale(
     PendingOrder offlineOrder, {
@@ -3079,6 +3104,7 @@ class PosController extends ChangeNotifier {
     final placed = PlacedPosOrder(
       id: 0,
       orderNumber: offlineOrder.localOrderNumber,
+      token: offlineOrder.offlineToken?.toString(),
     );
     lastOfflineOrder = offlineOrder;
     if (clearOpenCart) {
