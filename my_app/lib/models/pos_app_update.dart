@@ -1,4 +1,5 @@
 import '../config/pos_app_info.dart';
+import '../utils/platform_info.dart';
 
 class PosAppUpdate {
   const PosAppUpdate({
@@ -41,10 +42,21 @@ class PosAppUpdate {
     if (json == null || json.isEmpty) {
       return PosAppUpdate.none();
     }
+    // Release manifests can contain separate packages for each platform.
+    final devicePlatform = posPlatformLabel();
+    final package = json[devicePlatform];
+    if (package is Map) {
+      json = {
+        ...json,
+        ...Map<String, dynamic>.from(package),
+        'platform': devicePlatform,
+      };
+    }
+    final manifest = json;
 
     String value(List<String> keys) {
       for (final key in keys) {
-        final text = json[key]?.toString().trim() ?? '';
+        final text = manifest[key]?.toString().trim() ?? '';
         if (text.isNotEmpty) return text;
       }
       return '';
@@ -72,7 +84,7 @@ class PosAppUpdate {
         value(const ['download_url', 'installer_url', 'apk_url', 'url']),
       ),
       downloadLabel: _nullable(value(const ['download_label'])),
-      sha256: _checksum(json),
+      sha256: _checksum(manifest),
       signature: _nullable(
         value(const ['signature', 'signature_base64', 'rsa_signature']),
       ),
@@ -217,5 +229,20 @@ Map<String, dynamic>? mergedPosAppUpdateJson(Map<String, dynamic> json) {
   if (raw is! Map) {
     return raw is Map<String, dynamic> ? raw : null;
   }
-  return <String, dynamic>{...json, ...Map<String, dynamic>.from(raw)};
+  // Envelope fields such as `platform` describe the API response, not the
+  // installer. Only inherit release metadata that older APIs put outside
+  // app_update; package fields must come from app_update itself.
+  const releaseKeys = {
+    'latest_version',
+    'min_version',
+    'minimum_version',
+    'required_version',
+    'latest_build',
+    'release_notes',
+  };
+  return <String, dynamic>{
+    for (final key in releaseKeys)
+      if (json.containsKey(key)) key: json[key],
+    ...Map<String, dynamic>.from(raw),
+  };
 }

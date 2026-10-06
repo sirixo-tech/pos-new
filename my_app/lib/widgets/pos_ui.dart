@@ -739,6 +739,7 @@ class PosSearchField extends StatefulWidget {
     this.onSubmitted,
     this.onScan,
     this.voiceSearch = false,
+    this.voiceItemNames = const [],
     this.onHeldQr,
     this.heldQrLabel,
     this.focusNode,
@@ -753,6 +754,7 @@ class PosSearchField extends StatefulWidget {
   final String? heldQrLabel;
   final VoidCallback? onScan;
   final bool voiceSearch;
+  final List<String> voiceItemNames;
   final FocusNode? focusNode;
 
   @override
@@ -986,6 +988,7 @@ class _PosSearchFieldState extends State<PosSearchField> {
             ),
           if (widget.voiceSearch)
             PosVoiceSearchButton(
+              itemNames: widget.voiceItemNames,
               onBindStop: (stop) => _stopVoice = stop,
               onListening: (listening, transcript) {
                 if (!mounted) return;

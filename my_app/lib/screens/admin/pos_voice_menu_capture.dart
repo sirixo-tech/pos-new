@@ -49,6 +49,18 @@ class _PosVoiceMenuCaptureState extends State<PosVoiceMenuCapture> {
     final started = await PosSpeech.instance.listen(
       listenFor: const Duration(seconds: 60),
       pauseFor: const Duration(seconds: 4),
+      onListening: (listening) {
+        if (mounted) setState(() => _listening = listening);
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _listening = false;
+          _message =
+              'Could not recognize speech. Check microphone permission '
+              'and speech recognition settings, then try again.';
+        });
+      },
       onResult: (words, isFinal) {
         if (!mounted) return;
         setState(() {
@@ -125,7 +137,11 @@ class _PosVoiceMenuCaptureState extends State<PosVoiceMenuCapture> {
           const SizedBox(height: 4),
           const Text(
             'Say the item, then the price. Name the category when you want it grouped.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF71839A), height: 1.4),
+            style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF71839A),
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -161,7 +177,7 @@ class _PosVoiceMenuCaptureState extends State<PosVoiceMenuCapture> {
           ],
           if (lines.isNotEmpty) ...[
             const SizedBox(height: 10),
-              for (final line in lines)
+            for (final line in lines)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(

@@ -28,10 +28,10 @@ class PosAppInfo {
   static const primaryColorArgb = 0xFFFF6200;
 
   /// Marketing / semver version from `pubspec.yaml` (`version:` before `+`).
-  static String version = '3.6.0';
+  static String version = '3.7.0';
 
   /// Build number from `pubspec.yaml` (`version:` after `+`).
-  static String buildNumber = '2028';
+  static String buildNumber = '4030';
 
   /// e.g. `1.0.0 (1)`
   static String get versionLabel => '$version ($buildNumber)';

@@ -57,32 +57,39 @@ class _PosListeningBarsState extends State<PosListeningBars>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            for (var i = 0; i < widget.barCount; i++)
-              Container(
-                width: 4,
-                height: widget.active
-                    ? widget.height *
-                          (0.28 +
-                              0.72 *
-                                  _level(
-                                    _controller.value,
-                                    i,
-                                    widget.barCount,
-                                  ))
-                    : widget.height * 0.28,
-                margin: EdgeInsets.only(
-                  right: i == widget.barCount - 1 ? 0 : 4,
-                ),
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-          ],
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: SizedBox(
+            height: widget.height,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < widget.barCount; i++)
+                  Container(
+                    width: 4,
+                    height: widget.active
+                        ? widget.height *
+                              (0.28 +
+                                  0.72 *
+                                      _level(
+                                        _controller.value,
+                                        i,
+                                        widget.barCount,
+                                      ))
+                        : widget.height * 0.28,
+                    margin: EdgeInsets.only(
+                      right: i == widget.barCount - 1 ? 0 : 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         );
       },
     );

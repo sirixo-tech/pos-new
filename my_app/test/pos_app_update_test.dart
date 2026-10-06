@@ -1,8 +1,53 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:my_app/models/pos_app_update.dart';
 
 void main() {
+  test('API envelope platform does not override the update package', () {
+    final merged = mergedPosAppUpdateJson({
+      'platform': 'windows',
+      'download_url': 'https://example.com/windows.exe',
+      'latest_version': '3.6.13',
+      'app_update': {
+        'status': 'optional',
+        'download_url': 'https://example.com/android.apk',
+      },
+    });
+    final update = PosAppUpdate.fromJson(merged);
+    expect(update.platform, isNull);
+    expect(update.downloadUrl, 'https://example.com/android.apk');
+    expect(update.latestVersion, '3.6.13');
+  });
+
+  test('release manifest selects the Android package', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final update = PosAppUpdate.fromJson({
+      'latest_version': '3.6.15',
+      'android': {'download_url': 'https://example.com/android.apk'},
+      'windows': {'download_url': 'https://example.com/windows.exe'},
+    });
+    expect(update.platform, 'android');
+    expect(update.downloadUrl, 'https://example.com/android.apk');
+  });
+
+  test('installed release clears stale update flags and older releases', () {
+    for (final latest in ['3.6.13', '3.6.14']) {
+      final update =
+          PosAppUpdate(
+            status: 'required',
+            currentVersion: '3.6.0',
+            latestVersion: latest,
+            latestBuild: 4029,
+          ).resolvedAgainstInstalled(
+            installedVersion: '3.6.14',
+            installedBuild: 4029,
+          );
+      expect(update.isNone, isTrue);
+      expect(update.currentVersion, '3.6.14');
+    }
+  });
   test('same installed release is equal across server version formats', () {
     for (final version in ['3.6', '3.6.0', '3.6.0+2028', '3.6.0.2028']) {
       final update =

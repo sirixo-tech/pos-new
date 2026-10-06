@@ -1703,6 +1703,13 @@ class _SearchStripState extends State<_SearchStrip> {
             onSubmitted: widget.onSubmitted,
             onScan: widget.onScan,
             voiceSearch: true,
+            voiceItemNames: [
+              for (final item in context.watch<PosController>().flatItems) ...[
+                item.name,
+                for (final translation in item.translations.values)
+                  if (translation['name'] != null) translation['name']!,
+              ],
+            ],
             onHeldQr: held == null || widget.onHeldQr == null
                 ? null
                 : () => widget.onHeldQr!(held),

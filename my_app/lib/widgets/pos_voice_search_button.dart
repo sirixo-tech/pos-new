@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import '../services/pos_speech.dart';
+import '../services/menu_voice_matcher.dart';
 import '../theme/pos_theme.dart';
 import 'pos_listening_bars.dart';
 
@@ -13,11 +14,15 @@ class PosVoiceSearchButton extends StatefulWidget {
     required this.onText,
     this.onListening,
     this.onBindStop,
+    this.speech,
+    this.itemNames = const [],
   });
 
   final ValueChanged<String> onText;
   final void Function(bool listening, String transcript)? onListening;
   final void Function(Future<void> Function() stop)? onBindStop;
+  final PosSpeech? speech;
+  final List<String> itemNames;
 
   @override
   State<PosVoiceSearchButton> createState() => _PosVoiceSearchButtonState();
@@ -25,38 +30,85 @@ class PosVoiceSearchButton extends StatefulWidget {
 
 class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton> {
   var _listening = false;
+  String _transcript = '';
+  PosSpeech get _speech => widget.speech ?? PosSpeech.instance;
 
   void _setListening(bool listening, [String transcript = '']) {
-    if (mounted) setState(() => _listening = listening);
+    if (!mounted) return;
+    _transcript = transcript;
+    setState(() => _listening = listening);
     widget.onListening?.call(listening, transcript);
+  }
+
+  Future<void> _stop() async {
+    _setListening(false, _transcript);
+    await _speech.stop();
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    _setListening(false, _transcript);
+    ScaffoldMessenger.maybeOf(
+      context,
+    )?.showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _toggle() async {
     if (_listening) {
-      await PosSpeech.instance.stop();
-      _setListening(false);
+      await _stop();
       return;
     }
     _setListening(true);
-    final started = await PosSpeech.instance.listen(
+    if (widget.itemNames.isEmpty) {
+      _showError('Load the menu before using voice search.');
+      return;
+    }
+    final started = await _speech.listen(
+      vocabulary: menuVoiceVocabulary(widget.itemNames),
       mode: ListenMode.search,
-      listenFor: const Duration(seconds: 8),
-      pauseFor: const Duration(milliseconds: 1200),
+      listenFor: const Duration(seconds: 20),
+      pauseFor: const Duration(seconds: 5),
+      onListening: (listening) {
+        if (!mounted) return;
+        _setListening(listening, _transcript);
+      },
+      onError: (error) => _showError(
+        'Voice search could not recognize speech. Check microphone permission '
+        'and the device speech language, then try again. ($error)',
+      ),
       onResult: (words, isFinal) {
-        final text = words.trim().replaceAll(RegExp(r'[.!?]+$'), '');
-        if (text.isEmpty) return;
-        widget.onText(text);
-        widget.onListening?.call(true, text);
-        if (isFinal) _setListening(false, text);
+        if (!mounted) return;
+        final text = matchMenuVoice(words, widget.itemNames);
+        if (text == null) {
+          if (isFinal) {
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'No matching menu item heard. Say the item name again.',
+                ),
+              ),
+            );
+          }
+          return;
+        }
+        if (isFinal) widget.onText(text);
+        _setListening(!isFinal, text);
+        if (isFinal) _speech.stop();
       },
     );
-    if (!started) _setListening(false);
+    if (!mounted) return;
+    if (!started && _listening) {
+      _showError(
+        'Voice search is unavailable. Check microphone permission '
+        'and speech recognition settings on this device.',
+      );
+    }
   }
 
   @override
   void dispose() {
     if (_listening) {
-      PosSpeech.instance.stop();
+      _speech.stop();
     }
     super.dispose();
   }
@@ -64,7 +116,7 @@ class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton> {
   @override
   void initState() {
     super.initState();
-    widget.onBindStop?.call(_toggle);
+    widget.onBindStop?.call(_stop);
   }
 
   @override
