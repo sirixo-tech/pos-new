@@ -30,6 +30,7 @@ class PosOrdersSheet extends StatefulWidget {
     this.initialFilter = 'today',
     this.asSidePanel = false,
     this.deliveryOnly = false,
+    this.embedded = false,
   });
 
   /// `held`, `orders`, or `cancelled`
@@ -43,6 +44,9 @@ class PosOrdersSheet extends StatefulWidget {
 
   /// Restrict the Orders tab to marketplace / delivery tickets.
   final bool deliveryOnly;
+
+  /// Fill the phone tab. The list is the same screen, without the sheet close.
+  final bool embedded;
 
   static Future<void> open(
     BuildContext context, {
@@ -889,7 +893,9 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
           heldCount: _heldCount,
           loading: _loading,
           onRefresh: _load,
-          onClose: () => Navigator.of(context).maybePop(),
+          onClose: widget.embedded
+              ? null
+              : () => Navigator.of(context).maybePop(),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -1119,6 +1125,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) return _buildBody(context);
     if (widget.asSidePanel) {
       return PosSidePanelShell(
         child: _buildBody(context),
@@ -1158,7 +1165,7 @@ class _SheetHeader extends StatelessWidget {
   final int heldCount;
   final bool loading;
   final VoidCallback onRefresh;
-  final VoidCallback onClose;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -1245,11 +1252,12 @@ class _SheetHeader extends StatelessWidget {
                   )
                 : const Icon(Icons.refresh_rounded),
           ),
-          IconButton(
-            tooltip: context.l10n.commonClose,
-            onPressed: onClose,
-            icon: const Icon(Icons.close_rounded),
-          ),
+          if (onClose != null)
+            IconButton(
+              tooltip: context.l10n.commonClose,
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded),
+            ),
         ],
       ),
     );

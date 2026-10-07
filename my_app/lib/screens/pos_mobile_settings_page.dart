@@ -93,12 +93,12 @@ class PosMobileNavBar extends StatelessWidget {
   const PosMobileNavBar({
     super.key,
     required this.index,
-    required this.cartCount,
+    required this.ordersCount,
     required this.onSelected,
   });
 
   final int index;
-  final int cartCount;
+  final int ordersCount;
   final ValueChanged<int> onSelected;
 
   @override
@@ -108,10 +108,10 @@ class PosMobileNavBar extends StatelessWidget {
     final soft = posAccentSoft(accent);
     const items = [
       (Icons.point_of_sale_rounded, 'POS'),
-      (Icons.shopping_bag_rounded, 'Cart'),
+      (Icons.receipt_long_rounded, 'Orders'),
       (Icons.flare_rounded, 'AI'),
+      (Icons.menu_book_rounded, 'Menu'),
       (Icons.bar_chart_rounded, 'Reports'),
-      (Icons.tune_rounded, 'Settings'),
     ];
 
     return ColoredBox(
@@ -147,7 +147,7 @@ class PosMobileNavBar extends StatelessWidget {
                         selected: index == i,
                         accent: accent,
                         capsule: soft.bg,
-                        badge: i == 1 && cartCount > 0 ? cartCount : null,
+                        badge: i == 1 && ordersCount > 0 ? ordersCount : null,
                         onTap: () => onSelected(i),
                       ),
                     ),

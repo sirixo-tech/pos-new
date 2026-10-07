@@ -12,6 +12,7 @@ import '../payments/payment_session_manager.dart';
 import '../providers/kitchen_controller.dart';
 import '../providers/pos_catalog_layout_settings.dart';
 import '../providers/pos_category_bar_settings.dart';
+import '../providers/pos_admin_controller.dart';
 import '../providers/pos_controller.dart';
 import '../providers/pos_locale_controller.dart';
 import '../services/customer_display/customer_display_broker.dart';
@@ -56,6 +57,7 @@ import '../widgets/pos_scan_to_print_dialog.dart';
 import '../widgets/pos_system_status_dialog.dart';
 import '../widgets/pos_ui.dart';
 import '../widgets/staff_notifications_panel.dart';
+import 'admin/admin_menu_screen.dart';
 import 'admin/admin_shell.dart';
 import 'kitchen/kitchen_panel.dart';
 import 'pos_orders_sheet.dart';
@@ -144,11 +146,8 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     if (sheetContext != null && sheetContext.mounted) {
       Navigator.of(sheetContext).maybePop();
     }
-    if (mounted && (_cartOpen || _mobileTab == 1)) {
-      setState(() {
-        _cartOpen = false;
-        if (_mobileTab == 1) _mobileTab = 0;
-      });
+    if (mounted && _cartOpen) {
+      setState(() => _cartOpen = false);
     }
   }
 
@@ -157,34 +156,6 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       _mobileTab = index;
       _seenMobileTabs.add(index);
     });
-  }
-
-  Future<void> _onMobileSettings(String value) {
-    final pos = context.read<PosController>();
-    return handlePosRegisterMoreAction(
-      context: context,
-      pos: pos,
-      l10n: context.l10n,
-      value: value,
-      hasPin: pos.session?.hasPosPin == true,
-      onOpenPartnerOrders: _openPartnerOrders,
-      onOpenDayEndReports: () => _selectMobileTab(3),
-      onOpenNotifications: _openNotifications,
-      onOpenDelivery: _openDeliveryOrders,
-      onRefreshMenu: _refreshMenuFromShell,
-      onOpenCustomerDisplay: () => showCustomerDisplayStatusDialog(context),
-    );
-  }
-
-  Future<void> _refreshMenuFromShell() async {
-    final pos = context.read<PosController>();
-    try {
-      await pos.refreshBootstrap();
-      if (!mounted) return;
-      showPosSnackBar(context, context.l10n.shellMenuRefreshed);
-    } catch (e) {
-      if (mounted) showPosErrorSnackBar(context, e);
-    }
   }
 
   Widget _handheldTabs(Color accent) {
@@ -197,33 +168,33 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       index: _mobileTab,
       children: [
         _phoneLayout(accent),
-        tab(1, _mobileCart()),
+        tab(
+          1,
+          const PosOrdersSheet(initialTab: 'orders', embedded: true),
+        ),
         tab(
           2,
           const AdminMenuImportScreen(enableVoice: true),
         ),
-        tab(
-          3,
-          PosMobileReportsPage(onPrint: _printThermalReport),
-        ),
+        tab(3, _mobileMenu()),
         tab(
           4,
-          PosMobileSettingsPage(onSelected: _onMobileSettings),
+          PosMobileReportsPage(onPrint: _printThermalReport),
         ),
       ],
     );
   }
 
-  Widget _mobileCart() {
-    return ColoredBox(
-      color: PosTheme.surface,
-      child: PosCartPanel(
-        compact: true,
-        onPay: () => _onPay(quickMethod: 'more'),
-        onPayMethod: (method) => _onPay(quickMethod: method),
-        onPark: _onPark,
-        onOpenHeld: _openHeldOrders,
-      ),
+  Widget _mobileMenu() {
+    return Builder(
+      builder: (context) {
+        final pos = context.read<PosController>();
+        final api = context.read<PosApi>();
+        return ChangeNotifierProvider(
+          create: (_) => PosAdminController(api: api, pos: pos),
+          child: const AdminMenuScreen(),
+        );
+      },
     );
   }
 
@@ -1327,7 +1298,13 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         backgroundColor: PosTheme.canvas,
         appBar: PosRegisterAppBar(
           accent: accent,
-          onOpenDayEndReports: _openDayEndReports,
+          onOpenDayEndReports: () {
+            if (usePosHandheldLayout(context)) {
+              _selectMobileTab(4);
+              return;
+            }
+            _openDayEndReports();
+          },
           onOpenOrders: _openOrders,
           onOpenDelivery: _openDeliveryOrders,
           onOpenPartnerOrders: _openPartnerOrders,
@@ -1381,7 +1358,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
               Positioned(
                 right: 16,
                 bottom: 16,
-                child: _MobileCartShortcut(onTap: () => _selectMobileTab(1)),
+                child: _MobileCartShortcut(onTap: _openCart),
               ),
             const NewOrderAlertBannerHost(),
           ],
@@ -1389,7 +1366,9 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         bottomNavigationBar: usePosHandheldLayout(context)
             ? PosMobileNavBar(
                 index: _mobileTab,
-                cartCount: context.select((PosController p) => p.cartItemCount),
+                ordersCount: context.select(
+                  (PosController p) => p.todayOrderCount,
+                ),
                 onSelected: _selectMobileTab,
               )
             : null,
@@ -2529,14 +2508,15 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
                 badgeColor: const Color(0xFFEA580C),
                 onPressed: onOpenDelivery,
               ),
-            _HeaderIconButton(
-              tooltip: l10n.shellOrders,
-              label: showActionLabels ? l10n.shellOrders : null,
-              icon: Icons.receipt_long_rounded,
-              badgeCount: ordersCount,
-              badgeColor: accent,
-              onPressed: onOpenOrders,
-            ),
+            if (!handheld)
+              _HeaderIconButton(
+                tooltip: l10n.shellOrders,
+                label: showActionLabels ? l10n.shellOrders : null,
+                icon: Icons.receipt_long_rounded,
+                badgeCount: ordersCount,
+                badgeColor: accent,
+                onPressed: onOpenOrders,
+              ),
             if (!handheld)
               _HeaderIconButton(
                 tooltip: l10n.waiterNavAlerts,
@@ -2558,9 +2538,8 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
           ],
         ),
-        if (!handheld) ...[
-          const SizedBox(width: 6),
-          _HeaderSegment(
+        const SizedBox(width: 6),
+        _HeaderSegment(
             children: [
               PosMoreMenuButton(
                 accent: accent,
@@ -2600,7 +2579,6 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ],
           ),
-        ],
         const SizedBox(width: 10),
       ],
     );
