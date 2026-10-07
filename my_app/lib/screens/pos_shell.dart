@@ -262,13 +262,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
 
   Future<void> _openPrinterSetupAfterLogin(PosController pos) async {
     if (pos.phase == PosAppPhase.ready) {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(builder: (_) => const PrinterSetupScreen()),
-      );
-      if (!mounted) return;
-      await context.read<PrinterStatusService>().refresh(
-        allowBluetoothScan: true,
-      );
+      await PrinterSetupScreen.open(context);
     }
     if (mounted) await _maybePromptSetPosPin(pos);
   }
@@ -1842,6 +1836,10 @@ class _MenuScrollBody extends StatelessWidget {
         final paneWidth = constraints.maxWidth;
         final handheld = usePosHandheldLayout(context);
         final crossAxisCount = posMenuGridCrossAxisCount(paneWidth);
+        final screenSize = MediaQuery.sizeOf(context);
+        final compactRegisterGrid = !handheld &&
+            screenSize.width >= 900 && screenSize.width <= 1100 &&
+            screenSize.height >= 700;
 
         return CustomScrollView(
           slivers: [
@@ -1918,7 +1916,7 @@ class _MenuScrollBody extends StatelessWidget {
                           crossAxisCount: handheld ? 2 : crossAxisCount,
                           mainAxisExtent: handheld
                               ? handheldMenuCardExtent(context, paneWidth)
-                              : null,
+                              : compactRegisterGrid ? 130 : null,
                           mainAxisSpacing: 14,
                           crossAxisSpacing: 14,
                           childAspectRatio: posMenuGridChildAspectRatio(

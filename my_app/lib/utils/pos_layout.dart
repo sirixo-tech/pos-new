@@ -56,7 +56,7 @@ PosDesktopPanelLayout resolvePosDesktopPanelLayout({
   if (!kotOpen) {
     final cart = sideBudget.clamp(
       short ? 280.0 : 320.0,
-      PosTheme.cartPanelWidth,
+      totalWidth <= 1100 ? 320.0 : PosTheme.cartPanelWidth,
     );
     return PosDesktopPanelLayout(
       kotColumnWidth: 0,
@@ -94,8 +94,9 @@ int posMenuGridCrossAxisCount(double width) {
   // menu pane after the category rail and ticket have taken their space.
   if (width >= 1040) return 6;
   if (width >= 860) return 5;
-  if (width >= 680) return 4;
-  if (width >= 440) return 3;
+  if (width >= 540) return 4;
+  // A 1024px register leaves about 392px after its rail, cart and padding.
+  if (width >= 380) return 3;
   return 2;
 }
 

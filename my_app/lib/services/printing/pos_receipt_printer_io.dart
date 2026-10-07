@@ -590,6 +590,7 @@ class PosReceiptPrinter {
       if (await PrinterManager.instance
           .isConnected(printer)
           .timeout(const Duration(seconds: 2))) {
+        await _prepareBluetoothServices(printer);
         _rememberBluetooth(printer);
         return PrinterHealth(
           state: PrinterHealthState.ready,
@@ -610,6 +611,12 @@ class PosReceiptPrinter {
     final connected = await _connectBluetooth(printer);
     if (!connected) {
       bleLinkIsLive = false;
+      return _disconnectedHealth(config, checkedAt, bluetooth: true);
+    }
+    try {
+      await _prepareBluetoothServices(printer);
+    } catch (_) {
+      await _dropBluetooth(printer);
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
     _rememberBluetooth(printer);
@@ -1283,7 +1290,11 @@ class PosReceiptPrinter {
               .isConnected(printer)
               .timeout(const Duration(seconds: 2)),
           connect: () => _connectBluetooth(printer),
-          write: () => _writeBluetooth(printer, bytes),
+          write: () async {
+            // Recover a stale GATT session before any receipt bytes are sent.
+            var services = await _prepareBluetoothServices(printer);
+            await _writeBluetooth(printer, bytes, services);
+          },
           connectionError: thermalPrinterConnectError(
             config.name,
             bluetooth: true,
@@ -1291,7 +1302,7 @@ class PosReceiptPrinter {
         );
         _rememberBluetooth(printer);
       } catch (_) {
-        bleLinkIsLive = false;
+        await _dropBluetooth(printer);
         rethrow;
       }
     });
@@ -1299,10 +1310,29 @@ class PosReceiptPrinter {
 
   // The thermal plugin catches BLE write errors and returns success. Write
   // through its underlying device API so failed/partial tickets stay pending.
-  static Future<void> _writeBluetooth(Printer printer, List<int> bytes) async {
-    final services = await printer.discoverServices().timeout(
-      const Duration(seconds: 8),
-    );
+  static Future<List<BleService>> _prepareBluetoothServices(Printer printer) async {
+    Future<List<BleService>> discover(Duration timeout) async {
+      final services = await printer.discoverServices().timeout(timeout);
+      if (!services.any((service) => service.characteristics.any(
+          (characteristic) => characteristic.properties.any(
+              (property) => property.name == 'write')))) {
+        throw StateError('Bluetooth printer has no writable characteristic.');
+      }
+      return services;
+    }
+    try {
+      return await discover(const Duration(seconds: 8));
+    } catch (_) {
+      await _dropBluetooth(printer);
+      if (!await _connectBluetooth(printer)) {
+        throw StateError('Could not reconnect to the Bluetooth printer.');
+      }
+      return await discover(const Duration(seconds: 15));
+    }
+  }
+
+  static Future<void> _writeBluetooth(Printer printer, List<int> bytes,
+      List<BleService> services) async {
     for (final service in services) {
       for (final characteristic in service.characteristics) {
         if (!characteristic.properties.any(

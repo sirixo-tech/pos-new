@@ -840,6 +840,9 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                       style: FilledButton.styleFrom(
                         backgroundColor: color,
                         foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         minimumSize: const Size(0, 52),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                       ),
@@ -873,6 +876,9 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                           style: FilledButton.styleFrom(
                             backgroundColor: holdTone.bg,
                             foregroundColor: holdTone.fg,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             disabledBackgroundColor: PosTheme.surfaceMuted,
                             disabledForegroundColor: PosTheme.inkFaint,
                             minimumSize: const Size(0, 52),
@@ -2345,13 +2351,15 @@ class _CartLineRow extends StatelessWidget {
     final hasNote = line.notes?.trim().isNotEmpty == true;
 
     if (usePosHandheldLayout(context)) {
+      const green = Color(0xFF2E9347);
+      final deleteTone = posStatusColors('cancelled');
       return Material(
-        color: PosTheme.surface,
+        color: PosTheme.isDark ? PosTheme.surface : const Color(0xFFF4FAF6),
         borderRadius: BorderRadius.circular(10),
         child: Container(
           padding: const EdgeInsets.fromLTRB(10, 2, 4, 4),
           decoration: BoxDecoration(
-            border: Border.all(color: PosTheme.border),
+            border: Border.all(color: green.withValues(alpha: 0.25), width: 1.3),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
@@ -2369,15 +2377,28 @@ class _CartLineRow extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
                         color: PosTheme.ink,
                       ),
                     ),
                   ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(color: PosTheme.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: PosTheme.border)),
+                    child: Text(formatMoney(line.lineTotal, currency),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                        color: PosTheme.ink)),
+                  ),
                   IconButton(
                     tooltip: 'Remove item',
                     onPressed: onRemove,
+                    style: IconButton.styleFrom(
+                      foregroundColor: deleteTone.fg,
+                      backgroundColor: deleteTone.bg,
+                    ),
                     icon: const Icon(Icons.delete_outline_rounded, size: 18),
                   ),
                 ],
@@ -2396,32 +2417,21 @@ class _CartLineRow extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      formatMoney(line.lineTotal, currency),
+                      '${line.unitPrice.toStringAsFixed(2)} × ${line.quantity}',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: soft.fg,
+                        color: PosTheme.inkMuted,
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Decrease quantity',
-                    onPressed: onDecrement,
-                    icon: const Icon(Icons.remove_rounded, size: 18),
-                  ),
-                  Text(
-                    '${line.quantity}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                  SizedBox(
+                    width: 126,
+                    child: _QtyStepper(
+                      quantity: line.quantity, accent: accent,
+                      onDecrement: onDecrement, onIncrement: onIncrement,
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Increase quantity',
-                    onPressed: onIncrement,
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                  ),
-                  IconButton(
+                  ),                  IconButton(
                     tooltip: 'Item notes',
                     onPressed: onToggleExpanded,
                     icon: Icon(
@@ -2864,13 +2874,12 @@ class _QtyStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final soft = posAccentSoft(accent);
     return Container(
-      padding: const EdgeInsets.all(3.33),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: PosTheme.surfaceMuted,
-        borderRadius: BorderRadius.circular(PosTheme.radiusMd),
-        border: Border.all(color: PosTheme.border),
+        color: PosTheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFBBD8C3)),
       ),
       child: Row(
         children: [
@@ -2886,7 +2895,7 @@ class _QtyStepper extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.w800,
                 fontSize: 12.57,
-                color: soft.fg,
+                color: PosTheme.ink,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
@@ -2915,22 +2924,17 @@ class _QtyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final soft = posAccentSoft(accent);
+    final increase = icon == Icons.add_rounded;
+    final color = increase ? const Color(0xFF2E9347) : const Color(0xFFFF7900);
     return Material(
-      color: PosTheme.surface,
-      borderRadius: BorderRadius.circular(PosTheme.radiusSm),
+      color: increase ? const Color(0xFFE0F2E6) : const Color(0xFFFFEADC),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(PosTheme.radiusSm),
         child: Container(
-          width: 33.52,
-          height: 30.18,
+          width: 40,
+          height: 40,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(PosTheme.radiusSm),
-            border: Border.all(color: accent.withValues(alpha: 0.28)),
-          ),
-          child: Icon(icon, size: 15.05, color: soft.fg),
+          child: Icon(icon, size: 22, color: color),
         ),
       ),
     );
