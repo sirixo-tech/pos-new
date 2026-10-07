@@ -224,6 +224,7 @@ class _PosMoreMenuHeader extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
+                fontSize: MediaQuery.sizeOf(context).width < 600 ? 16 : null,
                 letterSpacing: -0.2,
                 color: PosTheme.ink,
               ),
@@ -499,7 +500,8 @@ class _PosMoreMenuTile extends StatelessWidget {
         onTap: customizing ? onToggleHidden : onTap,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          padding: EdgeInsets.symmetric(horizontal: 12,
+            vertical: MediaQuery.sizeOf(context).width < 600 ? 8 : 11),
           child: Row(
             children: [
               Container(
@@ -519,7 +521,7 @@ class _PosMoreMenuTile extends StatelessWidget {
                     Text(
                       item.label,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: MediaQuery.sizeOf(context).width < 600 ? 13 : 14,
                         fontWeight: FontWeight.w600,
                         color: fg,
                       ),

@@ -61,6 +61,7 @@ import 'admin/admin_menu_screen.dart';
 import 'admin/admin_shell.dart';
 import 'kitchen/kitchen_panel.dart';
 import 'pos_orders_sheet.dart';
+import 'printer_setup_screen.dart';
 import 'pos_register_more_actions.dart';
 import 'admin/admin_menu_import_screen.dart';
 import 'pos_mobile_reports_page.dart';
@@ -158,6 +159,41 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     });
   }
 
+  PosController? _printerSetupPos;
+  bool _printerSetupOpened = false;
+
+  void _checkPrinterSetupAfterLogin() {
+    final pos = _printerSetupPos;
+    if (!mounted || pos == null || _printerSetupOpened ||
+        pos.phase != PosAppPhase.ready) {
+      return;
+    }
+    _printerSetupOpened = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (pos.phase != PosAppPhase.ready) {
+        _printerSetupOpened = false;
+        return;
+      }
+      unawaited(_openPrinterSetupAfterLogin(pos));
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  Future<void> _onMobileSettings(String value) {
+    final pos = context.read<PosController>();
+    return handlePosRegisterMoreAction(
+      context: context, pos: pos, l10n: context.l10n, value: value,
+      hasPin: pos.session?.hasPosPin == true,
+      onOpenPartnerOrders: _openPartnerOrders,
+      onOpenDayEndReports: () => _selectMobileTab(4),
+      onOpenNotifications: _openNotifications,
+      onOpenDelivery: _openDeliveryOrders,
+      onRefreshMenu: () => pos.refreshBootstrap(),
+      onOpenCustomerDisplay: () => showCustomerDisplayStatusDialog(context),
+    );
+  }
+
   Widget _handheldTabs(Color accent) {
     Widget tab(int index, Widget child) {
       if (!_seenMobileTabs.contains(index)) return const SizedBox.shrink();
@@ -170,17 +206,20 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         _phoneLayout(accent),
         tab(
           1,
-          const PosOrdersSheet(initialTab: 'orders', embedded: true),
+          PosOrdersSheet(initialTab: 'orders', embedded: true,
+            onResume: () => _selectMobileTab(0)),
         ),
         tab(
           2,
           const AdminMenuImportScreen(enableVoice: true),
         ),
-        tab(3, _mobileMenu()),
+        // Load the editor while POS is visible, and retain its data between tabs.
+        _mobileMenu(),
         tab(
           4,
           PosMobileReportsPage(onPrint: _printThermalReport),
         ),
+        tab(5, PosMobileSettingsPage(onSelected: _onMobileSettings)),
       ],
     );
   }
@@ -190,6 +229,9 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       builder: (context) {
         final pos = context.read<PosController>();
         final api = context.read<PosApi>();
+        if (pos.bootstrap?.adminCapabilities.canAccessAdmin != true) {
+          return const Center(child: Text('Menu access is not available for this account.'));
+        }
         return ChangeNotifierProvider(
           create: (_) => PosAdminController(api: api, pos: pos),
           child: const AdminMenuScreen(),
@@ -210,10 +252,25 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       final pos = context.read<PosController>();
       pos.refreshHeldOrderCount();
       unawaited(pos.refreshRegisterBillAlerts(silent: true));
-      unawaited(_maybePromptSetPosPin(pos));
+      _printerSetupPos = pos;
+      pos.addListener(_checkPrinterSetupAfterLogin);
+      _checkPrinterSetupAfterLogin();
       unawaited(_loadKotDockState());
       unawaited(_bootKitchenIfNeeded());
     });
+  }
+
+  Future<void> _openPrinterSetupAfterLogin(PosController pos) async {
+    if (pos.phase == PosAppPhase.ready) {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(builder: (_) => const PrinterSetupScreen()),
+      );
+      if (!mounted) return;
+      await context.read<PrinterStatusService>().refresh(
+        allowBluetoothScan: true,
+      );
+    }
+    if (mounted) await _maybePromptSetPosPin(pos);
   }
 
   Future<void> _loadKotDockState() async {
@@ -374,6 +431,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _printerSetupPos?.removeListener(_checkPrinterSetupAfterLogin);
     WidgetsBinding.instance.removeObserver(this);
     HardwareKeyboard.instance.removeHandler(_handleClearCartShortcut);
     _searchController.dispose();
@@ -1298,6 +1356,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         backgroundColor: PosTheme.canvas,
         appBar: PosRegisterAppBar(
           accent: accent,
+          onOpenSettings: () => _selectMobileTab(5),
           onOpenDayEndReports: () {
             if (usePosHandheldLayout(context)) {
               _selectMobileTab(4);
@@ -2240,6 +2299,7 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.kotOpenCount = 0,
     this.onToggleKotDock,
     this.statusControl,
+    this.onOpenSettings,
   });
 
   final Color accent;
@@ -2255,6 +2315,7 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
   final int kotOpenCount;
   final VoidCallback? onToggleKotDock;
   final Widget? statusControl;
+  final VoidCallback? onOpenSettings;
 
   @override
   Size get preferredSize => Size.fromHeight(PosTheme.headerPx(56));
@@ -2541,7 +2602,13 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
         const SizedBox(width: 6),
         _HeaderSegment(
             children: [
-              PosMoreMenuButton(
+              if (handheld)
+                _HeaderIconButton(
+                  tooltip: 'Settings',
+                  icon: Icons.settings_rounded,
+                  onPressed: onOpenSettings ?? () {},
+                )
+              else PosMoreMenuButton(
                 accent: accent,
                 embedded: true,
                 tooltip: l10n.shellMore,

@@ -1,6 +1,7 @@
 import 'esc_pos_builder.dart';
 import 'receipt_typography.dart';
 import 'thermal_logo.dart';
+import 'package:qr/qr.dart';
 
 /// Executes server-generated print_object commands on a thermal printer.
 class PrintObjectExecutor {
@@ -213,7 +214,13 @@ class PrintObjectExecutor {
     if (data.trim().isEmpty) return;
 
     _applyAlign(esc, _alignFrom(command['align']));
-    esc.qrCode(data);
+    final code = QrCode.fromData(data: data, errorCorrectLevel: QrErrorCorrectLevel.M);
+    // Reserve four blank modules on each side; use larger dots on wide heads.
+    final preferredSize = _typography.paperWidthDots >= 576 ? 6 : 4;
+    final fittingSize = (_typography.paperWidthDots / (code.moduleCount + 8)).floor();
+    final moduleSize = preferredSize.clamp(1, fittingSize.clamp(1, 16));
+    esc.feed(1);
+    esc.qrCode(data, moduleSize: moduleSize);
     esc.feed(1);
     esc.resetToBaseFont();
   }

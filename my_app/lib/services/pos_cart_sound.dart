@@ -49,7 +49,7 @@ class PosCartSound {
   bool _contextReady = false;
 
   bool clickEnabled = true;
-  bool orderAlertEnabled = false;
+  bool orderAlertEnabled = true;
   bool kitchenAlertEnabled = false;
   String clickTone = 'pos-beep';
   String orderTone = 'new_order';
@@ -64,7 +64,7 @@ class PosCartSound {
     if (_loaded) return;
     final prefs = await SharedPreferences.getInstance();
     clickEnabled = prefs.getBool(_clickEnabledKey) ?? true;
-    orderAlertEnabled = prefs.getBool(_orderEnabledKey) ?? false;
+    orderAlertEnabled = prefs.getBool(_orderEnabledKey) ?? true;
     kitchenAlertEnabled = prefs.getBool(_kitchenEnabledKey) ?? false;
     clickTone = prefs.getString(_clickToneKey) ?? 'pos-beep';
     orderTone = prefs.getString(_orderToneKey) ?? 'new_order';

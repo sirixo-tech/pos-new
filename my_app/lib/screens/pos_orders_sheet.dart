@@ -31,6 +31,7 @@ class PosOrdersSheet extends StatefulWidget {
     this.asSidePanel = false,
     this.deliveryOnly = false,
     this.embedded = false,
+    this.onResume,
   });
 
   /// `held`, `orders`, or `cancelled`
@@ -44,9 +45,8 @@ class PosOrdersSheet extends StatefulWidget {
 
   /// Restrict the Orders tab to marketplace / delivery tickets.
   final bool deliveryOnly;
-
-  /// Fill the phone tab. The list is the same screen, without the sheet close.
   final bool embedded;
+  final VoidCallback? onResume;
 
   static Future<void> open(
     BuildContext context, {
@@ -290,7 +290,11 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
       );
       if (!mounted) return;
       final label = pos.parkedOrderLabel ?? context.l10n.ordersHeldTicket;
-      Navigator.of(context).maybePop();
+      if (widget.embedded) {
+        widget.onResume?.call();
+      } else {
+        Navigator.of(context).maybePop();
+      }
       showPosSnackBar(context, context.l10n.ordersLoaded(label));
     } catch (e) {
       if (!mounted) return;
@@ -892,10 +896,9 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
           deliveryOnly: widget.deliveryOnly,
           heldCount: _heldCount,
           loading: _loading,
+          compact: widget.embedded,
           onRefresh: _load,
-          onClose: widget.embedded
-              ? null
-              : () => Navigator.of(context).maybePop(),
+          onClose: () => Navigator.of(context).maybePop(),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -1079,6 +1082,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
                                 ? localUuid == parkedLocalUuid
                                 : id != null && id == parkedId;
                             return _OrderCard(
+                              compact: widget.embedded,
                               order: order,
                               heldStyle: _isHeldTab,
                               active: isActive,
@@ -1125,7 +1129,12 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.embedded) return _buildBody(context);
+    if (widget.embedded) {
+      return ColoredBox(
+        color: PosTheme.canvas,
+        child: _buildBody(context),
+      );
+    }
     if (widget.asSidePanel) {
       return PosSidePanelShell(
         child: _buildBody(context),
@@ -1156,6 +1165,7 @@ class _SheetHeader extends StatelessWidget {
     required this.loading,
     required this.onRefresh,
     required this.onClose,
+    this.compact = false,
   });
 
   final Color accent;
@@ -1165,7 +1175,8 @@ class _SheetHeader extends StatelessWidget {
   final int heldCount;
   final bool loading;
   final VoidCallback onRefresh;
-  final VoidCallback? onClose;
+  final VoidCallback onClose;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1176,10 +1187,10 @@ class _SheetHeader extends StatelessWidget {
             : accent;
     final soft = posAccentSoft(headerAccent);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+      padding: EdgeInsets.fromLTRB(16, compact ? 6 : 14, 8, 8),
       child: Row(
         children: [
-          Container(
+          if (!compact) Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
@@ -1198,7 +1209,7 @@ class _SheetHeader extends StatelessWidget {
               size: 24,
             ),
           ),
-          const SizedBox(width: 12),
+          if (!compact) const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1209,11 +1220,12 @@ class _SheetHeader extends StatelessWidget {
                       : context.l10n.ordersTitle,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
+                        fontSize: compact ? 16 : null,
                         letterSpacing: -0.3,
                       ),
                 ),
-                const SizedBox(height: 2),
-                Text(
+                if (!compact) const SizedBox(height: 2),
+                if (!compact) Text(
                   isHeld
                       ? (heldCount > 0
                           ? (heldCount == 1
@@ -1252,12 +1264,11 @@ class _SheetHeader extends StatelessWidget {
                   )
                 : const Icon(Icons.refresh_rounded),
           ),
-          if (onClose != null)
-            IconButton(
-              tooltip: context.l10n.commonClose,
-              onPressed: onClose,
-              icon: const Icon(Icons.close_rounded),
-            ),
+          if (!compact) IconButton(
+            tooltip: context.l10n.commonClose,
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded),
+          ),
         ],
       ),
     );
@@ -1820,6 +1831,7 @@ class _OrderCard extends StatelessWidget {
     required this.onPrint,
     required this.onPrintKot,
     this.onViewDetails,
+    this.compact = false,
   });
 
   final Map<String, dynamic> order;
@@ -1837,6 +1849,7 @@ class _OrderCard extends StatelessWidget {
   final VoidCallback onPrint;
   final VoidCallback onPrintKot;
   final VoidCallback? onViewDetails;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -2028,14 +2041,14 @@ class _OrderCard extends StatelessWidget {
               child: InkWell(
                 onTap: onViewDetails,
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(12, 10, 12, hasActions ? 0 : 12),
+                  padding: EdgeInsets.fromLTRB(12, compact ? 6 : 10, 12, hasActions ? 0 : 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
+                        padding: EdgeInsets.symmetric(
                           horizontal: 10,
-                          vertical: 10,
+                          vertical: compact ? 6 : 10,
                         ),
                         decoration: BoxDecoration(
                           color: PosTheme.surface,
@@ -2075,7 +2088,7 @@ class _OrderCard extends StatelessWidget {
                                           style: TextStyle(
                                             color: PosTheme.ink,
                                             fontWeight: FontWeight.w900,
-                                            fontSize: 13,
+                                            fontSize: compact ? 12 : 13,
                                           ),
                                         ),
                                       ),

@@ -37,7 +37,7 @@ class PosMobileSettingsPage extends StatelessWidget {
     final allowDelivery = bootstrap?.allowsPosDelivery ?? true;
 
     return PosMoreMenuPage(
-      title: l10n.shellMore,
+      title: 'Settings',
       onSelect: (value) => onSelected(value),
       sections: [
         PosMoreMenuSection(

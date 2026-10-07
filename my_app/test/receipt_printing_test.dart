@@ -9,6 +9,14 @@ import 'package:my_app/services/printing/receipt_typography.dart';
 import 'package:my_app/services/printing/thermal_text_encoder.dart';
 
 void main() {
+  test('payment QR uses larger modules on 80mm and retains narrow-paper sizing', () async {
+    const data = 'upi://pay?pa=SIRIXO01@ybl&pn=Coffee%20Cafe&am=240.00&cu=INR';
+    for (final entry in {'56mm': 4, '80mm': 6}.entries) {
+      final bytes = await PrintObjectExecutor(paper: entry.key, fontSize: 'normal')
+          .buildBytes([{'type': 'qr', 'data': data, 'align': 'center'}]);
+      expect(bytes, containsAllInOrder([0x1D, 0x28, 0x6B, 3, 0, 0x31, 0x43, entry.value]));
+    }
+  });
   tearDown(() => debugDefaultTargetPlatformOverride = null);
 
   test(

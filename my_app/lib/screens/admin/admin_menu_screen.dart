@@ -100,10 +100,12 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     return Column(
       children: [
         AdminToolbar(
+          singleRowActions: true,
           leading: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: TextField(
               controller: _searchCtrl,
+              style: const TextStyle(fontSize: 13),
               decoration: InputDecoration(
                 hintText: context.posText(
                   'adminMenuSearch',
@@ -466,14 +468,19 @@ class _MenuSummaryBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Text(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
           parts.join('  ·  '),
+          maxLines: 1,
           style: TextStyle(
             color: PosTheme.inkMuted,
             fontSize: 12.5,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.1,
           ),
+        ),
         ),
       ),
     );
@@ -579,7 +586,7 @@ class _CategoryCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
-                            fontSize: 16,
+                            fontSize: MediaQuery.sizeOf(context).width < 600 ? 14 : 16,
                             color: category.isActive
                                 ? PosTheme.ink
                                 : PosTheme.inkMuted,
@@ -798,7 +805,8 @@ class _ItemRow extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
             child: Row(
               children: [
-                AdminMenuThumb(imageUrl: item.imageUrl, size: 44),
+                AdminMenuThumb(imageUrl: item.imageUrl,
+                  size: MediaQuery.sizeOf(context).width < 600 ? 36 : 44),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -810,7 +818,7 @@ class _ItemRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                          fontSize: MediaQuery.sizeOf(context).width < 600 ? 12.5 : 14,
                           color: item.isAvailable
                               ? PosTheme.ink
                               : PosTheme.inkMuted,

@@ -114,7 +114,7 @@ class _PosPaymentQrSheetState extends State<PosPaymentQrSheet> {
     final base = widget.serverUrl.replaceAll(RegExp(r'/+$'), '');
     switch (_gateway) {
       case 'phonepe':
-        return '$base/images/upi-apps/phonepe.png';
+        return null;
       case 'paytm':
         return '$base/images/upi-apps/paytm.png';
       default:

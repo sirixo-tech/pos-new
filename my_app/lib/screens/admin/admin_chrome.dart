@@ -212,10 +212,12 @@ class AdminToolbar extends StatelessWidget {
     super.key,
     required this.children,
     this.leading,
+    this.singleRowActions = false,
   });
 
   final List<Widget> children;
   final Widget? leading;
+  final bool singleRowActions;
 
   @override
   Widget build(BuildContext context) {
@@ -232,6 +234,27 @@ class AdminToolbar extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
+            if (singleRowActions && constraints.maxWidth < 600) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (leading != null) leading!,
+                  const SizedBox(height: 8),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < children.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 6),
+                          children[i],
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
             return Wrap(
               spacing: 8,
               runSpacing: 8,
