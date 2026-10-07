@@ -18,15 +18,18 @@ class PairDeviceScreen extends StatelessWidget {
     final code = pos.pairingCode ?? '------';
     final accent = Theme.of(context).colorScheme.primary;
     final soft = posAccentSoft(accent);
+    final compact = MediaQuery.sizeOf(context).width < 600;
 
     final form = PosSlideFade(
       child: PosSurfaceCard(
-        padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
+        padding: compact
+            ? const EdgeInsets.fromLTRB(18, 16, 18, 12)
+            : const EdgeInsets.fromLTRB(28, 28, 28, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(compact ? 10 : 16),
               decoration: BoxDecoration(
                 color: soft.bg,
                 borderRadius: BorderRadius.circular(PosTheme.radiusLg),
@@ -34,7 +37,7 @@ class PairDeviceScreen extends StatelessWidget {
               ),
               child: Icon(Icons.tablet_mac_rounded, color: soft.fg, size: 36),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: compact ? 10 : 18),
             Text(
               l10n.pairThisTablet,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -47,10 +50,10 @@ class PairDeviceScreen extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: compact ? 14 : 24),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+              padding: EdgeInsets.symmetric(vertical: compact ? 12 : 20, horizontal: 12),
               decoration: BoxDecoration(
                 color: PosTheme.surfaceMuted,
                 borderRadius: BorderRadius.circular(PosTheme.radiusLg),
@@ -80,13 +83,14 @@ class PairDeviceScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text(
+                Flexible(child: Text(
                   l10n.pairWaitingManager,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     color: soft.fg,
                     fontWeight: FontWeight.w600,
                   ),
-                ),
+                )),
               ],
             ),
             if (pos.errorMessage != null) ...[
@@ -123,6 +127,7 @@ class PairDeviceScreen extends StatelessWidget {
 
     return PosAuthScaffold(
       accent: accent,
+      platformLogoHeight: 220,
       statusIcon: Icons.link_rounded,
       statusLabel: l10n.pairDeviceTitle,
       headline: PosAppInfo.displayName,

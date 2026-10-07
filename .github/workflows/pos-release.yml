@@ -70,16 +70,14 @@ jobs:
         working-directory: ${{ needs.version.outputs.app_dir }}
         run: |
           flutter pub get
-          flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64 --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }}
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "SELFX-POS-${{ needs.version.outputs.version }}-arm64-v8a.apk"
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "SELFX-POS-${{ needs.version.outputs.version }}-armeabi-v7a.apk"
-          sha256sum "SELFX-POS-${{ needs.version.outputs.version }}-arm64-v8a.apk" | tee apk.sha256
+          flutter build apk --release --target-platform android-arm,android-arm64 --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }}
+          cp build/app/outputs/flutter-apk/app-release.apk "SELFX-POS-${{ needs.version.outputs.version }}-android.apk"
+          sha256sum "SELFX-POS-${{ needs.version.outputs.version }}-android.apk" | tee apk.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: pos-android-apk
           path: |
-            ${{ needs.version.outputs.app_dir }}/SELFX-POS-${{ needs.version.outputs.version }}-arm64-v8a.apk
-            ${{ needs.version.outputs.app_dir }}/SELFX-POS-${{ needs.version.outputs.version }}-armeabi-v7a.apk
+            ${{ needs.version.outputs.app_dir }}/SELFX-POS-${{ needs.version.outputs.version }}-android.apk
             ${{ needs.version.outputs.app_dir }}/apk.sha256
           retention-days: 14
 
@@ -135,7 +133,7 @@ jobs:
           BUILD: ${{ needs.version.outputs.build }}
         run: |
           set -euo pipefail
-          APK=$(find dist -name 'SELFX-POS-*-arm64-v8a.apk' | head -n1)
+          APK=$(find dist -name 'SELFX-POS-*-android.apk' | head -n1)
           WIN=$(find dist -name 'SELFX-POS-*-windows-setup.exe' | head -n1)
           APK_SHA=$(sha256sum "$APK" | awk '{print $1}')
           WIN_SHA=$(sha256sum "$WIN" | awk '{print $1}')
@@ -186,7 +184,7 @@ jobs:
             echo "POS_UPDATE_NOTIFY_URL not set — skip API notify."
             exit 0
           fi
-          APK=$(find apk -name '*arm64-v8a*.apk' | head -n1)
+          APK=$(find apk -name '*-android.apk' | head -n1)
           SHA=$(sha256sum "$APK" | awk '{print $1}')
           curl -fsS -X POST "$URL" \
             -H "Authorization: Bearer $TOKEN" \

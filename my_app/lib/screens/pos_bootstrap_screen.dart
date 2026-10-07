@@ -49,15 +49,7 @@ class PosBootstrapScreen extends StatelessWidget {
                     fit: BoxFit.contain,
                     filterQuality: FilterQuality.high,
                     semanticLabel: PosAppInfo.displayName,
-                    errorBuilder: (_, __, ___) => Text(
-                      PosAppInfo.displayName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
+
                   ),
                   const SizedBox(height: 36),
                   Text(

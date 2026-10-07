@@ -612,6 +612,7 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
     final primaryColor = widget.primaryColor;
     context.select((PosController p) => p.cartEpoch);
     final submitting = context.select((PosController p) => p.submitting);
+    context.select((PosController p) => p.cartAmountDue);
     final currency = context.select((PosController p) => p.currency);
     final discountAmount = context.select(
       (PosController p) => p.discountAmount,
@@ -810,7 +811,7 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
             ),
           ),
           SizedBox(height: handheld ? 6 : 12),
-          if (primaryLabel == null && onPark != null) ...[
+          if (!handheld && primaryLabel == null && onPark != null) ...[
             _QuickPayRow(
               selected: activePay,
               enabled: canPay,
@@ -828,6 +829,56 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
               final showShortcuts =
                   usePosDesktopLayout(context) && constraints.maxWidth >= 300;
               final payFlex = onPark == null ? 1 : (narrow ? 1 : 2);
+
+              if (handheld && primaryLabel == null && widget.onPayMethod != null) {
+                Widget action(String label, IconData icon, Color color, String method) {
+                  return Expanded(
+                    child: FilledButton(
+                      onPressed: canPay
+                          ? () => widget.onPayMethod!(method)
+                          : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: color,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 52),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon, size: narrow ? 16 : 20),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return Row(
+                  children: [
+                    if (onPark != null) ...[
+                      Expanded(
+                        child: _HoldButton(
+                          enabled: !cartEmpty && !submitting,
+                          onPressed: onPark,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    action('UPI', Icons.qr_code_rounded, const Color(0xFF2563EB), 'upi'),
+                    const SizedBox(width: 6),
+                    action('PRINT', Icons.print_rounded, const Color(0xFF2E9644), 'cash'),
+                  ],
+                );
+              }
 
               return Row(
                 children: [

@@ -23,6 +23,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
   bool _loading = false;
   bool _obscure = true;
   Timer? _clockTimer;
@@ -74,6 +76,8 @@ class _LoginScreenState extends State<LoginScreen> {
     _loginCooldownTimer?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -308,6 +312,13 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 20),
             TextField(
               controller: _emailController,
+              focusNode: _emailFocus,
+              textInputAction: TextInputAction.next,
+              textCapitalization: TextCapitalization.none,
+              autocorrect: false,
+              enableSuggestions: false,
+              enableInteractiveSelection: true,
+              onSubmitted: (_) => _passwordFocus.requestFocus(),
               keyboardType: TextInputType.emailAddress,
               autofillHints: const [AutofillHints.username],
               decoration: InputDecoration(
@@ -318,6 +329,12 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: _passwordController,
+              focusNode: _passwordFocus,
+              keyboardType: TextInputType.visiblePassword,
+              textInputAction: TextInputAction.done,
+              autocorrect: false,
+              enableSuggestions: false,
+              enableInteractiveSelection: true,
               obscureText: _obscure,
               autofillHints: const [AutofillHints.password],
               decoration: InputDecoration(

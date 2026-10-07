@@ -437,6 +437,7 @@ class PosAuthScaffold extends StatelessWidget {
     this.showClock = true,
     this.compactHeader,
     this.maxFormWidth = 400,
+    this.platformLogoHeight = 220,
   });
 
   final Color accent;
@@ -459,6 +460,7 @@ class PosAuthScaffold extends StatelessWidget {
   /// Override for the narrow layout header.
   final Widget? compactHeader;
   final double maxFormWidth;
+  final double platformLogoHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -474,7 +476,8 @@ class PosAuthScaffold extends StatelessWidget {
             : PosPlatformLogo(
                 platform: platform,
                 serverUrl: serverUrl,
-                height: 72,
+                height: platformLogoHeight,
+                trimBundledPadding: true,
                 maxWidth: 300,
               ));
 
@@ -520,7 +523,8 @@ class PosAuthScaffold extends StatelessWidget {
                               PosPlatformLogo(
                                 platform: platform,
                                 serverUrl: serverUrl,
-                                height: 72,
+                                height: platformLogoHeight,
+                                trimBundledPadding: true,
                                 maxWidth: 300,
                               ),
                               const SizedBox(height: 22),
@@ -1562,47 +1566,43 @@ Widget posDialogActionFooter({
   final fill = confirmColor ??
       (destructive ? const Color(0xFFDC2626) : accent);
 
-  return Row(
-    children: [
-      Expanded(
-        child: OutlinedButton(
-          onPressed: onCancel,
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 48),
-            foregroundColor: PosTheme.inkMuted,
-            side: BorderSide(color: PosTheme.border),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: Text(
-            resolvedCancel,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        flex: 2,
-        child: FilledButton(
-          onPressed: onConfirm,
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 48),
-            backgroundColor: fill,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            textStyle: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 15,
-            ),
-          ),
-          child: Text(resolvedConfirm),
-        ),
-      ),
-    ],
+  final cancel = OutlinedButton(
+    onPressed: onCancel,
+    style: OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 48),
+      foregroundColor: PosTheme.inkMuted,
+      side: BorderSide(color: PosTheme.border),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    child: Text(resolvedCancel, textAlign: TextAlign.center,
+        style: const TextStyle(fontWeight: FontWeight.w700)),
   );
+  final confirm = FilledButton(
+    onPressed: onConfirm,
+    style: FilledButton.styleFrom(
+      minimumSize: const Size(0, 48),
+      backgroundColor: fill,
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+    ),
+    child: Text(resolvedConfirm, textAlign: TextAlign.center),
+  );
+  return LayoutBuilder(builder: (context, constraints) {
+    final largeText = MediaQuery.textScalerOf(context).scale(15) > 19;
+    if (constraints.maxWidth < 400 || largeText) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [cancel, const SizedBox(height: 10), confirm],
+      );
+    }
+    return Row(children: [
+      Expanded(child: cancel),
+      const SizedBox(width: 10),
+      Expanded(child: confirm),
+    ]);
+  });
 }
 
 Future<bool> showPosConfirmDialog(

@@ -315,7 +315,7 @@ class PosUpdateInstaller {
       );
     }
     final platform = posPlatformLabel();
-    final advertised = (update.platform ?? platform).toLowerCase();
+    final advertised = normalizeUpdatePlatform(update.platform) ?? platform;
     if (advertised.isNotEmpty && advertised != platform) {
       return _t(
         'updateWrongPlatform',

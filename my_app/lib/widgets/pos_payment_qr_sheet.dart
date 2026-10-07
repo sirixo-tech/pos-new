@@ -494,17 +494,20 @@ class _PosPaymentQrSheetState extends State<PosPaymentQrSheet> {
     final media = MediaQuery.sizeOf(context);
     final compact = media.height < 720 || media.width < 420;
     final qrSize = compact ? 180.0 : 228.0;
+    final horizontalInset = media.width < 420 ? 16.0 : 32.0;
+    final dialogWidth = (media.width - horizontalInset * 2).clamp(0.0, 520.0);
 
     return Dialog(
       insetPadding: EdgeInsets.symmetric(
-        horizontal: compact ? 16 : 28,
+        horizontal: horizontalInset,
         vertical: compact ? 16 : 28,
       ),
       backgroundColor: Colors.transparent,
       elevation: 0,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 440,
+          minWidth: dialogWidth,
+          maxWidth: dialogWidth,
           maxHeight: media.height * 0.9,
         ),
         child: Material(

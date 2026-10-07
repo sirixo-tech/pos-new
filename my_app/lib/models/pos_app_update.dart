@@ -44,7 +44,9 @@ class PosAppUpdate {
     }
     // Release manifests can contain separate packages for each platform.
     final devicePlatform = posPlatformLabel();
-    final package = json[devicePlatform];
+    final packages = json['platforms'] ?? json['packages'];
+    final package = json[devicePlatform] ??
+        (packages is Map ? packages[devicePlatform] : null);
     if (package is Map) {
       json = {
         ...json,
@@ -88,9 +90,9 @@ class PosAppUpdate {
       signature: _nullable(
         value(const ['signature', 'signature_base64', 'rsa_signature']),
       ),
-      platform: _nullable(
+      platform: normalizeUpdatePlatform(
         value(const ['platform', 'target_platform']),
-      )?.toLowerCase(),
+      ),
     );
     return parsed.resolvedAgainstInstalled();
   }
@@ -181,6 +183,19 @@ class PosAppUpdate {
     }
     return null;
   }
+}
+
+/// Release feeds may use OS aliases or a generic label for universal packages.
+/// Architecture labels remain specific: OS matching does not prove ABI support.
+String? normalizeUpdatePlatform(String? raw) {
+  final value = raw?.trim().toLowerCase() ?? '';
+  return switch (value) {
+    '' || 'all' || 'any' || 'universal' || 'multi-platform' => null,
+    'apk' || 'android-apk' || 'android_apk' => 'android',
+    'win' || 'win32' || 'win64' || 'windows-x64' => 'windows',
+    'mac' || 'osx' || 'darwin' => 'macos',
+    _ => value,
+  };
 }
 
 int compareAppVersions(

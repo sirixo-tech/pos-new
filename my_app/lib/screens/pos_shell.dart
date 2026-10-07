@@ -501,6 +501,14 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     pos.addToCart(CartLine(menuItem: item));
   }
 
+  bool _isQrMethod(String method) {
+    final slug = method.trim().toLowerCase();
+    if (['upi', 'phonepe', 'paytm'].contains(slug)) return true;
+    return context.read<PosController>().bootstrap?.paymentGateways.any(
+      (gateway) => gateway.slug.toLowerCase() == slug && gateway.isDynamicQr,
+    ) ?? false;
+  }
+
   Future<void> _payCartDirect(String quickMethod) async {
     final pos = context.read<PosController>();
     if (pos.cart.isEmpty || pos.submitting) return;
@@ -514,7 +522,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       method = qr.isEmpty ? 'phonepe' : qr.first.slug;
     }
 
-    final isQrPayment = method == 'phonepe' || method == 'paytm';
+    final isQrPayment = _isQrMethod(method);
     if (isQrPayment && pos.isOffline) {
       showPosSnackBar(context, context.l10n.payNotCompleted, error: true);
       return;
@@ -670,8 +678,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       return;
     }
 
-    final isQrPayment =
-        payment.method == 'phonepe' || payment.method == 'paytm';
+    final isQrPayment = _isQrMethod(payment.method);
 
     final parkedId = pos.parkedOrderId;
     if (isQrPayment && parkedId != null && parkedId > 0) {
@@ -697,7 +704,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       );
       if (!mounted) return;
 
-      if (isQrPayment &&
+      if ((isQrPayment || order.isQrPayment) &&
           order.id > 0 &&
           pos.session != null &&
           pos.serverUrl != null) {
@@ -798,8 +805,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     final session = pos.session;
     if (session == null) return;
 
-    final isQrPayment =
-        payment.method == 'phonepe' || payment.method == 'paytm';
+    final isQrPayment = _isQrMethod(payment.method);
     final paymentPayload = {
       'method': payment.method,
       if (payment.cashTendered != null) 'cash_tendered': payment.cashTendered,
@@ -825,7 +831,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       });
       pos.registerSelfPlacedOrder(placed.id);
 
-      if (isQrPayment && placed.id > 0 && pos.serverUrl != null) {
+      if ((isQrPayment || placed.isQrPayment) && placed.id > 0 && pos.serverUrl != null) {
         final qrClose = await PosPaymentQrSheet.show(
           context,
           order: placed,
@@ -1359,26 +1365,20 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
                 bottom: 0,
                 child: _ViewCartPillHost(accent: accent, onTap: _openCart),
               ),
+            if (usePosHandheldLayout(context) && _mobileTab == 0 && !blocked)
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: _MobileCartShortcut(onTap: () => _selectMobileTab(1)),
+              ),
             const NewOrderAlertBannerHost(),
           ],
         ),
         bottomNavigationBar: usePosHandheldLayout(context)
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_mobileTab == 0 && !blocked)
-                    _ViewCartPillHost(
-                      accent: accent,
-                      onTap: () => _selectMobileTab(1),
-                    ),
-                  PosMobileNavBar(
-                    index: _mobileTab,
-                    cartCount: context.select(
-                      (PosController p) => p.cartItemCount,
-                    ),
-                    onSelected: _selectMobileTab,
-                  ),
-                ],
+            ? PosMobileNavBar(
+                index: _mobileTab,
+                cartCount: context.select((PosController p) => p.cartItemCount),
+                onSelected: _selectMobileTab,
               )
             : null,
       ),
@@ -2093,6 +2093,44 @@ class _CategorySectionHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MobileCartShortcut extends StatelessWidget {
+  const _MobileCartShortcut({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = context.select((PosController p) => p.cartItemCount);
+    if (count <= 0) return const SizedBox.shrink();
+    return Badge(
+      label: Text(count > 99 ? '99+' : '$count'),
+      backgroundColor: const Color(0xFFE64B58),
+      textColor: Colors.white,
+      child: Material(
+        color: const Color(0xFF2E7D32),
+        elevation: 6,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: Tooltip(
+              message: context.l10n.shellViewCart,
+              child: const Icon(
+                Icons.shopping_bag_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

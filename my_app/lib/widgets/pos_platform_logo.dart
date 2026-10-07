@@ -17,6 +17,7 @@ class PosPlatformLogo extends StatelessWidget {
     this.maxWidth = 160,
     this.onDark = false,
     this.showNameFallback = true,
+    this.trimBundledPadding = false,
   });
 
   final PosPlatformBranding? platform;
@@ -25,6 +26,7 @@ class PosPlatformLogo extends StatelessWidget {
   final double maxWidth;
   final bool onDark;
   final bool showNameFallback;
+  final bool trimBundledPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -65,13 +67,17 @@ class PosPlatformLogo extends StatelessWidget {
   }
 
   Widget _bundled(double h, double w) {
-    return Image.asset(
+    final logo = Image.asset(
       PosAppInfo.logoAsset,
       height: h,
       width: w,
       fit: BoxFit.contain,
       alignment: Alignment.center,
       filterQuality: FilterQuality.high,
+    );
+    if (!trimBundledPadding) return logo;
+    return ClipRect(
+      child: Align(heightFactor: 0.5, child: logo),
     );
   }
 }
