@@ -730,6 +730,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
           return;
         }
         final paidOrder = qrClose?.order;
+        if (qrClose?.cancelled == true) {
+          _closeCart();
+          return;
+        }
         if (paidOrder == null) {
           showPosSnackBar(context, context.l10n.payNotCompleted, error: true);
           return;
@@ -854,6 +858,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
           return;
         }
         final paidOrder = qrClose?.order;
+        if (qrClose?.cancelled == true) {
+          _closeCart();
+          return;
+        }
         if (paidOrder == null) {
           showPosSnackBar(
             context,
@@ -962,6 +970,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       timeoutSeconds: timeout,
     );
     if (!mounted || qrClose == null) return;
+    if (qrClose.cancelled) {
+      _closeCart();
+      return;
+    }
     if (qrClose.held) {
       showPosSnackBar(
         context,

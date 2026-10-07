@@ -831,7 +831,6 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
               final payFlex = onPark == null ? 1 : (narrow ? 1 : 2);
 
               if (handheld && primaryLabel == null && widget.onPayMethod != null) {
-                const payHeight = 48.0;
                 Widget action(String label, IconData icon, Color color, String method) {
                   return Expanded(
                     child: FilledButton(
@@ -841,12 +840,8 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                       style: FilledButton.styleFrom(
                         backgroundColor: color,
                         foregroundColor: Colors.white,
-                        minimumSize: const Size(0, payHeight),
-                        maximumSize: const Size(double.infinity, payHeight),
-                        fixedSize: const Size.fromHeight(payHeight),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        minimumSize: const Size(0, 52),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        visualDensity: VisualDensity.standard,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -868,62 +863,19 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                 }
 
                 return Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    action(
-                      context.posText('payCash', 'Cash'),
-                      Icons.payments_rounded,
-                      const Color(0xFF2E9644),
-                      'cash',
-                    ),
-                    const SizedBox(width: 6),
-                    action(
-                      context.posText('payUpi', 'UPI'),
-                      Icons.qr_code_rounded,
-                      const Color(0xFF2563EB),
-                      'upi',
-                    ),
                     if (onPark != null) ...[
-                      const SizedBox(width: 6),
                       Expanded(
                         child: _HoldButton(
                           enabled: !cartEmpty && !submitting,
                           onPressed: onPark,
-                          height: payHeight,
                         ),
                       ),
-                    ],
-                    if (onPay != null) ...[
                       const SizedBox(width: 6),
-                      SizedBox(
-                        width: payHeight,
-                        height: payHeight,
-                        child: IconButton(
-                          tooltip: context.posText('payMore', 'More'),
-                          onPressed: canPay ? onPay : null,
-                          style: IconButton.styleFrom(
-                            backgroundColor: canPay
-                                ? PosTheme.surfaceMuted
-                                : PosTheme.surfaceMuted.withValues(alpha: 0.5),
-                            foregroundColor: canPay
-                                ? PosTheme.ink
-                                : PosTheme.inkFaint,
-                            fixedSize: const Size(payHeight, payHeight),
-                            minimumSize: const Size(payHeight, payHeight),
-                            maximumSize: const Size(payHeight, payHeight),
-                            padding: EdgeInsets.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                PosTheme.radiusMd,
-                              ),
-                              side: BorderSide(color: PosTheme.border),
-                            ),
-                          ),
-                          icon: const Icon(Icons.more_horiz_rounded),
-                        ),
-                      ),
                     ],
+                    action('UPI', Icons.qr_code_rounded, const Color(0xFF2563EB), 'upi'),
+                    const SizedBox(width: 6),
+                    action('PRINT', Icons.print_rounded, const Color(0xFF2E9644), 'cash'),
                   ],
                 );
               }
@@ -1737,13 +1689,11 @@ class _HoldButton extends StatelessWidget {
     required this.enabled,
     this.onPressed,
     this.shortcutLabel,
-    this.height = 52,
   });
 
   final bool enabled;
   final VoidCallback? onPressed;
   final String? shortcutLabel;
-  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -1758,7 +1708,7 @@ class _HoldButton extends StatelessWidget {
         onTap: enabled ? onPressed : null,
         borderRadius: BorderRadius.circular(PosTheme.radiusMd),
         child: Container(
-          height: height,
+          height: 52,
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
@@ -1896,9 +1846,8 @@ class _FooterDiscountButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final soft = posAccentSoft(accent);
     final label = context.l10n.discountLabel;
-    final handheld = usePosHandheldLayout(context);
     return Padding(
-      padding: EdgeInsets.only(bottom: handheld ? 0 : 6),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: active ? soft.bg : PosTheme.surface,
         borderRadius: BorderRadius.circular(999),
@@ -1906,10 +1855,10 @@ class _FooterDiscountButton extends StatelessWidget {
           onTap: onPressed,
           borderRadius: BorderRadius.circular(999),
           child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: handheld ? 2 : 5,
-            ),
+            constraints: usePosHandheldLayout(context)
+                ? const BoxConstraints(minHeight: 44)
+                : null,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
               border: Border.all(

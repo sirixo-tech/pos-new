@@ -27,6 +27,7 @@ class PosPaymentQrClose {
 
   final PlacedPosOrder? order;
   final bool held;
+  bool get cancelled => order == null && !held;
 }
 
 class PosPaymentQrSheet extends StatefulWidget {

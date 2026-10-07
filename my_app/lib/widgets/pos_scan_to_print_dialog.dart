@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../l10n/pos_l10n.dart';
+import '../utils/order_barcode_scan.dart';
 import 'pos_ui.dart';
 
 /// Manual scan-to-print: enter or wedge an order number, then print.
@@ -8,7 +11,102 @@ Future<String?> showPosScanToPrintDialog(BuildContext context) {
   return showDialog<String>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.5),
-    builder: (_) => const _ScanToPrintDialog(),
+    builder: (_) => !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+        ? const _CameraScanToPrintDialog()
+        : const _ScanToPrintDialog(),
+  );
+}
+
+class _CameraScanToPrintDialog extends StatefulWidget {
+  const _CameraScanToPrintDialog();
+
+  @override
+  State<_CameraScanToPrintDialog> createState() => _CameraScanToPrintDialogState();
+}
+
+class _CameraScanToPrintDialogState extends State<_CameraScanToPrintDialog> {
+  final _camera = MobileScannerController(
+    facing: CameraFacing.back,
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    formats: [BarcodeFormat.qrCode, BarcodeFormat.code128, BarcodeFormat.code39],
+  );
+  bool _completed = false;
+  String? _hint;
+
+  void _detected(BarcodeCapture capture) {
+    if (_completed || !mounted) return;
+    for (final barcode in capture.barcodes) {
+      final raw = barcode.rawValue ?? '';
+      if (!OrderBarcodeScan.isOrderReference(raw)) continue;
+      final number = OrderBarcodeScan.parseOrderNumber(raw);
+      if (number == null) continue;
+      _completed = true;
+      Navigator.of(context).pop(number);
+      return;
+    }
+    setState(() => _hint = 'Show an order QR or order barcode to print its receipt.');
+  }
+
+  Future<void> _manual() async {
+    await _camera.stop();
+    if (!mounted) return;
+    final reference = await showDialog<String>(
+      context: context,
+      builder: (_) => const _ScanToPrintDialog(),
+    );
+    if (!mounted) return;
+    if (reference != null) {
+      _completed = true;
+      Navigator.of(context).pop(reference);
+    } else {
+      await _camera.start();
+    }
+  }
+
+  @override
+  void dispose() {
+    _camera.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => PosDialogShell(
+    title: 'Scan to print',
+    subtitle: 'Point the camera at the order QR. The receipt prints automatically.',
+    icon: Icons.qr_code_scanner_rounded,
+    headerColor: Theme.of(context).colorScheme.primary,
+    maxWidth: 480,
+    onClose: () => Navigator.of(context).pop(),
+    body: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: (MediaQuery.sizeOf(context).height * 0.4).clamp(160.0, 320.0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: MobileScanner(
+              controller: _camera,
+              onDetect: _detected,
+              errorBuilder: (_, error) => const Center(
+                child: Text('Camera unavailable. Allow camera permission, or enter the order number below.', textAlign: TextAlign.center),
+              ),
+            ),
+          ),
+        ),
+        if (_hint != null) Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(_hint!, textAlign: TextAlign.center),
+        ),
+      ],
+    ),
+    footer: Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      children: [
+        TextButton.icon(onPressed: () => _camera.switchCamera(), icon: const Icon(Icons.flip_camera_android), label: const Text('Switch camera')),
+        TextButton.icon(onPressed: _manual, icon: const Icon(Icons.keyboard), label: const Text('Enter order number')),
+      ],
+    ),
   );
 }
 
