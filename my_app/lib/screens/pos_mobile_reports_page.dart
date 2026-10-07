@@ -3,10 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/pos_l10n.dart';
+import '../models/pos_models.dart';
 import '../providers/pos_controller.dart';
 import '../services/pos_daily_report.dart';
 import '../theme/pos_theme.dart';
 import '../widgets/day_end_reports_sheet.dart';
+import '../widgets/pos_mobile_report_charts.dart';
 
 /// Phone reports tab: today's figures, then the existing printable slips.
 class PosMobileReportsPage extends StatefulWidget {
@@ -20,7 +22,13 @@ class PosMobileReportsPage extends StatefulWidget {
 
 class _PosMobileReportsPageState extends State<PosMobileReportsPage> {
   PosDailyReport? _report;
+  List<PosDayRevenue> _revenue = const [];
+  List<PosStatusCount> _statuses = const [];
+  String? _revenueError;
+  String? _statusError;
   var _loading = true;
+  var _revenueLoading = true;
+  var _statusLoading = true;
   String? _printing;
 
   @override
@@ -34,12 +42,30 @@ class _PosMobileReportsPageState extends State<PosMobileReportsPage> {
     final session = pos.session;
     final serverUrl = pos.serverUrl;
     if (session == null || serverUrl == null) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _revenueLoading = false;
+          _statusLoading = false;
+        });
+      }
       return;
     }
     final now = DateTime.now();
     final date =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    await Future.wait([
+      _loadToday(session: session, serverUrl: serverUrl, date: date),
+      _loadRevenue(session: session, serverUrl: serverUrl),
+      _loadStatuses(session: session, serverUrl: serverUrl),
+    ]);
+  }
+
+  Future<void> _loadToday({
+    required PosSession session,
+    required String serverUrl,
+    required String date,
+  }) async {
     try {
       final report = await fetchTodaySummary(
         session: session,
@@ -53,6 +79,67 @@ class _PosMobileReportsPageState extends State<PosMobileReportsPage> {
       });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadRevenue({
+    required PosSession session,
+    required String serverUrl,
+  }) async {
+    try {
+      final loaded = await loadReportRevenue(
+        session: session,
+        serverUrl: serverUrl,
+      );
+      if (!mounted) return;
+      setState(() {
+        _revenue = loaded.days;
+        _revenueError = loaded.revenueError;
+        _revenueLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _revenue = [
+          for (final day in last7ReportDays(DateTime.now()))
+            PosDayRevenue(day: day, amount: 0),
+        ];
+        _revenueError = 'Could not load revenue for the last 7 days.';
+        _revenueLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadStatuses({
+    required PosSession session,
+    required String serverUrl,
+  }) async {
+    try {
+      final loaded = await loadReportStatuses(
+        session: session,
+        serverUrl: serverUrl,
+      );
+      if (!mounted) return;
+      setState(() {
+        _statuses = loaded.statuses;
+        _statusError = loaded.statusError;
+        _statusLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _statuses = [
+          for (final slice in posReportStatusSlices)
+            PosStatusCount(
+              status: slice.status,
+              label: slice.label,
+              count: 0,
+              colorValue: slice.color,
+            ),
+        ];
+        _statusError = 'Could not load orders by status.';
+        _statusLoading = false;
+      });
     }
   }
 
@@ -77,6 +164,13 @@ class _PosMobileReportsPageState extends State<PosMobileReportsPage> {
     final today = DateFormat('d MMM yyyy').format(DateTime.now());
     final figures = _report?.figures ?? const <PosDailyFigure>[];
     final lines = _report?.lines ?? const <PosDailyFigure>[];
+    final headline = figures.isEmpty ? null : figures.first;
+    final extraFigures = headline == null
+        ? const <PosDailyFigure>[]
+        : [
+            for (final figure in figures.skip(1))
+              if (!_repeatsHeadlineAmount(headline, figure)) figure,
+          ];
 
     return ColoredBox(
       color: PosTheme.canvas,
@@ -145,13 +239,13 @@ class _PosMobileReportsPageState extends State<PosMobileReportsPage> {
                         style: TextStyle(color: PosTheme.inkMuted, fontSize: 13),
                       ),
                     ],
-                    if (figures.length > 1) ...[
+                    if (extraFigures.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          for (final figure in figures.skip(1))
+                          for (final figure in extraFigures)
                             _chip(figure.label, figure.display),
                         ],
                       ),
@@ -193,6 +287,18 @@ class _PosMobileReportsPageState extends State<PosMobileReportsPage> {
               ),
             ],
           ],
+          const SizedBox(height: 16),
+          PosRevenueChartCard(
+            days: _revenue,
+            loading: _revenueLoading,
+            error: _revenueError,
+          ),
+          const SizedBox(height: 12),
+          PosStatusChartCard(
+            slices: _statuses,
+            loading: _statusLoading,
+            error: _statusError,
+          ),
           const SizedBox(height: 22),
           Text(
             l10n.reportsTitle,
@@ -211,6 +317,19 @@ class _PosMobileReportsPageState extends State<PosMobileReportsPage> {
         ],
       ),
     );
+  }
+
+  bool _repeatsHeadlineAmount(PosDailyFigure headline, PosDailyFigure figure) {
+    final headlineAmount = parseReportAmount(headline.display);
+    final amount = parseReportAmount(figure.display);
+    if (headlineAmount == 0 || amount != headlineAmount) return false;
+    final label = figure.label.toUpperCase();
+    if (label.contains('ORDER')) return false;
+    return label.contains('TOTAL') ||
+        label.contains('GROSS') ||
+        label.contains('AMOUNT') ||
+        label.contains('REVENUE') ||
+        label.contains('SALES');
   }
 
   Widget _chip(String label, String value) {
