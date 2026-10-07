@@ -137,6 +137,30 @@ void main() {
     );
   });
 
+  test('an older published release is not an update', () {
+    final update = PosAppUpdate(
+      status: 'optional',
+      currentVersion: '3.7.0',
+      latestVersion: '3.7.0',
+      latestBuild: 4029,
+      downloadUrl: 'https://example.com/pos-3.7.0.apk',
+    ).resolvedAgainstInstalled(
+      installedVersion: '3.8.0',
+      installedBuild: 4031,
+    );
+    expect(update.isNone, isTrue);
+    expect(update.installsNewerBuild, isFalse);
+    expect(
+      compareAppVersions(
+        '3.8.0',
+        '3.7.0',
+        currentBuild: 4031,
+        candidateBuild: 4029,
+      ),
+      greaterThan(0),
+    );
+  });
+
   test('required flag for an already-installed version becomes none', () {
     final update = PosAppUpdate(
       status: 'required',

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 const int dqr222MediaChunkSize = 1024;
 // Conservatively interpret the vendor's "under 100 KB" as < 100,000 bytes.
@@ -31,6 +32,24 @@ const dqr222AudioSlots = <String, String>{
   'cancel.mp3': 'Payment cancelled',
   'pending.mp3': 'Payment pending',
 };
+
+bool looksLikeDqr222Mp3(Uint8List bytes) {
+  if (bytes.length < 3) return false;
+  final id3 = bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33;
+  final frame = bytes[0] == 0xff && (bytes[1] & 0xe0) == 0xe0;
+  return id3 || frame;
+}
+
+/// Known payment slots, or any simple mp3 name already stored on the display.
+String playableDqr222AudioFileName(String value) {
+  final name = value.trim();
+  final lower = name.toLowerCase();
+  for (final slot in dqr222AudioSlots.keys) {
+    if (slot.toLowerCase() == lower) return slot;
+  }
+  if (RegExp(r'^[A-Za-z0-9_-]+\.mp3$').hasMatch(name)) return name;
+  throw const FormatException('Select a device audio file.');
+}
 
 String normalizeDqr222MediaFileName(String value, Dqr222MediaKind kind) {
   if (kind == Dqr222MediaKind.advertisement) {
@@ -130,9 +149,10 @@ List<Dqr222AdvertisementImage> parseDqr222AdvertisementFileInfo(
   Dqr222MediaKind kind = Dqr222MediaKind.advertisement,
 }) {
   final payload = _extractJsonObject(response, kind.fileInfoKey);
+  final label = kind == Dqr222MediaKind.audio ? 'audio' : 'advertisement';
   if (payload == null) {
-    throw const FormatException(
-      'DQR-222 did not return advertisement file information.',
+    throw FormatException(
+      'DQR-222 did not return $label file information.',
     );
   }
   final decoded = jsonDecode(payload);
@@ -141,7 +161,7 @@ List<Dqr222AdvertisementImage> parseDqr222AdvertisementFileInfo(
   }
   final rawImages = decoded[kind.fileInfoKey];
   if (rawImages is! List) {
-    throw const FormatException('DQR-222 file information has no image list.');
+    throw FormatException('DQR-222 file information has no $label list.');
   }
   final images = <Dqr222AdvertisementImage>[];
   for (final rawImage in rawImages) {

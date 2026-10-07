@@ -21,7 +21,7 @@ Future<void> startPosUpdateInstall(
   BuildContext context,
   PosAppUpdate update,
 ) async {
-  if (!update.hasDownload) return;
+  if (!update.installsNewerBuild || !update.hasDownload) return;
 
   if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) {
     await openPosAppUpdateUrl(update);

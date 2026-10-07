@@ -276,9 +276,11 @@ class PosController extends ChangeNotifier {
     return null;
   }
 
-  /// Header strip for any published update. Later hides it until the next launch
-  /// or until Check for updates. The register is never blocked.
+  /// Header strip for a release newer than the running binary. Later hides it
+  /// until the next launch or until Check for updates. The register is never
+  /// blocked, and an older published version is not shown.
   bool get showOptionalUpdateBanner {
+    if (!appUpdate.installsNewerBuild) return false;
     final key = _updateNoticeKey;
     return key != null && key != _dismissedOptionalLatest;
   }

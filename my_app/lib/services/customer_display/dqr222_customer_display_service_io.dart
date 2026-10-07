@@ -156,9 +156,7 @@ Future<Dqr222AdvertisementUploadResult> uploadDqr222AdvertisementImage({
     if (jpeg == null || jpeg.width != 320 || jpeg.height != 480) {
       throw const FormatException('Select a 320 x 480 portrait JPEG.');
     }
-  } else if (bytes.length < 3 ||
-      !((bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33) ||
-          (bytes[0] == 0xff && (bytes[1] & 0xe0) == 0xe0))) {
+  } else if (!looksLikeDqr222Mp3(bytes)) {
     throw const FormatException('Select an MP3 audio file.');
   }
   final command = buildDqr222AdvertisementUploadCommand(
@@ -338,7 +336,7 @@ Future<List<Dqr222AdvertisementImage>> deleteDqr222AdvertisementImage(
 }
 
 Future<void> playDqr222Audio(String fileName) async {
-  normalizeDqr222MediaFileName(fileName, Dqr222MediaKind.audio);
+  final name = playableDqr222AudioFileName(fileName);
   if (!_dqr222PlatformSupported) {
     throw UnsupportedError('USB display unavailable.');
   }
@@ -351,7 +349,7 @@ Future<void> playDqr222Audio(String fileName) async {
     await _writeCommands(port, [
       'audioon',
       'setvolume**$_dqr222Volume',
-      'play**$fileName',
+      'play**$name',
     ]);
   });
 }

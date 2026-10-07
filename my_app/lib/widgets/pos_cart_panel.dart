@@ -862,13 +862,43 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                   );
                 }
 
+                final holdEnabled = !cartEmpty && !submitting;
+                final holdTone = posAccentSoft(PosTheme.holdAmberDark);
                 return Row(
                   children: [
                     if (onPark != null) ...[
                       Expanded(
-                        child: _HoldButton(
-                          enabled: !cartEmpty && !submitting,
-                          onPressed: onPark,
+                        child: FilledButton(
+                          onPressed: holdEnabled ? onPark : null,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: holdTone.bg,
+                            foregroundColor: holdTone.fg,
+                            disabledBackgroundColor: PosTheme.surfaceMuted,
+                            disabledForegroundColor: PosTheme.inkFaint,
+                            minimumSize: const Size(0, 52),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            side: BorderSide(
+                              color: holdEnabled
+                                  ? holdTone.fg.withValues(alpha: 0.45)
+                                  : PosTheme.border,
+                              width: 1.4,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.pause_rounded, size: narrow ? 16 : 20),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  context.l10n.cartHold,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(width: 6),

@@ -32,6 +32,25 @@ class PosAppUpdate {
   bool get isOptional => status == 'optional';
   bool get isRequired => status == 'required';
   bool get hasDownload => downloadUrl != null && downloadUrl!.isNotEmpty;
+
+  /// True only when the published release is strictly newer than this binary.
+  /// An older `latest_version` must not be offered, even if the feed still
+  /// marks it optional or required.
+  bool get installsNewerBuild {
+    if (isNone) return false;
+    final current = currentVersion.trim().isNotEmpty
+        ? currentVersion.trim()
+        : PosAppInfo.version;
+    final latest = latestVersion?.trim() ?? '';
+    if (latest.isEmpty) return false;
+    return compareAppVersions(
+          current,
+          latest,
+          currentBuild: int.tryParse(PosAppInfo.buildNumber) ?? 0,
+          candidateBuild: latestBuild,
+        ) <
+        0;
+  }
   bool get hasChecksum =>
       sha256 != null && RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(sha256!);
 
