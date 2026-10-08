@@ -35,6 +35,9 @@ class KitchenController extends ChangeNotifier {
 
   Timer? _pollTimer;
   Timer? _autoDeliverTimer;
+  Timer? _startupRetryTimer;
+  Future<void>? _startupFlight;
+  int _startupGeneration = 0;
   String? _kitchenToken;
   PosSession? _session;
   TimeOfDay kotResetTime = KotResetTimeSettings.defaultTime;
@@ -64,7 +67,15 @@ class KitchenController extends ChangeNotifier {
     required Future<String> Function() ensureKitchenToken,
     bool userInitiated = false,
   }) async {
-    if (isActive && _session!.branchId == session.branchId) {
+    if (_startupFlight != null) {
+      await _startupFlight;
+      return;
+    }
+    if (_startupRetryTimer != null) return;
+    if (isActive && _session!.branchId == session.branchId &&
+        _session!.restaurantId == session.restaurantId &&
+        _session!.serverUrl == session.serverUrl &&
+        _session!.token == session.token) {
       if (_pollTimer == null) _startPolling();
       _startAutoDeliverChecker();
       if (userInitiated) await _refresh(silent: false);
@@ -76,18 +87,36 @@ class KitchenController extends ChangeNotifier {
   Future<void> start({
     required PosSession session,
     required Future<String> Function() ensureKitchenToken,
+  }) {
+    return _startupFlight ??= _start(
+      session: session, ensureKitchenToken: ensureKitchenToken,
+    ).whenComplete(() => _startupFlight = null);
+  }
+
+  Future<void> _start({
+    required PosSession session,
+    required Future<String> Function() ensureKitchenToken,
   }) async {
+    final generation = _startupGeneration;
     _session = session;
-    _kitchenToken = await ensureKitchenToken();
     loading = true;
     errorMessage = null;
     notifyListeners();
 
     try {
+      final cooldown = PosApi.rateLimitRemaining;
+      if (cooldown != null) {
+        throw PosApiException('Kitchen Display will retry after the server cooldown.',
+          statusCode: 429, retryAfter: cooldown);
+      }
+      final token = await ensureKitchenToken();
+      if (generation != _startupGeneration) return;
+      _kitchenToken = token;
       bootstrap = await _api.fetchKitchenBootstrap(
         session: session,
         kitchenToken: _kitchenToken!,
       );
+      if (generation != _startupGeneration) return;
       selectedKitchenId = await _readStoredKitchenFilter(session.branchId);
       kotResetTime = await KotResetTimeSettings.read();
       await _loadPersistedReadyTimes();
@@ -95,14 +124,30 @@ class KitchenController extends ChangeNotifier {
       _startPolling();
       _startAutoDeliverChecker();
     } catch (e) {
+      if (generation != _startupGeneration) return;
       errorMessage = e.toString();
+      if (e is PosApiException && e.statusCode == 429) {
+        PosApi.noteIfRateLimited(e);
+        final wait = PosApi.rateLimitRemaining ?? const Duration(seconds: 20);
+        errorMessage = 'Kitchen Display is waiting for the server. Retrying shortly.';
+        _startupRetryTimer?.cancel();
+        _startupRetryTimer = Timer(wait + const Duration(milliseconds: 250), () {
+          _startupRetryTimer = null;
+          unawaited(start(session: session, ensureKitchenToken: ensureKitchenToken));
+        });
+      }
     } finally {
-      loading = false;
-      notifyListeners();
+      if (generation == _startupGeneration) {
+        loading = false;
+        notifyListeners();
+      }
     }
   }
 
   void stop() {
+    _startupGeneration++;
+    _startupRetryTimer?.cancel();
+    _startupRetryTimer = null;
     _pollTimer?.cancel();
     _pollTimer = null;
     _autoDeliverTimer?.cancel();

@@ -21,10 +21,31 @@ Future<MenuImportSource?> showMenuImportSourceSheet(
   );
 }
 
+class MenuImportSourcePage extends StatelessWidget {
+  const MenuImportSourcePage({super.key, required this.enableVoice, required this.onSelect});
+  final bool enableVoice;
+  final ValueChanged<MenuImportSource> onSelect;
+
+  @override
+  Widget build(BuildContext context) => _SourceSheet(
+    enableVoice: enableVoice, fullPage: true, onSelect: onSelect,
+  );
+}
+
 class _SourceSheet extends StatelessWidget {
-  const _SourceSheet({required this.enableVoice});
+  const _SourceSheet({required this.enableVoice, this.fullPage = false, this.onSelect});
 
   final bool enableVoice;
+  final bool fullPage;
+  final ValueChanged<MenuImportSource>? onSelect;
+
+  void _select(BuildContext context, MenuImportSource source) {
+    if (onSelect != null) {
+      onSelect!(source);
+    } else {
+      Navigator.pop(context, source);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,13 +54,13 @@ class _SourceSheet extends StatelessWidget {
       alignment: Alignment.bottomCenter,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: posMobileSheetHeight(context, factor: 0.86),
-          maxWidth: size.width >= 900 ? 560 : size.width,
+          maxHeight: fullPage ? double.infinity : posMobileSheetHeight(context, factor: 0.86),
+          maxWidth: fullPage ? double.infinity : (size.width >= 900 ? 560 : size.width),
         ),
         child: Container(
           decoration: BoxDecoration(
             color: PosTheme.surface,
-            borderRadius: const BorderRadius.vertical(
+            borderRadius: fullPage ? BorderRadius.zero : const BorderRadius.vertical(
               top: Radius.circular(PosTheme.radiusXl),
             ),
             border: size.width >= 900
@@ -49,6 +70,7 @@ class _SourceSheet extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (!fullPage) ...[
               const SizedBox(height: 10),
               Container(
                 width: 36,
@@ -58,6 +80,7 @@ class _SourceSheet extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
+              ],
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 8, 4),
                 child: Row(
@@ -90,14 +113,14 @@ class _SourceSheet extends StatelessWidget {
                         ],
                       ),
                     ),
-                    IconButton(
+                    if (!fullPage) IconButton(
                       onPressed: () => Navigator.pop(context),
                       icon: const Icon(Icons.close_rounded),
                     ),
                   ],
                 ),
               ),
-              ListView(
+              Flexible(child: ListView(
                 shrinkWrap: true,
                 physics: const ClampingScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
@@ -107,7 +130,7 @@ class _SourceSheet extends StatelessWidget {
                       title: 'Photo or PDF',
                       subtitle: 'A photo of the printed menu, a PDF, or a spreadsheet.',
                       detail: 'Best when the menu is already on paper or in a file.',
-                      onTap: () => Navigator.pop(context, MenuImportSource.photo),
+                      onTap: () => _select(context, MenuImportSource.photo),
                     ),
                     if (enableVoice) ...[
                       const SizedBox(height: 10),
@@ -116,7 +139,7 @@ class _SourceSheet extends StatelessWidget {
                         title: 'Voice',
                         subtitle: 'Say each item, then its price.',
                         detail: 'Best for a short list you can read aloud.',
-                        onTap: () => Navigator.pop(context, MenuImportSource.voice),
+                        onTap: () => _select(context, MenuImportSource.voice),
                       ),
                     ],
                     const SizedBox(height: 10),
@@ -125,10 +148,10 @@ class _SourceSheet extends StatelessWidget {
                       title: 'Zomato',
                       subtitle: 'Paste the outlet share link from the partner app.',
                       detail: 'Best when this menu is already live on Zomato.',
-                      onTap: () => Navigator.pop(context, MenuImportSource.zomato),
+                      onTap: () => _select(context, MenuImportSource.zomato),
                     ),
                   ],
-              ),
+              )),
             ],
           ),
         ),

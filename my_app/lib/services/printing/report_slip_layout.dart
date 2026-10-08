@@ -3,6 +3,7 @@
 List<dynamic> wrapLongReportItemNames(
   Map<String, dynamic> data,
   List<dynamic> commands,
+  {int? lineWidth}
 ) {
   final namesByCode = _reportNamesByCode(data);
   final namesInOrder = _reportNamesInOrder(data);
@@ -20,6 +21,12 @@ List<dynamic> wrapLongReportItemNames(
       continue;
     }
     final text = command['text']?.toString() ?? '';
+    if (lineWidth != null && lineWidth <= 32 &&
+        RegExp(r'Code\s+Description\s+Qty\s+Amount', caseSensitive: false).hasMatch(text)) {
+      expanded.add({...Map<String, dynamic>.from(command),
+        'text': 'Code  Description\n${'Qty'.padRight(lineWidth - 6)}Amount'});
+      continue;
+    }
     final parsed = _parseItemLine(text);
     if (parsed == null) {
       expanded.add(command);
@@ -32,6 +39,20 @@ List<dynamic> wrapLongReportItemNames(
         : null;
     itemIndex++;
     final full = _fullItemName(parsed.name, fromCode ?? _orderName(parsed.name, fromOrder));
+    if (lineWidth != null && lineWidth <= 32) {
+      final width = lineWidth;
+      final nameLines = _wrapWords('${parsed.code}  $full', width);
+      final values = parsed.tail.trim().split(RegExp(r'\s+'));
+      final qty = values.first;
+      final amount = values.last;
+      for (final line in [...nameLines,
+        'Qty: $qty'.padRight((width - amount.length - 1).clamp(0, width)) + ' $amount',
+        '-' * width]) {
+        expanded.add({...Map<String, dynamic>.from(command), 'text': line,
+          'align': 'left', 'style': 'normal'});
+      }
+      continue;
+    }
     if (full == parsed.name && full.length <= parsed.nameWidth) {
       expanded.add(command);
       continue;

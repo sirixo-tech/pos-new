@@ -166,16 +166,17 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   void _checkPrinterSetupAfterLogin() {
     final pos = _printerSetupPos;
     if (!mounted || pos == null || _printerSetupOpened ||
-        pos.phase != PosAppPhase.ready) {
+        pos.phase != PosAppPhase.ready || !pos.isRegisterMode) {
       return;
     }
     _printerSetupOpened = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (pos.phase != PosAppPhase.ready) {
+      if (pos.phase != PosAppPhase.ready || !pos.isRegisterMode) {
         _printerSetupOpened = false;
         return;
       }
+      if (!pos.claimPrinterSetupForSession()) return;
       unawaited(_openPrinterSetupAfterLogin(pos));
     });
     WidgetsBinding.instance.ensureVisualUpdate();
@@ -265,7 +266,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openPrinterSetupAfterLogin(PosController pos) async {
-    if (pos.phase == PosAppPhase.ready) {
+    if (pos.phase == PosAppPhase.ready && pos.isRegisterMode) {
       await PrinterSetupScreen.open(context);
     }
     if (mounted) await _maybePromptSetPosPin(pos);

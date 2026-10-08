@@ -91,6 +91,14 @@ class PosController extends ChangeNotifier {
   PosAppPhase phase = PosAppPhase.loading;
   String? serverUrl;
   PosSession? session;
+  // Survives register screen recreation when switching work modes.
+  bool _printerSetupShownForSession = false;
+
+  bool claimPrinterSetupForSession() {
+    if (_printerSetupShownForSession) return false;
+    _printerSetupShownForSession = true;
+    return true;
+  }
   StaffProfile? profile;
   PosBootstrap? bootstrap;
   PosAppUpdate appUpdate = PosAppUpdate.none();
@@ -673,20 +681,27 @@ class PosController extends ChangeNotifier {
     };
   }
 
+  String? _kitchenTokenSessionKey;
+
   Future<String> ensureKitchenApiToken() async {
     final current = session;
     if (current == null) {
       throw StateError('Not signed in.');
     }
-    final cached = _kitchenApiToken;
+    final key = '${current.serverUrl}|${current.restaurantId}|${current.branchId}|${current.token}';
+    final cached = _kitchenTokenSessionKey == key ? _kitchenApiToken : null;
     if (cached != null && cached.isNotEmpty) {
       return cached;
     }
-    _kitchenApiToken = await _api.issueScopedToken(
+    final token = await _api.issueScopedToken(
       current,
       ability: 'kitchen',
     );
-    return _kitchenApiToken!;
+    if (identical(session, current)) {
+      _kitchenApiToken = token;
+      _kitchenTokenSessionKey = key;
+    }
+    return token;
   }
 
   Future<void> initialize() async {
@@ -1134,7 +1149,6 @@ class PosController extends ChangeNotifier {
   }
 
   Future<PosAppPhase> _enterKitchenReadyPhase() async {
-    _kitchenApiToken = null;
     return PosAppPhase.ready;
   }
 
@@ -1204,9 +1218,6 @@ class PosController extends ChangeNotifier {
     await PosWorkModeStorage.write(current.branchId, mode);
 
     if (mode == PosWorkMode.waiter || mode == PosWorkMode.kitchen) {
-      if (mode == PosWorkMode.kitchen) {
-        _kitchenApiToken = null;
-      }
       phase = PosAppPhase.ready;
       await _onEnteredReady();
       notifyListeners();
@@ -1228,6 +1239,9 @@ class PosController extends ChangeNotifier {
     if (workMode == mode) return;
     if (!_isWorkModeAllowed(mode)) return;
 
+    // Changing roles is not a new login, including a first visit to POS
+    // from Kitchen Display or Captain.
+    _printerSetupShownForSession = true;
     workMode = mode;
     await PosWorkModeStorage.write(current.branchId, mode);
 
@@ -1236,14 +1250,12 @@ class PosController extends ChangeNotifier {
       if (phase != PosAppPhase.ready) {
         phase = PosAppPhase.ready;
       }
-      _kitchenApiToken = null;
       await _onEnteredReady(fromResume: true);
       notifyListeners();
       return;
     }
 
     if (mode == PosWorkMode.kitchen) {
-      _kitchenApiToken = null;
       _stopWaiterPolling();
       _stopRegisterAlertPolling();
       if (phase != PosAppPhase.ready) {
@@ -1253,8 +1265,6 @@ class PosController extends ChangeNotifier {
       notifyListeners();
       return;
     }
-
-    _kitchenApiToken = null;
 
     _stopWaiterPolling();
     _stopRegisterAlertPolling();
@@ -1800,6 +1810,7 @@ class PosController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _printerSetupShownForSession = false;
     _stopPairingPoll();
     _stopWaiterPolling();
     _stopRegisterAlertPolling();
@@ -3225,6 +3236,13 @@ class PosController extends ChangeNotifier {
           notes: orderNotes,
         );
       }
+      // A Captain ticket is released to the kitchen before payment, unlike
+      // a POS checkout. Queue it here instead of relying on the new-order feed.
+      unawaited(_printJobs?.enqueueKot(
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        source: 'captain',
+      ));
       clearCart();
       unawaited(refreshWaiterFloor());
       return order;
@@ -3429,6 +3447,7 @@ class PosController extends ChangeNotifier {
   }
 
   Future<void> changeTerminal() async {
+    _printerSetupShownForSession = true;
     await _clearDisplaySyncNow();
     _stopRevisionPolling();
     phase = PosAppPhase.terminalPicker;
@@ -4815,7 +4834,14 @@ class PosController extends ChangeNotifier {
     unawaited(_persistWaiterAlerts());
   }
 
-  Future<void> refreshWaiterFloor({bool silent = false}) async {
+  Future<void>? _waiterFloorRefresh;
+
+  Future<void> refreshWaiterFloor({bool silent = false}) {
+    return _waiterFloorRefresh ??= _refreshWaiterFloor(silent: silent)
+        .whenComplete(() => _waiterFloorRefresh = null);
+  }
+
+  Future<void> _refreshWaiterFloor({bool silent = false}) async {
     final current = session;
     if (current == null || !isWaiterMode) return;
     if (PosApi.isRateLimited) return;
@@ -4833,6 +4859,7 @@ class PosController extends ChangeNotifier {
       billRequestedTableIds = await PosBillRequestStorage.read(current.branchId);
 
       if (isOnline) {
+        Future<void> loadTables() async {
         try {
           final data = await _api.fetchTables(current);
           waiterTables = _mapDynamicList(data['tables']);
@@ -4844,14 +4871,20 @@ class PosController extends ChangeNotifier {
                   final areaId = t['table_area_id'];
                   return areaId == null || '$areaId'.isEmpty;
                 }).toList();
+          // Show the floor as soon as tables arrive; orders load alongside it.
+          notifyListeners();
         } catch (_) {
           // Keep prior snapshot.
         }
+        }
 
+        Future<void> loadHeld() async {
         try {
           waiterHeldOrders = await fetchHeldOrders();
         } catch (_) {}
+        }
 
+        Future<void> loadFloorOrders() async {
         try {
           final floor = await _api.fetchFloorOrders(current);
           _detectFloorAlerts(floor);
@@ -4868,6 +4901,9 @@ class PosController extends ChangeNotifier {
             waiterRecentOrders = orders;
           } catch (_) {}
         }
+        }
+
+        await Future.wait([loadTables(), loadHeld(), loadFloorOrders()]);
 
         // Reconcile local billing overlay with server tables + floor tickets.
         // Do not keep stale bill flags after web frees / updates a table.

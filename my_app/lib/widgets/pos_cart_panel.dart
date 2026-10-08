@@ -865,57 +865,37 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                   );
                 }
 
-                final holdEnabled = !cartEmpty && !submitting;
-                final holdTone = posAccentSoft(PosTheme.holdAmberDark);
+                final methods = ['card', 'upi', 'cash']
+                    .where(visiblePay.contains).toList();
                 return Row(
                   children: [
                     if (onPark != null) ...[
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: holdEnabled ? onPark : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: holdTone.bg,
-                            foregroundColor: holdTone.fg,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            disabledBackgroundColor: PosTheme.surfaceMuted,
-                            disabledForegroundColor: PosTheme.inkFaint,
-                            minimumSize: const Size(0, 52),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            side: BorderSide(
-                              color: holdEnabled
-                                  ? holdTone.fg.withValues(alpha: 0.45)
-                                  : PosTheme.border,
-                              width: 1.4,
-                            ),
+                      SizedBox(
+                        width: 44,
+                        height: 52,
+                        child: IconButton.filledTonal(
+                          tooltip: context.l10n.cartHold,
+                          onPressed: !cartEmpty && !submitting ? onPark : null,
+                          style: IconButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.pause_rounded, size: narrow ? 16 : 20),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  context.l10n.cartHold,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.w800),
-                                ),
-                              ),
-                            ],
-                          ),
+                          icon: const Icon(Icons.pause_circle_outline_rounded),
                         ),
                       ),
                       const SizedBox(width: 6),
                     ],
-                    action('UPI', Icons.qr_code_rounded, const Color(0xFF2563EB), 'upi'),
-                    const SizedBox(width: 6),
-                    action('PRINT', Icons.print_rounded, const Color(0xFF2E9644), 'cash'),
+                    for (var i = 0; i < methods.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 6),
+                      if (methods[i] == 'cash')
+                        action('PRINT', Icons.print_rounded, const Color(0xFF2E9644), 'cash'),
+                      if (methods[i] == 'upi')
+                        action('UPI', Icons.qr_code_rounded, const Color(0xFF2563EB), 'upi'),
+                      if (methods[i] == 'card')
+                        action('CARD', Icons.credit_card_rounded, const Color(0xFF7C3AED), 'card'),
+                    ],
                   ],
                 );
               }
-
               return Row(
                 children: [
                   if (onPark != null)

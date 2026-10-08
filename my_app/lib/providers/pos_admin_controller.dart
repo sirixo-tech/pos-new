@@ -24,13 +24,30 @@ class PosAdminController extends ChangeNotifier {
   static String? _menuInFlightKey;
 
   /// Start the menu request before the popup opens so the list is ready.
-  static Future<void> warm(PosApi api, PosController pos) {
-    if (pos.session == null) return Future.value();
-    return PosAdminController(api: api, pos: pos).loadMenu();
+  static Future<void> warm(PosApi api, PosController pos) async {
+    if (pos.session == null) return;
+    final controller = PosAdminController(api: api, pos: pos);
+    try {
+      await controller.loadMenu();
+    } finally {
+      controller.dispose();
+    }
   }
 
   final PosApi _api;
   final PosController _pos;
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   List<AdminMenuCategory> categories = const [];
   List<AdminMenuModifier> modifiers = const [];
@@ -137,6 +154,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<void> loadMenu() async {
+    if (_disposed) return;
     final showSpinner = categories.isEmpty;
     if (showSpinner) {
       clearError();

@@ -1502,7 +1502,10 @@ class PosReceiptPrinter {
       }
 
       final executor = PrintObjectExecutor.fromPayload(data);
-      return executor.buildBytes(wrapLongReportItemNames(data, commands));
+      final reportWidth = ReceiptTypography(
+        receiptWidth: executor.paper, fontSize: executor.fontSize).lineWidth;
+      return executor.buildBytes(wrapLongReportItemNames(data, commands,
+        lineWidth: reportWidth));
     }
 
     throw StateError(failure ?? 'Failed to fetch report');

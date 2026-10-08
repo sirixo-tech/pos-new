@@ -2,6 +2,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/services/printing/report_slip_layout.dart';
 
 void main() {
+  test('56mm item reports separate names from quantity and amount', () {
+    final commands = wrapLongReportItemNames({}, [
+      {'type': 'text', 'text': '81   CHOW CHOW BHATH  10   650.00'},
+    ], lineWidth: 32);
+    final lines = commands.whereType<Map>().map((c) => c['text'] as String).toList();
+    expect(lines.first, '81  CHOW CHOW BHATH');
+    expect(lines[1], startsWith('Qty: 10'));
+    expect(lines[1], endsWith('650.00'));
+    expect(lines.every((line) => line.length <= 32), isTrue);
+    expect(lines.last, '-' * 32);
+  });
   test('long report item names wrap instead of a clipped question mark', () {
     const clipped = '81   CHOW CHOW BH?  3   185.70';
     final commands = wrapLongReportItemNames(

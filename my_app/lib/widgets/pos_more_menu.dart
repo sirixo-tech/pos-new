@@ -128,7 +128,8 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
     if (!mounted) return;
     setState(() {
       _hidden = ids;
-      _expanded = expanded;
+      // Phone settings starts collapsed, even if an older layout saved all open.
+      _expanded = usePosHandheldLayout(context) ? <String>{} : expanded;
     });
   }
 
@@ -178,7 +179,8 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
             sections: widget.sections,
             customizing: _customizing,
             hidden: _hidden,
-            expanded: _customizing ? null : _expanded,
+            expanded: _customizing ? null :
+                (_expanded ?? (usePosHandheldLayout(context) ? <String>{} : null)),
             isShown: _isShown,
             onToggleHidden: _toggleHidden,
             onToggleSection: _toggleSection,

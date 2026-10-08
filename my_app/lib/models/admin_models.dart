@@ -285,6 +285,7 @@ class AdminMenuItem {
       price: (json['price'] as num).toDouble(),
       isAvailable: json['is_available'] as bool? ?? true,
       imageUrl: json['image_url'] as String?,
+      itemType: json['item_type'] as String?,
       timeSlotIds: _asIntList(json['time_slot_ids']),
       modifierIds: modifierIds.isNotEmpty
           ? modifierIds

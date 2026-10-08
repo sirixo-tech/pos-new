@@ -256,6 +256,10 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
           label: 'About',
           subtitle: 'Version ${PosAppInfo.versionLabel}',
         ),
+      ],
+    ),
+    PosMoreMenuSection(
+      items: [
         PosMoreMenuItem(
           id: 'logout',
           icon: Icons.logout_rounded,

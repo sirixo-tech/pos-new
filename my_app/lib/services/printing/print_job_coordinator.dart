@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../../models/pos_models.dart';
 import '../../utils/thermal_printer_platform.dart';
 import '../order_fulfillment_policy.dart';
+import '../pos_api.dart';
 import 'pending_print_jobs.dart';
 import 'pos_receipt_printer.dart';
 import 'pos_channel_print_policy.dart';
@@ -103,6 +104,7 @@ class PrintJobCoordinator extends ChangeNotifier {
   Future<void>? _retryFlight;
   bool _restored = false;
   Timer? _healthWatch;
+  Timer? _rateRetryTimer;
   PrinterHealthState? _lastHealthState;
   List<String> _lastIssues = const [];
 
@@ -273,6 +275,7 @@ class PrintJobCoordinator extends ChangeNotifier {
   }
 
   Future<void> _retryFailedOnce({required bool includeMayHavePrinted}) async {
+    if (PosApi.isRateLimited) return;
     if (_failed.isEmpty) return;
     final jobs =
         _failed.values
@@ -386,10 +389,14 @@ class PrintJobCoordinator extends ChangeNotifier {
   }
 
   Future<void> _drain() async {
-    if (_draining) return;
+    if (_draining || _rateRetryTimer != null) return;
     _draining = true;
     try {
       while (_queue.isNotEmpty) {
+        if (PosApi.isRateLimited) {
+          _waitForServerCooldown();
+          break;
+        }
         final job = _queue.removeFirst();
         try {
           if (job.kind == PrintJobKind.kot) {
@@ -404,7 +411,15 @@ class PrintJobCoordinator extends ChangeNotifier {
           _remember(job.jobKey);
           if (_failed.isEmpty) _healthWatch?.cancel();
         } catch (error) {
-          if (isPrintingDisabled(error)) {
+          final rateLimited = error is PosApiException && error.statusCode == 429 ||
+              error.toString().toLowerCase().contains('too many attempts');
+          if (rateLimited && !_printMayHaveStarted(error)) {
+            if (error is PosApiException) PosApi.noteIfRateLimited(error);
+            _queue.addFirst(job);
+            _waitForServerCooldown();
+            debugPrint('[PRINT] waiting for server cooldown: ${job.orderNumber}');
+            break;
+          } else if (isPrintingDisabled(error)) {
             _completed.add(job.jobKey);
             _failed.remove(job.jobKey);
             await PendingPrintJobStore.markDone(job.jobKey);
@@ -454,15 +469,24 @@ class PrintJobCoordinator extends ChangeNotifier {
             notifyListeners();
           }
         } finally {
-          _queued.remove(job.jobKey);
+          if (!_queue.contains(job)) _queued.remove(job.jobKey);
         }
       }
     } finally {
       _draining = false;
-      if (_queue.isNotEmpty) {
+      if (_queue.isNotEmpty && _rateRetryTimer == null) {
         unawaited(_drain());
       }
     }
+  }
+
+  void _waitForServerCooldown() {
+    _rateRetryTimer?.cancel();
+    final wait = PosApi.rateLimitRemaining ?? const Duration(seconds: 20);
+    _rateRetryTimer = Timer(wait + const Duration(milliseconds: 250), () {
+      _rateRetryTimer = null;
+      unawaited(_drain());
+    });
   }
 
   Future<void> _printKot(_PrintJob job) async {
@@ -567,6 +591,7 @@ class PrintJobCoordinator extends ChangeNotifier {
 
   @override
   void dispose() {
+    _rateRetryTimer?.cancel();
     _healthWatch?.cancel();
     unawaited(_failures.close());
     super.dispose();

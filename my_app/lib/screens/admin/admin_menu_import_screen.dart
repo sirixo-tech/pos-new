@@ -43,7 +43,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   XFile? _selectedFile;
   int _selectedBytes = 0;
   MenuImportSource _source = MenuImportSource.photo;
-  bool _chooserOffered = false;
+  bool _choosingSource = true;
+  Future<void>? _initialLoad;
   PosSession? _adminSession;
   PosSession get _session {
     final current = _pos.session;
@@ -86,7 +87,9 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _initialLoad = _load();
+    });
   }
 
   @override
@@ -152,9 +155,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
       _accept(Map<String, dynamic>.from(data['active_import'] as Map));
     }
   }).whenComplete(() {
-    if (!mounted || _import != null || _chooserOffered) return;
-    _chooserOffered = true;
-    _chooseSource();
+    if (mounted && _import != null) setState(() => _choosingSource = false);
   });
 
   Future<void> _poll() async {
@@ -195,9 +196,10 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     }
   }
 
-  Future<void> _pick({bool camera = false}) => _run(() async {
+  Future<void> _pick({bool camera = false, bool gallery = false}) => _run(() async {
     final file = camera
         ? await ImagePicker().pickImage(source: ImageSource.camera)
+        : gallery ? await ImagePicker().pickImage(source: ImageSource.gallery)
         : await openFile();
     if (file == null) return;
     final maxKb = num.tryParse('${_caps?['max_upload_kb']}') ?? 20480;
@@ -240,12 +242,30 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   Future<void> _upload() => _run(_uploadSelected);
 
   Future<void> _chooseSource() async {
-    final picked = await showMenuImportSourceSheet(
-      context,
-      enableVoice: widget.enableVoice,
+    setState(() => _choosingSource = true);
+  }
+
+  Future<void> _selectSource(MenuImportSource source) async {
+    setState(() {
+      _source = source;
+      _choosingSource = false;
+    });
+    if (source != MenuImportSource.photo) return;
+    final choice = await showModalBottomSheet<int>(
+      context: context,
+      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.camera_alt_outlined), title: const Text('Camera'),
+          onTap: () => Navigator.pop(ctx, 0)),
+        ListTile(leading: const Icon(Icons.photo_library_outlined), title: const Text('Gallery'),
+          onTap: () => Navigator.pop(ctx, 1)),
+        ListTile(leading: const Icon(Icons.description_outlined), title: const Text('PDF or spreadsheet'),
+          onTap: () => Navigator.pop(ctx, 2)),
+      ])),
     );
+    if (choice == null) return;
+    await _initialLoad;
     if (!mounted) return;
-    setState(() => _source = picked ?? _source);
+    await _pick(camera: choice == 0, gallery: choice == 1);
   }
 
   Future<void> _submitPrepared(Uint8List bytes, {required String name}) =>
@@ -503,7 +523,9 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   });
 
   @override
-  Widget build(BuildContext context) => MenuImportView(
+  Widget build(BuildContext context) => _choosingSource
+      ? MenuImportSourcePage(enableVoice: widget.enableVoice, onSelect: _selectSource)
+      : MenuImportView(
     capabilities: _caps,
     import: _import,
     rows: _rows,

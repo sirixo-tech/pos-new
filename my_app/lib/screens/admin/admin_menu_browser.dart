@@ -253,7 +253,8 @@ class AdminDesktopMenuBrowser extends StatelessWidget {
                           buildDefaultDragHandles: false,
                           padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
                           itemCount: categories.length,
-                          onReorderItem: (oldIndex, newIndex) {
+                          onReorder: (oldIndex, newIndex) {
+                            if (newIndex > oldIndex) newIndex -= 1;
                             final ids = [for (final row in categories) row.id];
                             final moved = ids.removeAt(oldIndex);
                             ids.insert(newIndex, moved);
