@@ -771,6 +771,7 @@ class _PosSearchFieldState extends State<PosSearchField> {
   bool _voiceListening = false;
   String _voiceTranscript = '';
   Future<void> Function()? _stopVoice;
+  OverlayEntry? _voicePopup;
 
   @override
   void initState() {
@@ -801,6 +802,8 @@ class _PosSearchFieldState extends State<PosSearchField> {
 
   @override
   void dispose() {
+    _voicePopup?.remove();
+    _voicePopup = null;
     widget.controller.removeListener(_onText);
     _focusNode.removeListener(_onFocus);
     if (_ownedFocus) {
@@ -1000,6 +1003,7 @@ class _PosSearchFieldState extends State<PosSearchField> {
                   _voiceListening = listening;
                   _voiceTranscript = transcript;
                 });
+                _syncVoicePopup();
               },
               onText: (words) {
                 widget.controller.value = TextEditingValue(
@@ -1063,15 +1067,43 @@ class _PosSearchFieldState extends State<PosSearchField> {
         ],
       ),
         ),
-        if (_voiceListening) ...[
-          const SizedBox(height: 8),
-          PosListeningStatus(
+      ],
+    );
+  }
+
+  void _syncVoicePopup() {
+    if (!mounted || !_voiceListening) {
+      _voicePopup?.remove();
+      _voicePopup = null;
+      return;
+    }
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+    if (_voicePopup == null) {
+      _voicePopup = OverlayEntry(builder: _voicePopupBuilder);
+      overlay.insert(_voicePopup!);
+      return;
+    }
+    _voicePopup!.markNeedsBuild();
+  }
+
+  Widget _voicePopupBuilder(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top + 12;
+    return Positioned(
+      top: top,
+      left: 16,
+      right: 16,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: PosListeningStatus(
             transcript: _voiceTranscript,
             hint: 'Searching the menu',
             onStop: () => _stopVoice?.call(),
           ),
-        ],
-      ],
+        ),
+      ),
     );
   }
 }
@@ -1206,6 +1238,8 @@ class _PosToastState extends State<_PosToast>
         widget.error ? Icons.error_outline_rounded : Icons.check_circle_rounded;
     final borderColor =
         widget.error ? const Color(0xFFFECACA) : PosTheme.border;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final toastWidth = screenWidth - 32 < 420 ? screenWidth - 32 : 420.0;
 
     return Positioned(
       top: widget.top,
@@ -1225,9 +1259,13 @@ class _PosToastState extends State<_PosToast>
                   key: const ValueKey('pos-toast'),
                   direction: DismissDirection.up,
                   onDismissed: (_) => widget.onDismiss(),
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: toastWidth),
+                    child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
                     decoration: BoxDecoration(
                       color: PosTheme.surface,
                       borderRadius: BorderRadius.circular(PosTheme.radiusMd),
@@ -1246,7 +1284,6 @@ class _PosToastState extends State<_PosToast>
                       ],
                     ),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
                           width: 32,
@@ -1258,10 +1295,11 @@ class _PosToastState extends State<_PosToast>
                           child: Icon(icon, color: iconColor, size: 18),
                         ),
                         const SizedBox(width: 10),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 280),
+                        Expanded(
                           child: Text(
                             widget.message,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: PosTheme.ink,
                               fontWeight: FontWeight.w600,
@@ -1286,6 +1324,8 @@ class _PosToastState extends State<_PosToast>
                           ),
                         ),
                       ],
+                    ),
+                  ),
                     ),
                   ),
                 ),

@@ -260,6 +260,7 @@ class AdminMenuItem {
     required this.price,
     required this.isAvailable,
     this.imageUrl,
+    this.itemType,
     this.timeSlotIds = const [],
     this.modifierIds = const [],
   });
@@ -270,6 +271,7 @@ class AdminMenuItem {
   final double price;
   final bool isAvailable;
   final String? imageUrl;
+  final String? itemType;
   final List<int> timeSlotIds;
   final List<int> modifierIds;
 
@@ -296,6 +298,7 @@ class AdminMenuItem {
     double? price,
     bool? isAvailable,
     String? imageUrl,
+    String? itemType,
     List<int>? timeSlotIds,
     List<int>? modifierIds,
   }) =>
@@ -306,6 +309,7 @@ class AdminMenuItem {
         price: price ?? this.price,
         isAvailable: isAvailable ?? this.isAvailable,
         imageUrl: imageUrl ?? this.imageUrl,
+        itemType: itemType ?? this.itemType,
         timeSlotIds: timeSlotIds ?? this.timeSlotIds,
         modifierIds: modifierIds ?? this.modifierIds,
       );

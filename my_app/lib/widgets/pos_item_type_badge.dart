@@ -106,11 +106,13 @@ class PosItemTypeBadge extends StatelessWidget {
     required this.type,
     this.compact = false,
     this.enlarged = false,
+    this.dense = false,
   });
 
   final String type;
   final bool compact;
   final bool enlarged;
+  final bool dense;
 
   static String? labelFor(String? type, AppLocalizations l10n) {
     final key = normalizePosItemType(type);
@@ -176,11 +178,17 @@ class PosItemTypeBadge extends StatelessWidget {
     final soft = posAccentSoft(accent);
     final fg = PosTheme.isDark ? soft.fg : accent;
     final bg = PosTheme.isDark ? soft.bg : _bg(key).withValues(alpha: 0.96);
-    final markSize = enlarged ? 17.31 : (compact ? 13.0 : 15.0);
-    final fontSize = enlarged ? 10.23 : 10.0;
-    final pad = enlarged
-        ? const EdgeInsets.fromLTRB(5.46, 3.89, 7.87, 3.89)
-        : const EdgeInsets.fromLTRB(5, 3, 8, 3);
+    final markSize = dense
+        ? 9.0
+        : enlarged
+            ? 17.31
+            : (compact ? 13.0 : 15.0);
+    final fontSize = dense ? 9.0 : (enlarged ? 10.23 : 10.0);
+    final pad = dense
+        ? const EdgeInsets.fromLTRB(2, 1, 3, 1)
+        : enlarged
+            ? const EdgeInsets.fromLTRB(5.46, 3.89, 7.87, 3.89)
+            : const EdgeInsets.fromLTRB(5, 3, 8, 3);
 
     if (compact) {
       return Tooltip(
@@ -195,7 +203,7 @@ class PosItemTypeBadge extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: fg.withValues(alpha: 0.28)),
-        boxShadow: PosTheme.isDark
+        boxShadow: PosTheme.isDark || dense
             ? null
             : [
                 BoxShadow(
@@ -209,9 +217,11 @@ class PosItemTypeBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           PosItemTypeMark(type: key, size: markSize),
-          SizedBox(width: enlarged ? 4.14 : 5),
+          SizedBox(width: dense ? 2 : (enlarged ? 4.14 : 5)),
           ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: enlarged ? 96 : 72),
+            constraints: BoxConstraints(
+              maxWidth: dense ? 32 : (enlarged ? 96 : 72),
+            ),
             child: Text(
               label,
               maxLines: 1,

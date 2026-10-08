@@ -514,31 +514,22 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
           widget.embedded ? 'Receipt printer' : l10n.printerSetupTitle,
         ),
         actions: [
-          if (compact)
-            IconButton(
-              tooltip: _onBluetooth ? l10n.printerScan : l10n.commonRefresh,
-              onPressed: _loading || _testing || _savingNetwork
-                  ? null
-                  : _refreshCurrent,
-              icon: Icon(
-                _onBluetooth
-                    ? Icons.bluetooth_searching_rounded
-                    : Icons.refresh_rounded,
-              ),
-            )
-          else
-            TextButton.icon(
-              onPressed: _loading || _testing || _savingNetwork
-                  ? null
-                  : _refreshCurrent,
-              icon: Icon(
-                _onBluetooth
-                    ? Icons.bluetooth_searching_rounded
-                    : Icons.refresh_rounded,
-                size: 18,
-              ),
-              label: Text(_onBluetooth ? l10n.printerScan : l10n.commonRefresh),
-            ),
+          if (!_onBluetooth)
+            compact
+                ? IconButton(
+                    tooltip: l10n.commonRefresh,
+                    onPressed: _loading || _testing || _savingNetwork
+                        ? null
+                        : _refreshCurrent,
+                    icon: const Icon(Icons.refresh_rounded),
+                  )
+                : TextButton.icon(
+                    onPressed: _loading || _testing || _savingNetwork
+                        ? null
+                        : _refreshCurrent,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text(l10n.commonRefresh),
+                  ),
           IconButton(
             tooltip: l10n.commonClose,
             icon: const Icon(Icons.close_rounded),

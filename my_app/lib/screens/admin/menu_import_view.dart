@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 
@@ -7,6 +9,158 @@ import 'menu_export_section.dart';
 import 'menu_import_progress.dart';
 
 const _green = Color(0xFF009C73);
+
+class _AiStepRail extends StatefulWidget {
+  const _AiStepRail({required this.titles, required this.stage});
+
+  final List<String> titles;
+  final int stage;
+
+  @override
+  State<_AiStepRail> createState() => _AiStepRailState();
+}
+
+class _AiStepRailState extends State<_AiStepRail> with SingleTickerProviderStateMixin {
+  late final AnimationController _motion;
+
+  @override
+  void initState() {
+    super.initState();
+    _motion = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _motion.stop();
+    } else if (!_motion.isAnimating) {
+      _motion.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _motion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _motion,
+      builder: (context, _) {
+        final t = _motion.value;
+        return SizedBox(
+          height: 48,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 36,
+                right: 36,
+                top: 10,
+                child: _AiTrace(t: t),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < widget.titles.length; i++)
+                    Expanded(child: _step(i, t)),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _step(int i, double t) {
+    final active = i == widget.stage;
+    final done = i < widget.stage;
+    final pulse = active ? 0.5 + 0.5 * math.sin(t * math.pi * 2) : 0.0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 28,
+          height: 28,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (active)
+                Container(
+                  width: 22 + pulse * 6,
+                  height: 22 + pulse * 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _green.withValues(alpha: 0.16 * (1 - pulse * 0.35)),
+                  ),
+                ),
+              CircleAvatar(
+                radius: 11,
+                backgroundColor: i <= widget.stage ? _green : _border,
+                child: done
+                    ? const Icon(Icons.check, size: 12, color: Colors.white)
+                    : Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: active ? Colors.white : _muted,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          widget.titles[i],
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+            color: active ? _ink : _muted,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AiTrace extends StatelessWidget {
+  const _AiTrace({required this.t});
+
+  final double t;
+
+  @override
+  Widget build(BuildContext context) {
+    final head = (t * 1.35 - 0.15).clamp(0.0, 1.0);
+    var lead = (head - 0.16).clamp(0.0, 1.0);
+    var mid = head;
+    var tail = (head + 0.1).clamp(0.0, 1.0);
+    if (mid < lead) mid = lead;
+    if (tail < mid) tail = mid;
+    return Container(
+      height: 2,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(2),
+        gradient: LinearGradient(
+          colors: const [
+            _border,
+            Color(0xFFB7E6D6),
+            _green,
+            Color(0xFFB7E6D6),
+            _border,
+          ],
+          stops: [0, lead, mid, tail, 1],
+        ),
+      ),
+    );
+  }
+}
 const _ink = Color(0xFF12253E);
 const _muted = Color(0xFF71839A);
 const _border = Color(0xFFE0E8F1);
@@ -45,6 +199,15 @@ class MenuImportView extends StatefulWidget {
     this.onAnother,
     this.onCamera,
     this.voiceSection,
+    this.alternateBody,
+    this.onChangeSource,
+    this.stepTitles = const ['Upload', 'AI extract', 'Edit & review', 'Go live'],
+    this.stepSubtitles = const [
+      'Photo, PDF, or spreadsheet',
+      'Build your menu catalog',
+      'Quick fixes by category',
+      'Publish to this branch',
+    ],
   });
   final Map<String, dynamic>? capabilities, import;
   final List<Map<String, dynamic>> rows;
@@ -68,6 +231,11 @@ class MenuImportView extends StatefulWidget {
   final VoidCallback? onViewMenu, onOpenPos, onAnother;
   final VoidCallback? onCamera;
   final Widget? voiceSection;
+  final Widget? alternateBody;
+  final VoidCallback? onChangeSource;
+  final List<String> stepTitles;
+  final List<String> stepSubtitles;
+
   @override
   State<MenuImportView> createState() => _MenuImportViewState();
 }
@@ -93,7 +261,7 @@ class _MenuImportViewState extends State<MenuImportView> {
             )
           : null,
     ),
-    padding: const EdgeInsets.all(22),
+    padding: EdgeInsets.all(usePosHandheldLayout(context) ? 14 : 22),
     child: child,
   );
   Widget _badge(String text) => Container(
@@ -149,114 +317,7 @@ class _MenuImportViewState extends State<MenuImportView> {
         : widget.import != null && !widget.terminal
         ? 1
         : 0;
-    const titles = ['Upload', 'AI extract', 'Edit & review', 'Go live'];
-    const subtitles = [
-      'Photo, PDF, or spreadsheet',
-      'Build your menu catalog',
-      'Quick fixes by category',
-      'Publish to this branch',
-    ];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 550) {
-          return Row(
-            children: [
-              for (var i = 0; i < 4; i++) ...[
-                if (i > 0)
-                  Expanded(
-                    child: Container(
-                      height: 2,
-                      color: i <= stage ? _green : _border,
-                    ),
-                  ),
-                Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 11,
-                      backgroundColor: i <= stage ? _green : _border,
-                      child: Text(
-                        '${i + 1}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: i <= stage ? Colors.white : _muted,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      titles[i].split(' ').first,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: i == stage ? FontWeight.w800 : FontWeight.w600,
-                        color: i == stage ? _ink : _muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          );
-        }
-        final width = (constraints.maxWidth - 24) / 4;
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: List.generate(
-            4,
-            (i) => Container(
-              width: width,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: stage == i
-                    ? const Color(0xFFF0FFF8)
-                    : const Color(0xFFF7F9FC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: stage == i ? _green : _border),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: i <= stage ? _green : _border,
-                    child: i < stage
-                        ? const Icon(Icons.check, size: 14, color: Colors.white)
-                        : Text(
-                            '${i + 1}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: i == stage ? Colors.white : _muted,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          titles[i],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _ink,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitles[i],
-                          style: const TextStyle(fontSize: 10, color: _muted),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+    return _AiStepRail(titles: widget.stepTitles, stage: stage);
   }
 
   Widget _uploadPanel() {
@@ -277,14 +338,42 @@ class _MenuImportViewState extends State<MenuImportView> {
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (compact)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 16),
-              child: Text(
-                'Add items by speaking them, or by uploading a menu. You check every price before anything is saved.',
-                style: TextStyle(fontSize: 13, height: 1.4, color: _muted),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.description_outlined,
+                  color: Color(0xFF1D4ED8),
+                  size: 24,
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Photo, PDF, or spreadsheet',
+                  maxLines: 2,
+                  softWrap: true,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    height: 1.2,
+                    letterSpacing: -0.2,
+                    color: _ink,
+                  ),
+                ),
+              ),
+              if (widget.onChangeSource != null)
+                _ChangePill(onPressed: widget.busy ? null : widget.onChangeSource),
+            ],
+          ),
+          SizedBox(height: compact ? 10 : 16),
           if (widget.voiceSection != null) ...[
             widget.voiceSection!,
             const Padding(
@@ -308,30 +397,74 @@ class _MenuImportViewState extends State<MenuImportView> {
               ),
             ),
           ],
-          if (!compact) ...[
-            _heading(
-              Icons.file_upload_outlined,
-              'Upload a menu',
-              'A photo or PDF is turned into items and prices. A spreadsheet keeps the columns you already use.',
-            ),
-            const SizedBox(height: 14),
-          ] else ...[
-            const Text(
-              'Upload a menu',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-                color: _ink,
+          InkWell(
+            onTap: widget.busy || caps == null ? null : widget.onPick,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              constraints: BoxConstraints(minHeight: compact ? 92 : 168),
+              padding: EdgeInsets.symmetric(horizontal: 18, vertical: compact ? 12 : 22),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: fileName == null ? _border : _green,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: fileName == null
+                          ? Colors.white
+                          : const Color(0xFFDCF9EB),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _border),
+                    ),
+                    child: Icon(
+                      fileName == null
+                          ? Icons.upload_file_outlined
+                          : Icons.check_rounded,
+                      color: _green,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    fileName ?? 'Choose a file',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _ink,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    fileName == null
+                        ? 'Photo, PDF, CSV, or Excel'
+                        : '${(widget.selectedBytes / 1024).toStringAsFixed(1)} KB · Tap to replace',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12.5, color: _muted),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Use a photo, PDF, or spreadsheet of the menu.',
-              style: TextStyle(fontSize: 13, height: 1.4, color: _muted),
-            ),
-            const SizedBox(height: 12),
-          ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: ['Photo', 'PDF', 'CSV', 'Excel'].map(_badge).toList(),
+          ),
+          SizedBox(height: compact ? 8 : 12),
+          const _UploadGuide(),
           if (!compact) ...[
+            const SizedBox(height: 8),
             Text(
               unlimited
                   ? 'Unlimited AI credits on your plan.'
@@ -340,140 +473,10 @@ class _MenuImportViewState extends State<MenuImportView> {
             ),
             if (costs is Map)
               Text(
-                'AI column mapping: ${costs['text']} credits · Photo / PDF: ${costs['vision_page']} credits per page',
+                'Spreadsheet reading: ${costs['text']} credits · Photo or PDF: ${costs['vision_page']} credits per page',
                 style: const TextStyle(fontSize: 11, color: _muted),
               ),
-            const SizedBox(height: 12),
           ],
-          if (compact)
-            Material(
-              color: const Color(0xFFF8FAFD),
-              borderRadius: BorderRadius.circular(14),
-              child: InkWell(
-                onTap: widget.busy || caps == null ? null : widget.onPick,
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _border),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: fileName == null
-                              ? Colors.white
-                              : const Color(0xFFDCF9EB),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          fileName == null
-                              ? Icons.upload_file_outlined
-                              : Icons.description_outlined,
-                          color: _green,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              fileName ?? 'Photo, PDF, or spreadsheet',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _ink,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              fileName == null
-                                  ? 'Tap to choose a file'
-                                  : '${(widget.selectedBytes / 1024).toStringAsFixed(1)} KB · Tap to replace',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: _muted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right_rounded, color: _muted),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else
-            InkWell(
-              onTap: widget.busy || caps == null ? null : widget.onPick,
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 210),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFD),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _border),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: widget.selectedFile == null
-                            ? Colors.white
-                            : const Color(0xFFDCF9EB),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        widget.selectedFile == null
-                            ? Icons.upload_file_outlined
-                            : Icons.description_outlined,
-                        color: _green,
-                        size: 30,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      widget.selectedFile?.name ?? 'Choose a menu photo or PDF',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: _ink,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      widget.selectedFile == null
-                          ? 'Click to browse photo, PDF, CSV, or Excel'
-                          : '${(widget.selectedBytes / 1024).toStringAsFixed(1)} KB · Click to replace file',
-                      style: const TextStyle(fontSize: 12, color: _muted),
-                    ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 6,
-                      children: [
-                        'Photo',
-                        'PDF',
-                        'CSV / Excel',
-                      ].map(_badge).toList(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           const SizedBox(height: 14),
           if (mobile && widget.onCamera != null) ...[
             OutlinedButton.icon(
@@ -485,7 +488,9 @@ class _MenuImportViewState extends State<MenuImportView> {
             ),
             const SizedBox(height: 10),
           ],
-          CheckboxListTile(
+          Material(
+            color: Colors.transparent,
+            child: CheckboxListTile(
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
             activeColor: _green,
@@ -499,12 +504,11 @@ class _MenuImportViewState extends State<MenuImportView> {
             ),
             subtitle: Text(
               caps?['ai_assist_available'] == true
-                  ? spreadsheet
-                        ? 'Columns such as “Dish” or “Amount” are matched to your menu. You still confirm each price.'
-                        : 'Items and prices are read from the file. You still confirm each price.'
+                  ? 'You confirm every price before it is saved.'
                   : 'Reading is unavailable: ${caps?['ai_unavailable_reason'] ?? 'Checking availability'}',
               style: const TextStyle(fontSize: 11, color: _muted),
             ),
+          ),
           ),
           Row(
             children: [
@@ -914,20 +918,20 @@ class _MenuImportViewState extends State<MenuImportView> {
   @override
   Widget build(BuildContext context) {
     final caps = widget.capabilities;
-    final canUpload =
-        caps != null && (widget.import == null || widget.terminal);
+    final canUpload = widget.import == null || widget.terminal;
     final maxKb = num.tryParse('${caps?['max_upload_kb']}') ?? 20480;
     final progress = num.tryParse('${widget.import?['progress']}');
     final status = '${widget.import?['status'] ?? ''}';
     final published =
         widget.terminal && ['completed', 'complete'].contains(status);
     final handheld = usePosHandheldLayout(context);
+    final showBack = ModalRoute.of(context)?.settings.name == 'ai-menu';
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
       appBar: AppBar(
         title: const Text('AI Menu Upload'),
         backgroundColor: Colors.white,
-        automaticallyImplyLeading: !handheld,
+        automaticallyImplyLeading: showBack || !handheld,
         actions: [
           if (!handheld)
             IconButton(
@@ -948,15 +952,17 @@ class _MenuImportViewState extends State<MenuImportView> {
               if (!handheld &&
                   !widget.review &&
                   !published &&
+                  widget.alternateBody == null &&
+                  widget.onChangeSource == null &&
                   (widget.import == null || widget.terminal)) ...[
                 _panel(
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _heading(
-                        Icons.auto_awesome_rounded,
+                        Icons.menu_book_rounded,
                         'Add items to your menu',
-                        'Speak the items, or upload a photo, PDF, or spreadsheet. You review every price before anything is saved.',
+                        'Upload a photo, PDF, or spreadsheet. You review every price before anything is saved.',
                       ),
                       const SizedBox(height: 16),
                       Wrap(
@@ -977,10 +983,10 @@ class _MenuImportViewState extends State<MenuImportView> {
               ],
               if (handheld) ...[
                 _steps(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
               ],
               if (handheld && canUpload && !published) ...[
-                _uploadPanel(),
+                widget.alternateBody ?? _uploadPanel(),
                 const SizedBox(height: 16),
               ],
               if (!handheld) ...[
@@ -1082,7 +1088,7 @@ class _MenuImportViewState extends State<MenuImportView> {
                 ),
               if (widget.errors != null) _panel(SelectableText(widget.errors!)),
               if (!handheld && canUpload && !published) ...[
-                _uploadPanel(),
+                widget.alternateBody ?? _uploadPanel(),
                 const SizedBox(height: 20),
                 MenuExportSection(
                   busy: widget.busy,
@@ -1093,6 +1099,72 @@ class _MenuImportViewState extends State<MenuImportView> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ChangePill extends StatelessWidget {
+  const _ChangePill({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: accent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size(84, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      child: const Text(
+        'Change',
+        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, letterSpacing: 0.1),
+      ),
+    );
+  }
+}
+
+class _UploadGuide extends StatelessWidget {
+  const _UploadGuide();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _GuideLine(
+      icon: Icons.info_outline_rounded,
+      text: 'Use a clear photo, PDF, or spreadsheet.',
+    );
+  }
+}
+
+class _GuideLine extends StatelessWidget {
+  const _GuideLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: _muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 12.5, height: 1.35, color: _muted),
+            ),
+          ),
+        ],
       ),
     );
   }

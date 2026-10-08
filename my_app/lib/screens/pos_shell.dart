@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/pos_l10n.dart';
 import '../models/pos_models.dart';
@@ -257,6 +258,9 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       _checkPrinterSetupAfterLogin();
       unawaited(_loadKotDockState());
       unawaited(_bootKitchenIfNeeded());
+      unawaited(
+        PosAdminController.warm(context.read<PosApi>(), pos),
+      );
     });
   }
 
@@ -2600,6 +2604,7 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
         const SizedBox(width: 6),
         _HeaderSegment(
             children: [
+              const _HeaderHelpButton(),
               if (handheld)
                 _HeaderIconButton(
                   tooltip: 'Settings',
@@ -2800,6 +2805,106 @@ class _HeaderSegmentDivider extends StatelessWidget {
         height: 18,
         color: PosTheme.border.withValues(alpha: 0.9),
       ),
+    );
+  }
+}
+
+class _HeaderHelpButton extends StatelessWidget {
+  const _HeaderHelpButton();
+
+  static const _phone = '9988223919';
+  static const _mail = 'hello@selfx.in';
+
+  void _open(Uri uri) {
+    launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final handheld = usePosHandheldLayout(context);
+    final fg = PosTheme.ink.withValues(alpha: 0.78);
+    return PopupMenuButton<void>(
+      position: PopupMenuPosition.under,
+      offset: const Offset(0, 6),
+      tooltip: 'Help',
+      color: PosTheme.surface,
+      elevation: 10,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 220),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: PosTheme.border),
+      ),
+      itemBuilder: (context) => [
+        PopupMenuItem<void>(
+          height: 58,
+          onTap: () => _open(Uri.parse('tel:+91$_phone')),
+          child: const _HelpMenuRow(
+            icon: Icons.call_rounded,
+            label: 'Phone',
+            value: _phone,
+          ),
+        ),
+        PopupMenuItem<void>(
+          height: 58,
+          onTap: () => _open(Uri.parse('mailto:$_mail')),
+          child: const _HelpMenuRow(
+            icon: Icons.mail_outline_rounded,
+            label: 'Mail',
+            value: _mail,
+          ),
+        ),
+      ],
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: handheld ? 13 : PosTheme.headerPx(10),
+        ),
+        child: Icon(Icons.phone_rounded, size: PosTheme.headerPx(18), color: fg),
+      ),
+    );
+  }
+}
+
+class _HelpMenuRow extends StatelessWidget {
+  const _HelpMenuRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: PosTheme.ink),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: PosTheme.inkMuted,
+              ),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: PosTheme.ink,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

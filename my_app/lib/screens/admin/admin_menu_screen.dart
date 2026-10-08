@@ -6,11 +6,11 @@ import '../../models/admin_models.dart';
 import '../../providers/pos_admin_controller.dart';
 import '../../providers/pos_controller.dart';
 import '../../theme/pos_theme.dart';
-import '../../utils/format.dart';
+import '../../utils/pos_layout.dart';
 import '../../widgets/pos_ui.dart';
 import 'admin_chrome.dart';
+import 'admin_menu_browser.dart';
 import 'admin_menu_edit_dialogs.dart';
-import 'admin_menu_image_picker.dart';
 import 'admin_menu_reorder_screen.dart';
 
 class AdminMenuScreen extends StatefulWidget {
@@ -22,8 +22,12 @@ class AdminMenuScreen extends StatefulWidget {
 
 class _AdminMenuScreenState extends State<AdminMenuScreen> {
   final _searchCtrl = TextEditingController();
+  final _categorySearchCtrl = TextEditingController();
+  final _itemSearchCtrl = TextEditingController();
   String _query = '';
-  final Set<int> _collapsed = {};
+  String _categoryQuery = '';
+  String _itemQuery = '';
+  int? _selectedCategoryId;
 
   @override
   void initState() {
@@ -36,6 +40,8 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _categorySearchCtrl.dispose();
+    _itemSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -67,6 +73,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
   Widget build(BuildContext context) {
     final admin = context.watch<PosAdminController>();
     final currency = context.watch<PosController>().currency;
+    final handheld = usePosHandheldLayout(context);
 
     if (admin.menuLoading && admin.categories.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -99,9 +106,11 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
     return Column(
       children: [
+        if (handheld)
         AdminToolbar(
           singleRowActions: true,
-          leading: ConstrainedBox(
+          leading: handheld
+              ? ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: TextField(
               controller: _searchCtrl,
@@ -137,7 +146,8 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
               ),
               onChanged: (v) => setState(() => _query = v),
             ),
-          ),
+          )
+              : null,
           children: [
             IconButton.filledTonal(
               tooltip: context.l10n.commonRefresh,
@@ -177,7 +187,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
               ),
           ],
         ),
-        if (admin.categories.isNotEmpty)
+        if (handheld && admin.categories.isNotEmpty)
           _MenuSummaryBar(
             categoryCount: admin.categories.length,
             itemCount: totalItems,
@@ -231,83 +241,154 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                           'Try a different search term.',
                         ),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
-                        itemCount: categories.length,
-                        itemBuilder: (context, index) {
-                          final category = categories[index];
-                          final expanded = !_collapsed.contains(category.id);
-                          return _CategoryCard(
-                            category: category,
+                    : handheld
+                        ? AdminMobileMenuBrowser(
+                            categories: categories,
+                            selectedCategoryId: _selectedCategoryId,
                             currency: currency,
-                            expanded: expanded,
+                            canManageItems: canManageItems,
+                            canEditItems: canEditItems,
+                            canToggle: canToggle,
+                            busy: admin.mutating,
+                            onSelectCategory: (id) =>
+                                setState(() => _selectedCategoryId = id),
+                            onToggleItem: (id) => admin.toggleMenuItem(id),
+                            onEditItem: (item, categoryId) => _editItem(
+                              context,
+                              admin,
+                              item: item,
+                              categoryId: categoryId,
+                            ),
+                            onDeleteItem: (item) =>
+                                _confirmDeleteItem(context, admin, item),
+                          )
+                        : AdminDesktopMenuBrowser(
+                            categories: _desktopCategories(admin.categories),
+                            selected: _desktopSelection(admin.categories),
+                            currency: currency,
+                            timeSlots: admin.timeSlots,
+                            categorySearch: _categorySearchCtrl,
+                            itemSearch: _itemSearchCtrl,
                             canManageCategories: canManageCategories,
                             canManageItems: canManageItems,
                             canEditItems: canEditItems,
                             canToggle: canToggle,
                             busy: admin.mutating,
-                            onToggleExpanded: () {
-                              setState(() {
-                                if (expanded) {
-                                  _collapsed.add(category.id);
-                                } else {
-                                  _collapsed.remove(category.id);
-                                }
-                              });
-                            },
-                            onToggleCategory: () =>
-                                admin.toggleMenuCategory(category.id),
-                            onEditCategory: () => _editCategory(
+                            onCategoryQuery: (value) =>
+                                setState(() => _categoryQuery = value),
+                            onItemQuery: (value) =>
+                                setState(() => _itemQuery = value),
+                            onSelectCategory: (id) =>
+                                setState(() => _selectedCategoryId = id),
+                            onToggleCategory: (id) => admin.toggleMenuCategory(id),
+                            onEditCategory: (category) => _editCategory(
                               context,
                               admin,
                               category: category,
                             ),
-                            onDeleteCategory: () async {
-                              final ok = await showPosConfirmDialog(
-                                context,
-                                title: context.posText(
-                                  'adminDeleteCategory',
-                                  'Delete category?',
-                                ),
-                                message: category.name,
-                                destructive: true,
-                              );
-                              if (!ok) return;
-                              await admin.deleteMenuCategory(category.id);
-                            },
-                            onToggleItem: (item) =>
-                                admin.toggleMenuItem(item.id),
-                            onEditItem: (item) => _editItem(
+                            onDeleteCategory: (category) =>
+                                _confirmDeleteCategory(context, admin, category),
+                            onAddItem: (categoryId) => _editItem(
+                              context,
+                              admin,
+                              categoryId: categoryId,
+                            ),
+                            onAddCategory: canManageCategories
+                                ? () => _editCategory(context, admin)
+                                : null,
+                            onReorderCategories: canManageCategories &&
+                                    _categoryQuery.isEmpty &&
+                                    _itemQuery.isEmpty
+                                ? (order) => _reorderCategories(admin, order)
+                                : null,
+                            onToggleItem: (id) => admin.toggleMenuItem(id),
+                            onEditItem: (item, categoryId) => _editItem(
                               context,
                               admin,
                               item: item,
-                              categoryId: category.id,
+                              categoryId: categoryId,
                             ),
-                            onDeleteItem: (item) async {
-                              final ok = await showPosConfirmDialog(
-                                context,
-                                title: context.posText(
-                                  'adminDeleteItem',
-                                  'Delete item?',
-                                ),
-                                message: item.name,
-                                destructive: true,
-                              );
-                              if (!ok) return;
-                              await admin.deleteMenuItem(item.id);
-                            },
-                            onAddItem: () => _editItem(
-                              context,
-                              admin,
-                              categoryId: category.id,
-                            ),
-                          );
-                        },
-                      ),
+                            onDeleteItem: (item) =>
+                                _confirmDeleteItem(context, admin, item),
+                          ),
           ),
         ),
       ],
     );
+  }
+
+  List<AdminMenuCategory> _desktopCategories(List<AdminMenuCategory> categories) {
+    final categoryQuery = _categoryQuery.trim().toLowerCase();
+    final itemQuery = _itemQuery.trim().toLowerCase();
+    return [
+      for (final category in categories)
+        if (_categoryVisible(category, categoryQuery, itemQuery)) category,
+    ];
+  }
+
+  bool _categoryVisible(
+    AdminMenuCategory category,
+    String categoryQuery,
+    String itemQuery,
+  ) {
+    final nameHit = categoryQuery.isEmpty ||
+        category.name.toLowerCase().contains(categoryQuery) ||
+        (category.description?.toLowerCase().contains(categoryQuery) ?? false);
+    final itemHit = itemQuery.isEmpty ||
+        category.items.any((item) => _itemVisible(item, itemQuery));
+    return nameHit && itemHit;
+  }
+
+  bool _itemVisible(AdminMenuItem item, String query) {
+    return item.name.toLowerCase().contains(query) ||
+        (item.description?.toLowerCase().contains(query) ?? false);
+  }
+
+  AdminMenuCategory? _desktopSelection(List<AdminMenuCategory> categories) {
+    final visible = _desktopCategories(categories);
+    if (visible.isEmpty) return null;
+    for (final category in visible) {
+      if (category.id == _selectedCategoryId) return category;
+    }
+    return visible.first;
+  }
+
+  Future<void> _reorderCategories(
+    PosAdminController admin,
+    List<int> order,
+  ) async {
+    admin.stageCategoryOrder(order);
+    await admin.reorderMenuCategories(order);
+  }
+
+  Future<void> _confirmDeleteCategory(
+    BuildContext context,
+    PosAdminController admin,
+    AdminMenuCategory category,
+  ) async {
+    final ok = await showPosConfirmDialog(
+      context,
+      title: context.posText('adminDeleteCategory', 'Delete category?'),
+      message: category.name,
+      destructive: true,
+    );
+    if (!ok) return;
+    await admin.deleteMenuCategory(category.id);
+  }
+
+  Future<void> _confirmDeleteItem(
+    BuildContext context,
+    PosAdminController admin,
+    AdminMenuItem item,
+  ) async {
+    final ok = await showPosConfirmDialog(
+      context,
+      title: context.posText('adminDeleteItem', 'Delete item?'),
+      message: item.name,
+      destructive: true,
+    );
+    if (!ok) return;
+    await admin.deleteMenuItem(item.id);
   }
 
   Future<void> _editCategory(
@@ -481,390 +562,6 @@ class _MenuSummaryBar extends StatelessWidget {
             letterSpacing: 0.1,
           ),
         ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({
-    required this.category,
-    required this.currency,
-    required this.expanded,
-    required this.canManageCategories,
-    required this.canManageItems,
-    required this.canEditItems,
-    required this.canToggle,
-    required this.busy,
-    required this.onToggleExpanded,
-    required this.onToggleCategory,
-    required this.onEditCategory,
-    required this.onDeleteCategory,
-    required this.onToggleItem,
-    required this.onEditItem,
-    required this.onDeleteItem,
-    required this.onAddItem,
-  });
-
-  final AdminMenuCategory category;
-  final String currency;
-  final bool expanded;
-  final bool canManageCategories;
-  final bool canManageItems;
-  final bool canEditItems;
-  final bool canToggle;
-  final bool busy;
-  final VoidCallback onToggleExpanded;
-  final VoidCallback onToggleCategory;
-  final VoidCallback onEditCategory;
-  final VoidCallback onDeleteCategory;
-  final ValueChanged<AdminMenuItem> onToggleItem;
-  final ValueChanged<AdminMenuItem> onEditItem;
-  final ValueChanged<AdminMenuItem> onDeleteItem;
-  final VoidCallback onAddItem;
-
-  String _subtitle(BuildContext context) {
-    final parts = <String>[
-      context.posText(
-        'adminMenuItemCount',
-        '{n} items',
-        {'n': '${category.items.length}'},
-      ),
-    ];
-    if (!category.isActive) {
-      parts.add(context.posText('adminInactive', 'Inactive'));
-    }
-    if (category.timeSlotIds.isNotEmpty) {
-      parts.add(
-        context.posText(
-          'adminSlotCount',
-          '{n} slots',
-          {'n': '${category.timeSlotIds.length}'},
-        ),
-      );
-    }
-    final desc = category.description?.trim();
-    if (desc != null && desc.isNotEmpty) {
-      parts.add(desc);
-    }
-    return parts.join(' · ');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: PosTheme.surface,
-          borderRadius: BorderRadius.circular(PosTheme.radiusMd),
-          border: Border.all(color: PosTheme.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-              child: Row(
-                children: [
-                  AdminMenuThumb(
-                    imageUrl: category.imageUrl,
-                    icon: Icons.category_outlined,
-                    size: 48,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          category.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: MediaQuery.sizeOf(context).width < 600 ? 14 : 16,
-                            color: category.isActive
-                                ? PosTheme.ink
-                                : PosTheme.inkMuted,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _subtitle(context),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: PosTheme.inkMuted,
-                            fontSize: 12.5,
-                            height: 1.3,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (canToggle)
-                    Switch(
-                      value: category.isActive,
-                      onChanged: busy ? null : (_) => onToggleCategory(),
-                    ),
-                  if (canManageCategories)
-                    IconButton(
-                      tooltip: context.posText('adminEdit', 'Edit'),
-                      onPressed: busy ? null : onEditCategory,
-                      icon: Icon(Icons.edit_outlined, color: accent, size: 20),
-                    ),
-                  if (canManageCategories)
-                    PopupMenuButton<String>(
-                      tooltip: context.posText('adminActions', 'Actions'),
-                      icon: Icon(
-                        Icons.more_horiz_rounded,
-                        color: PosTheme.inkFaint,
-                      ),
-                      onSelected: (v) {
-                        if (v == 'add') onAddItem();
-                        if (v == 'delete') onDeleteCategory();
-                      },
-                      itemBuilder: (_) => [
-                        if (canManageItems)
-                          PopupMenuItem(
-                            value: 'add',
-                            child: Text(
-                              context.posText('adminNewItem', 'Add item'),
-                            ),
-                          ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text(
-                            context.posText('adminDelete', 'Delete'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  IconButton(
-                    tooltip: expanded
-                        ? context.posText('adminCollapse', 'Collapse')
-                        : context.posText('adminExpand', 'Expand'),
-                    onPressed: onToggleExpanded,
-                    icon: Icon(
-                      expanded
-                          ? Icons.expand_less_rounded
-                          : Icons.expand_more_rounded,
-                      color: PosTheme.inkMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (expanded) ...[
-              Divider(height: 1, thickness: 1, color: PosTheme.border),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-                child: Column(
-                  children: [
-                    if (category.items.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 18,
-                        ),
-                        decoration: BoxDecoration(
-                          color: PosTheme.surfaceMuted.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          context.posText(
-                            'adminNoItemsInCategory',
-                            'No items yet.',
-                          ),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: PosTheme.inkMuted,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      )
-                    else
-                      for (final item in category.items)
-                        _ItemRow(
-                          item: item,
-                          currency: currency,
-                          canManageItems: canManageItems,
-                          canEditItems: canEditItems,
-                          canToggle: canToggle,
-                          busy: busy,
-                          accent: accent,
-                          onToggle: () => onToggleItem(item),
-                          onEdit: () => onEditItem(item),
-                          onDelete: () => onDeleteItem(item),
-                        ),
-                    if (canManageItems) ...[
-                      const SizedBox(height: 4),
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton.icon(
-                          onPressed: busy ? null : onAddItem,
-                          icon: Icon(Icons.add_rounded, size: 18, color: accent),
-                          label: Text(
-                            context.posText('adminNewItem', 'Add item'),
-                            style: TextStyle(
-                              color: accent,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: accent.withValues(alpha: 0.28),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ItemRow extends StatelessWidget {
-  const _ItemRow({
-    required this.item,
-    required this.currency,
-    required this.canManageItems,
-    required this.canEditItems,
-    required this.canToggle,
-    required this.busy,
-    required this.accent,
-    required this.onToggle,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  final AdminMenuItem item;
-  final String currency;
-  final bool canManageItems;
-  final bool canEditItems;
-  final bool canToggle;
-  final bool busy;
-  final Color accent;
-  final VoidCallback onToggle;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final desc = item.description?.trim();
-    final meta = <String>[formatMoney(item.price, currency)];
-    if (item.modifierIds.isNotEmpty) {
-      meta.add(
-        context.posText(
-          'adminModCount',
-          '{n} modifiers',
-          {'n': '${item.modifierIds.length}'},
-        ),
-      );
-    }
-    if (item.timeSlotIds.isNotEmpty) {
-      meta.add(
-        context.posText(
-          'adminSlotCount',
-          '{n} slots',
-          {'n': '${item.timeSlotIds.length}'},
-        ),
-      );
-    }
-    if (!item.isAvailable) {
-      meta.add(context.posText('adminUnavailable', 'Unavailable'));
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: PosTheme.surfaceMuted.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: canEditItems && !busy ? onEdit : null,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
-            child: Row(
-              children: [
-                AdminMenuThumb(imageUrl: item.imageUrl,
-                  size: MediaQuery.sizeOf(context).width < 600 ? 36 : 44),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: MediaQuery.sizeOf(context).width < 600 ? 12.5 : 14,
-                          color: item.isAvailable
-                              ? PosTheme.ink
-                              : PosTheme.inkMuted,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        [
-                          if (desc != null && desc.isNotEmpty) desc,
-                          ...meta,
-                        ].join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: PosTheme.inkMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (canToggle)
-                  Switch(
-                    value: item.isAvailable,
-                    onChanged: busy ? null : (_) => onToggle(),
-                  ),
-                if (canEditItems)
-                  IconButton(
-                    tooltip: context.posText('adminEdit', 'Edit'),
-                    onPressed: busy ? null : onEdit,
-                    icon: Icon(Icons.edit_outlined, color: accent, size: 20),
-                  ),
-                if (canManageItems)
-                  IconButton(
-                    tooltip: context.posText('adminDelete', 'Delete'),
-                    onPressed: busy ? null : onDelete,
-                    icon: Icon(
-                      Icons.delete_outline_rounded,
-                      color: PosTheme.inkFaint,
-                      size: 20,
-                    ),
-                  ),
-              ],
-            ),
-          ),
         ),
       ),
     );

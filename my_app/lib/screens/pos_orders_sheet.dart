@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -78,6 +80,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
   String? _sourceFilter;
   bool _onlineOnly = false;
   final _search = TextEditingController();
+  Timer? _ordersRetry;
   bool _loading = true;
   String? _error;
   int _page = 1;
@@ -165,6 +168,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
 
   @override
   void dispose() {
+    _ordersRetry?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -173,15 +177,11 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
     final pos = context.read<PosController>();
     final session = pos.session;
     if (session == null) return;
+    final nextPage = page ?? _page;
     if (PosApi.isRateLimited) {
-      if (_error == null && mounted) {
-        setState(() {
-          _error = 'Too many attempts. Wait a moment, then try again.';
-        });
-      }
+      _scheduleOrdersRetry(nextPage);
       return;
     }
-    final nextPage = page ?? _page;
 
     setState(() {
       _loading = true;
@@ -252,6 +252,17 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
         );
         _loading = false;
       });
+    } on PosApiException catch (e) {
+      if (!mounted) return;
+      if (e.statusCode == 429) {
+        setState(() => _loading = false);
+        _scheduleOrdersRetry(nextPage);
+        return;
+      }
+      setState(() {
+        _error = posUserFacingError(e);
+        _loading = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -259,6 +270,15 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
         _loading = false;
       });
     }
+  }
+
+  void _scheduleOrdersRetry(int page) {
+    _ordersRetry?.cancel();
+    final remaining =
+        PosApi.rateLimitRemaining ?? const Duration(milliseconds: 700);
+    _ordersRetry = Timer(remaining + const Duration(milliseconds: 250), () {
+      if (mounted) unawaited(_load(page: page));
+    });
   }
 
   Future<void> _resume(Map<String, dynamic> order) async {
@@ -1114,6 +1134,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
             (_meta['last_page'] as num?)?.toInt() != null &&
             ((_meta['last_page'] as num).toInt() > 1))
           _PaginationBar(
+            compact: widget.embedded,
             from: _meta['from'] ?? 0,
             to: _meta['to'] ?? 0,
             total: _meta['total'] ?? 0,
@@ -1186,8 +1207,9 @@ class _SheetHeader extends StatelessWidget {
             ? const Color(0xFFBE123C)
             : accent;
     final soft = posAccentSoft(headerAccent);
+    if (compact) return const SizedBox.shrink();
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, compact ? 6 : 14, 8, 8),
+      padding: EdgeInsets.fromLTRB(compact ? 8 : 16, compact ? 0 : 14, 4, compact ? 0 : 8),
       child: Row(
         children: [
           if (!compact) Container(
@@ -1210,6 +1232,7 @@ class _SheetHeader extends StatelessWidget {
             ),
           ),
           if (!compact) const SizedBox(width: 12),
+          if (!compact)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1253,7 +1276,9 @@ class _SheetHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (compact) const Spacer(),
           IconButton(
+            visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
             tooltip: context.l10n.commonRefresh,
             onPressed: loading ? null : onRefresh,
             icon: loading
@@ -1621,6 +1646,7 @@ class _PaginationBar extends StatelessWidget {
     required this.loading,
     required this.onPrev,
     required this.onNext,
+    this.compact = false,
   });
 
   final Object from;
@@ -1631,11 +1657,15 @@ class _PaginationBar extends StatelessWidget {
   final bool loading;
   final VoidCallback onPrev;
   final VoidCallback onNext;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final iconSize = compact ? 18.0 : 24.0;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 12, 12),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(12, 2, 6, 4)
+          : const EdgeInsets.fromLTRB(16, 10, 12, 12),
       decoration: BoxDecoration(
         color: PosTheme.surface,
         border: Border(top: BorderSide(color: PosTheme.border)),
@@ -1645,7 +1675,7 @@ class _PaginationBar extends StatelessWidget {
           Text(
             '$from–$to of $total',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: compact ? 11 : 12,
               color: PosTheme.inkMuted,
               fontWeight: FontWeight.w600,
             ),
@@ -1653,25 +1683,40 @@ class _PaginationBar extends StatelessWidget {
           const Spacer(),
           IconButton(
             onPressed: loading || page <= 1 ? null : onPrev,
-            icon: const Icon(Icons.chevron_left_rounded),
+            visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+            style: IconButton.styleFrom(
+              minimumSize: Size(compact ? 28 : 40, compact ? 28 : 40),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: EdgeInsets.zero,
+            ),
+            icon: Icon(Icons.chevron_left_rounded, size: iconSize),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 6 : 10,
+              vertical: compact ? 2 : 5,
+            ),
             decoration: BoxDecoration(
               color: PosTheme.surfaceMuted,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(compact ? 6 : 8),
             ),
             child: Text(
               '$page / $lastPage',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 12,
+                fontSize: compact ? 11 : 12,
               ),
             ),
           ),
           IconButton(
             onPressed: loading || page >= lastPage ? null : onNext,
-            icon: const Icon(Icons.chevron_right_rounded),
+            visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+            style: IconButton.styleFrom(
+              minimumSize: Size(compact ? 28 : 40, compact ? 28 : 40),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: EdgeInsets.zero,
+            ),
+            icon: Icon(Icons.chevron_right_rounded, size: iconSize),
           ),
         ],
       ),

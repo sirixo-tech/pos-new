@@ -396,9 +396,13 @@ class _PosCloseShiftDialogState extends State<PosCloseShiftDialog> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: Text(
-                          l10n.commonCancel,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            l10n.commonCancel,
+                            maxLines: 1,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ),
                     ),

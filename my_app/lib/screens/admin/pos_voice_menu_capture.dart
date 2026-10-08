@@ -12,10 +12,12 @@ class PosVoiceMenuCapture extends StatefulWidget {
     super.key,
     required this.busy,
     required this.onSubmit,
+    this.onChangeSource,
   });
 
   final bool busy;
   final Future<void> Function(Uint8List csv) onSubmit;
+  final VoidCallback? onChangeSource;
 
   @override
   State<PosVoiceMenuCapture> createState() => _PosVoiceMenuCaptureState();
@@ -121,103 +123,227 @@ class _PosVoiceMenuCaptureState extends State<PosVoiceMenuCapture> {
   Widget build(BuildContext context) {
     final lines = parseVoiceMenu(_transcript);
     final accent = Theme.of(context).colorScheme.primary;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
+    final ready = lines.where((line) => line.isReady).length;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Speak the items',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
-              color: Color(0xFF12253E),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.mic_none_rounded, color: Color(0xFFC2410C)),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Say the menu',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    letterSpacing: -0.3,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              if (widget.onChangeSource != null)
+                _VoiceChangeButton(
+                  onPressed: widget.busy || _sending ? null : widget.onChangeSource,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'Example: “Cappuccino 120, Latte 140 in Hot drinks.”',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF0F172A),
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Say the item, then the price. Name the category when you want it grouped.',
-            style: TextStyle(
-              fontSize: 13,
-              color: Color(0xFF71839A),
-              height: 1.4,
+          const SizedBox(height: 16),
+          Center(
+            child: Column(
+              children: [
+                Material(
+                  color: _listening ? const Color(0xFFC2410C) : accent,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: widget.busy || _sending ? null : _toggle,
+                    child: SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: Icon(
+                        _listening ? Icons.stop_rounded : Icons.mic_rounded,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _listening ? 'Listening… tap to stop' : 'Tap and speak',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF475569),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Example: “Cappuccino 120, Latte 140 in Hot drinks.”',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.35,
-              color: Color(0xFF12253E),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
           if (_listening) ...[
+            const SizedBox(height: 14),
             PosListeningStatus(
               transcript: _transcript,
               hint: 'Listening for menu items',
               onStop: _toggle,
             ),
-            const SizedBox(height: 12),
           ],
-          FilledButton.icon(
-            onPressed: widget.busy || _sending ? null : _toggle,
-            icon: Icon(_listening ? Icons.stop_rounded : Icons.mic_rounded),
-            label: Text(_listening ? 'Stop listening' : 'Tap and speak'),
-            style: FilledButton.styleFrom(
-              backgroundColor: _listening ? const Color(0xFFB45309) : accent,
-              minimumSize: const Size(0, 48),
+          if (_transcript.isNotEmpty && !_listening) ...[
+            const SizedBox(height: 14),
+            Text(
+              _transcript,
+              style: const TextStyle(height: 1.4, color: Color(0xFF334155)),
             ),
-          ),
-          if (_transcript.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(_transcript, style: const TextStyle(height: 1.35)),
           ],
           if (lines.isNotEmpty) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
+            Text(
+              ready == lines.length
+                  ? '${lines.length} items ready'
+                  : '$ready of ${lines.length} items have a price',
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 8),
             for (final line in lines)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  _lineLabel(line),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: line.isReady
-                        ? const Color(0xFF12253E)
-                        : const Color(0xFFB45309),
-                  ),
+              Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        line.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      line.category,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _lineLabel(line).split(' · ').last,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: line.isReady
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFFC2410C),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
+            const SizedBox(height: 6),
+            FilledButton(
               onPressed: widget.busy || _sending ? null : _submit,
-              icon: _sending
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _sending
                   ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(Icons.auto_awesome_rounded, size: 18),
-              label: const Text('Review these items'),
+                  : const Text('Send for review'),
             ),
           ],
+          const SizedBox(height: 8),
+          const Text(
+            'Say the item, then the price. You confirm prices before saving.',
+            style: TextStyle(fontSize: 12.5, height: 1.35, color: Color(0xFF64748B)),
+          ),
           if (_unavailable) ...[
             const SizedBox(height: 8),
             const Text(
-              'Allow the microphone in the browser, then tap and speak again.',
-              style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+              'Allow the microphone, then tap and speak again.',
+              style: TextStyle(fontSize: 12.5, color: Color(0xFFC2410C)),
             ),
           ],
           if (_message != null) ...[
             const SizedBox(height: 8),
             Text(
               _message!,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF71839A)),
+              style: const TextStyle(fontSize: 12.5, height: 1.35, color: Color(0xFF475569)),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _VoiceChangeButton extends StatelessWidget {
+  const _VoiceChangeButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: accent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size(84, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      child: const Text(
+        'Change',
+        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, letterSpacing: 0.1),
       ),
     );
   }

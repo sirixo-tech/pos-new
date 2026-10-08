@@ -20,6 +20,7 @@ import 'admin/admin_shell.dart';
 import 'customer_display/customer_display_page.dart';
 import 'customer_display/customer_display_setup_page.dart';
 import 'customer_display/dqr222_advertisement_page.dart';
+import 'about/pos_about_page.dart';
 import 'help/pos_help_page.dart';
 import 'pos_update_check_screen.dart';
 import 'printer_setup_screen.dart';
@@ -164,6 +165,8 @@ if (value == '_notifications') {
       ),
     );
   }
+} else if (value == 'about') {
+  if (context.mounted) await showPosAboutSheet(context);
 } else if (value == 'auto_lock') {
   await showPosAutoLockPicker(context);
 } else if (value == 'fullscreen') {

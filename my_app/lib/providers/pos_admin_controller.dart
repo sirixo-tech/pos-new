@@ -14,7 +14,20 @@ class PosAdminController extends ChangeNotifier {
     required PosApi api,
     required PosController pos,
   })  : _api = api,
-        _pos = pos;
+        _pos = pos {
+    _applyMenuCache();
+  }
+
+  static AdminMenuPayload? _menuCache;
+  static String? _menuCacheKey;
+  static Future<AdminMenuPayload>? _menuInFlight;
+  static String? _menuInFlightKey;
+
+  /// Start the menu request before the popup opens so the list is ready.
+  static Future<void> warm(PosApi api, PosController pos) {
+    if (pos.session == null) return Future.value();
+    return PosAdminController(api: api, pos: pos).loadMenu();
+  }
 
   final PosApi _api;
   final PosController _pos;
@@ -94,17 +107,50 @@ class PosAdminController extends ChangeNotifier {
     }
   }
 
+  String get _menuKey {
+    final current = session;
+    return '${current?.restaurantId}|${current?.branchId}';
+  }
+
+  void _applyMenuCache() {
+    if (_menuCacheKey != _menuKey || _menuCache == null) return;
+    categories = _menuCache!.categories;
+    modifiers = _menuCache!.modifiers;
+    timeSlots = _menuCache!.timeSlots;
+  }
+
+  void _rememberMenu(AdminMenuPayload payload) {
+    _menuCache = payload;
+    _menuCacheKey = _menuKey;
+  }
+
+  Future<AdminMenuPayload> _sharedMenu(PosSession current) {
+    final key = _menuKey;
+    final existing = _menuInFlight;
+    if (existing != null && _menuInFlightKey == key) return existing;
+    _menuInFlightKey = key;
+    final future = _api.fetchAdminMenu(current).whenComplete(() {
+      if (_menuInFlightKey == key) _menuInFlight = null;
+    });
+    _menuInFlight = future;
+    return future;
+  }
+
   Future<void> loadMenu() async {
-    clearError();
-    menuLoading = true;
-    notifyListeners();
+    final showSpinner = categories.isEmpty;
+    if (showSpinner) {
+      clearError();
+      menuLoading = true;
+      notifyListeners();
+    }
     try {
-      final payload = await _api.fetchAdminMenu(_requireSession());
+      final payload = await _sharedMenu(_requireSession());
       categories = payload.categories;
       modifiers = payload.modifiers;
       timeSlots = payload.timeSlots;
+      _rememberMenu(payload);
     } catch (e) {
-      _setError(e);
+      if (categories.isEmpty) _setError(e);
     } finally {
       menuLoading = false;
       notifyListeners();
@@ -190,6 +236,17 @@ class PosAdminController extends ChangeNotifier {
       return true;
     });
     return ok == true;
+  }
+
+  void stageCategoryOrder(List<int> order) {
+    final byId = {for (final category in categories) category.id: category};
+    final next = <AdminMenuCategory>[
+      for (final id in order)
+        if (byId[id] != null) byId[id]!,
+    ];
+    if (next.length != categories.length) return;
+    categories = next;
+    notifyListeners();
   }
 
   Future<bool> reorderMenuCategories(List<int> order) async {
@@ -494,11 +551,7 @@ class PosAdminController extends ChangeNotifier {
     bool silent = false,
   }) async {
     if (ordersLoading) return;
-    if (PosApi.isRateLimited) {
-      error ??= 'Too many attempts. Wait a moment, then try again.';
-      notifyListeners();
-      return;
-    }
+    if (PosApi.isRateLimited) return;
     clearError();
     final showLoading = !silent || ordersPage == null;
     if (showLoading) {

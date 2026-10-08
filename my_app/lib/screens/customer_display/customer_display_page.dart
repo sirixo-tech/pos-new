@@ -1022,8 +1022,9 @@ class _TopBar extends StatelessWidget {
           if (!compact) _ConnectionPill(online: state.errorMessage == null),
           if (!compact) const SizedBox(width: 10),
           _ClockCard(time: time, date: date, compact: compact),
-          const SizedBox(width: 10),
-          _KitchenDisplayButton(onPressed: onKitchenDisplay),
+          SizedBox(width: compact ? 6 : 10),
+          _KitchenDisplayButton(onPressed: onKitchenDisplay, compact: compact),
+          if (!compact) ...[
           const SizedBox(width: 10),
           _HoverControls(
             visible: controlsVisible,
@@ -1034,6 +1035,17 @@ class _TopBar extends StatelessWidget {
             onFullscreen: onFullscreen,
             onLogout: onLogout,
           ),
+          ] else ...[
+            const SizedBox(width: 6),
+            _CompactDisplayMenu(
+              fullscreen: fullscreen,
+              voiceEnabled: isVoiceEnabled,
+              onToggleVoice: onToggleVoice,
+              onSetup: onSetup,
+              onFullscreen: onFullscreen,
+              onLogout: onLogout,
+            ),
+          ],
         ],
       ),
     );
@@ -1215,10 +1227,72 @@ class _HoverControls extends StatelessWidget {
   }
 }
 
+class _CompactDisplayMenu extends StatelessWidget {
+  const _CompactDisplayMenu({
+    required this.fullscreen,
+    required this.voiceEnabled,
+    required this.onToggleVoice,
+    required this.onSetup,
+    required this.onFullscreen,
+    required this.onLogout,
+  });
+
+  final bool fullscreen;
+  final bool voiceEnabled;
+  final VoidCallback onToggleVoice;
+  final VoidCallback onSetup;
+  final VoidCallback onFullscreen;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Display options',
+      color: const Color(0xFF17171B),
+      onSelected: (value) {
+        switch (value) {
+          case 'voice':
+            onToggleVoice();
+          case 'full':
+            onFullscreen();
+          case 'setup':
+            onSetup();
+          case 'exit':
+            onLogout();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'voice',
+          child: Text(voiceEnabled ? 'Mute voice' : 'Enable voice'),
+        ),
+        PopupMenuItem(
+          value: 'full',
+          child: Text(fullscreen ? 'Exit fullscreen' : 'Fullscreen'),
+        ),
+        const PopupMenuItem(value: 'setup', child: Text('Display setup')),
+        const PopupMenuItem(value: 'exit', child: Text('Exit token display')),
+      ],
+      child: Container(
+        width: 42,
+        height: 42,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0xFF17171B),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _DisplayColors.border),
+        ),
+        child: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
 class _KitchenDisplayButton extends StatelessWidget {
-  const _KitchenDisplayButton({required this.onPressed});
+  const _KitchenDisplayButton({required this.onPressed, this.compact = false});
 
   final VoidCallback onPressed;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1232,7 +1306,7 @@ class _KitchenDisplayButton extends StatelessWidget {
             foregroundColor: Colors.white,
             side: const BorderSide(color: _DisplayColors.border),
             backgroundColor: const Color(0xFF17171B),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -1242,7 +1316,7 @@ class _KitchenDisplayButton extends StatelessWidget {
             ),
           ),
           icon: const Icon(Icons.soup_kitchen_outlined, size: 16),
-          label: Text(context.tr('Kitchen display')),
+          label: Text(compact ? 'Kitchen' : context.tr('Kitchen display')),
         ),
       ),
     );
@@ -1320,8 +1394,9 @@ class _InstructionBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 38,
+      width: double.infinity,
       alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
         color: _DisplayColors.background,
         border: Border(bottom: BorderSide(color: _DisplayColors.border)),
@@ -1331,6 +1406,8 @@ class _InstructionBand extends StatelessWidget {
           'Watch for your token number. When it appears under Ready, please collect your order at the counter.',
         ),
         textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           color: Color(0xFF94A3B8),
           fontSize: 13,
@@ -1362,6 +1439,7 @@ class _OrderHistoryPanel extends StatelessWidget {
               color: _DisplayColors.orange,
               icon: Icons.bakery_dining_outlined,
               ready: false,
+              compact: compact,
             ),
           ),
           Expanded(
@@ -1372,6 +1450,7 @@ class _OrderHistoryPanel extends StatelessWidget {
               color: _DisplayColors.mint,
               icon: Icons.check_circle_outline_rounded,
               ready: true,
+              compact: compact,
             ),
           ),
         ];
@@ -1396,6 +1475,7 @@ class _TokenColumnPanel extends StatelessWidget {
     required this.color,
     required this.icon,
     required this.ready,
+    this.compact = false,
   });
 
   final String title;
@@ -1404,6 +1484,7 @@ class _TokenColumnPanel extends StatelessWidget {
   final Color color;
   final IconData icon;
   final bool ready;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1424,8 +1505,10 @@ class _TokenColumnPanel extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            height: 112,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 12 : 24,
+              vertical: compact ? 12 : 22,
+            ),
             decoration: BoxDecoration(
               color: _withAlpha(color, ready ? 0.12 : 0.16),
               border: Border(
@@ -1434,8 +1517,8 @@ class _TokenColumnPanel extends StatelessWidget {
             ),
             child: Row(
               children: [
-                _HeaderIcon(icon: icon, color: color),
-                const SizedBox(width: 18),
+                _HeaderIcon(icon: icon, color: color, compact: compact),
+                SizedBox(width: compact ? 10 : 18),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1443,31 +1526,31 @@ class _TokenColumnPanel extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        maxLines: 1,
-                        overflow: TextOverflow.fade,
-                        softWrap: false,
-                        style: const TextStyle(
-                          color: Color(0xFFF6F1E8),
-                          fontSize: 29,
+                        maxLines: compact ? 2 : 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: const Color(0xFFF6F1E8),
+                          fontSize: compact ? 16 : 29,
                           fontWeight: FontWeight.w900,
+                          height: 1.15,
                         ),
                       ),
-                      const SizedBox(height: 9),
+                      SizedBox(height: compact ? 4 : 9),
                       Text(
                         subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.fade,
-                        softWrap: false,
-                        style: const TextStyle(
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
                           color: _DisplayColors.muted,
-                          fontSize: 17,
+                          fontSize: compact ? 12 : 17,
                           fontWeight: FontWeight.w700,
+                          height: 1.2,
                         ),
                       ),
                     ],
                   ),
                 ),
-                _CountBadge(count: orders.length, color: color),
+                _CountBadge(count: orders.length, color: color, compact: compact),
               ],
             ),
           ),
@@ -1615,37 +1698,49 @@ class _TokenTile extends StatelessWidget {
 }
 
 class _HeaderIcon extends StatelessWidget {
-  const _HeaderIcon({required this.icon, required this.color});
+  const _HeaderIcon({
+    required this.icon,
+    required this.color,
+    this.compact = false,
+  });
 
   final IconData icon;
   final Color color;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final size = compact ? 40.0 : 60.0;
     return Container(
-      width: 60,
-      height: 60,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: _withAlpha(color, 0.16),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _withAlpha(color, 0.32)),
       ),
-      child: Icon(icon, color: color, size: 28),
+      child: Icon(icon, color: color, size: compact ? 20 : 28),
     );
   }
 }
 
 class _CountBadge extends StatelessWidget {
-  const _CountBadge({required this.count, required this.color});
+  const _CountBadge({
+    required this.count,
+    required this.color,
+    this.compact = false,
+  });
 
   final int count;
   final Color color;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final size = compact ? 40.0 : 54.0;
     return Container(
-      width: 54,
-      height: 54,
+      width: size,
+      height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: color,
@@ -1660,9 +1755,9 @@ class _CountBadge extends StatelessWidget {
       ),
       child: Text(
         count.toString(),
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
-          fontSize: 22,
+          fontSize: compact ? 16 : 22,
           fontWeight: FontWeight.w900,
         ),
       ),

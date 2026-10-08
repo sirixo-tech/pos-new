@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/pos_app_info.dart';
 import '../l10n/pos_l10n.dart';
 import '../models/pos_models.dart';
 import '../services/pos_display_mode.dart';
@@ -249,6 +250,12 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
             icon: Icons.link_off_rounded,
             label: l10n.shellClearPairing,
           ),
+        PosMoreMenuItem(
+          id: 'about',
+          icon: Icons.info_outline_rounded,
+          label: 'About',
+          subtitle: 'Version ${PosAppInfo.versionLabel}',
+        ),
         PosMoreMenuItem(
           id: 'logout',
           icon: Icons.logout_rounded,

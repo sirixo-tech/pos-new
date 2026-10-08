@@ -13,6 +13,8 @@ import '../../utils/pos_user_facing_error.dart';
 import '../../utils/menu_import_file_types.dart';
 import '../../utils/menu_import_retry.dart';
 import 'menu_import_view.dart';
+import 'menu_import_source_sheet.dart';
+import '../../services/zomato_menu_import.dart';
 import 'pos_voice_menu_capture.dart';
 import 'admin_shell.dart';
 import '../../services/menu_spreadsheet_export.dart';
@@ -40,6 +42,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   String? _errors;
   XFile? _selectedFile;
   int _selectedBytes = 0;
+  MenuImportSource _source = MenuImportSource.photo;
+  bool _chooserOffered = false;
   PosSession? _adminSession;
   PosSession get _session {
     final current = _pos.session;
@@ -147,6 +151,10 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     if (data['active_import'] is Map) {
       _accept(Map<String, dynamic>.from(data['active_import'] as Map));
     }
+  }).whenComplete(() {
+    if (!mounted || _import != null || _chooserOffered) return;
+    _chooserOffered = true;
+    _chooseSource();
   });
 
   Future<void> _poll() async {
@@ -231,10 +239,45 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
 
   Future<void> _upload() => _run(_uploadSelected);
 
-  Future<void> _submitVoice(Uint8List bytes) => _run(() async {
+  Future<void> _chooseSource() async {
+    final picked = await showMenuImportSourceSheet(
+      context,
+      enableVoice: widget.enableVoice,
+    );
+    if (!mounted) return;
+    setState(() => _source = picked ?? _source);
+  }
+
+  Future<void> _submitPrepared(Uint8List bytes, {required String name}) =>
+      _run(() async {
+    final file = XFile.fromData(bytes, name: name, mimeType: 'text/csv');
+    final maxKb = num.tryParse('${_caps?['max_upload_kb']}') ?? 20480;
+    if (bytes.length > maxKb * 1024) {
+      throw PosApiException('Choose a file smaller than ${maxKb / 1024} MB.');
+    }
+    if (!mounted) return;
+    setState(() {
+      _selectedFile = file;
+      _selectedBytes = bytes.length;
+      _ai = _caps?['ai_assist_available'] == true;
+    });
+    await _uploadSelected();
+  });
+
+  Future<void> _submitVoice(Uint8List bytes) =>
+      _submitPrepared(bytes, name: 'voice-menu.csv');
+
+  Future<void> _fetchZomato(String input) => _run(() async {
+    final dishes = await fetchZomatoMenu(input);
+    if (dishes.isEmpty) {
+      throw const ZomatoMenuException(
+        'That link opened, but it did not include a menu. Use the share link from Manage outlet.',
+      );
+    }
+    final bytes = zomatoMenuCsv(dishes);
     final file = XFile.fromData(
       bytes,
-      name: 'voice-menu.csv',
+      name: 'zomato-menu.csv',
       mimeType: 'text/csv',
     );
     final maxKb = num.tryParse('${_caps?['max_upload_kb']}') ?? 20480;
@@ -503,9 +546,25 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     onViewMenu: () =>
         openPosAdminShell(context, initialSection: AdminShellSection.menu),
     onOpenPos: () => Navigator.of(context).popUntil((route) => route.isFirst),
-    voiceSection: widget.enableVoice
-        ? PosVoiceMenuCapture(busy: _busy, onSubmit: _submitVoice)
-        : null,
+    onChangeSource: _chooseSource,
+    alternateBody: switch (_source) {
+      MenuImportSource.voice => PosVoiceMenuCapture(
+        busy: _busy,
+        onSubmit: _submitVoice,
+        onChangeSource: _chooseSource,
+      ),
+      MenuImportSource.zomato => ZomatoMenuPanel(
+        busy: _busy,
+        onFetch: _fetchZomato,
+        onChangeSource: _chooseSource,
+      ),
+      MenuImportSource.photo => null,
+    },
+    stepTitles: switch (_source) {
+      MenuImportSource.voice => const ['Speak', 'Read', 'Review', 'Live'],
+      MenuImportSource.zomato => const ['Link', 'Fetch', 'Review', 'Live'],
+      MenuImportSource.photo => const ['File', 'Read', 'Review', 'Live'],
+    },
     onAnother: () => setState(() {
       _timer?.cancel();
       _import = null;

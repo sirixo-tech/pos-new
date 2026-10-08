@@ -133,7 +133,10 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
   }
 
   Future<void> _toggleSection(String title, List<String> titles) async {
-    final next = Set<String>.from(_expanded ?? titles);
+    final handheld = usePosHandheldLayout(context);
+    final next = Set<String>.from(
+      _expanded ?? (handheld ? const <String>{} : titles),
+    );
     if (next.contains(title)) {
       next.remove(title);
     } else {

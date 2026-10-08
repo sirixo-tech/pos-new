@@ -112,6 +112,9 @@ List<DateTime> last7ReportDays(DateTime now) {
 }
 
 double parseReportAmount(Object? raw) {
+  if (raw is Map) {
+    return parseReportAmount(raw['amount'] ?? raw['display'] ?? raw['value']);
+  }
   if (raw is num) return raw.isFinite ? raw.toDouble() : 0;
   final text = '${raw ?? ''}'.replaceAll(RegExp(r'[^0-9.\-]'), '');
   final value = double.tryParse(text) ?? 0;
@@ -395,4 +398,495 @@ Future<Map<String, dynamic>> _fetchThermalDocument({
       ? Map<String, dynamic>.from(data['document'] as Map)
       : data;
   return document;
+}
+
+class PosReportSlice {
+  const PosReportSlice({
+    required this.label,
+    required this.amount,
+    this.count,
+    this.tips = 0,
+    this.items = 0,
+  });
+
+  final String label;
+  final double amount;
+  final int? count;
+  final double tips;
+  final double items;
+}
+
+class PosViewReportData {
+  const PosViewReportData({
+    required this.summary,
+    required this.channels,
+    required this.payments,
+    required this.orderTypes,
+    required this.items,
+    required this.categories,
+    required this.taxes,
+    required this.staff,
+    required this.voids,
+    this.error,
+  });
+
+  final Map<String, double> summary;
+  final List<PosReportSlice> channels;
+  final List<PosReportSlice> payments;
+  final List<PosReportSlice> orderTypes;
+  final List<PosReportSlice> items;
+  final List<PosReportSlice> categories;
+  final List<PosReportSlice> taxes;
+  final List<PosReportSlice> staff;
+  final List<Map<String, dynamic>> voids;
+  final String? error;
+}
+
+/// Same thermal-print types the owner reports use, plus cancelled orders
+/// for voids. Reads do not set the global rate-limit flag.
+Future<PosViewReportData> loadPosViewReport({
+  required PosSession session,
+  required String serverUrl,
+  required String dateFrom,
+  required String dateTo,
+  required List<String> types,
+  required bool includeVoids,
+  bool includeStaff = false,
+  String period = 'today',
+  void Function(PosViewReportData data)? onPartial,
+}) async {
+  final client = http.Client();
+  try {
+    final documents = <String, Map<String, dynamic>>{};
+    String? error;
+    var next = 0;
+    var stop = false;
+    Future<void> worker() async {
+      while (!stop) {
+        final index = next;
+        next += 1;
+        if (index >= types.length) return;
+        try {
+          documents[types[index]] = await _fetchThermalRange(
+            client: client,
+            session: session,
+            serverUrl: serverUrl,
+            type: types[index],
+            dateFrom: dateFrom,
+            dateTo: dateTo,
+          );
+        } on _ChartRequestException catch (e) {
+          error ??= e.message;
+          if (e.stop) stop = true;
+        } catch (_) {
+          error ??= 'Could not load this report.';
+        }
+      }
+    }
+
+    final workers = types.isEmpty ? 0 : (types.length < 3 ? types.length : 3);
+    if (workers > 0) {
+      await Future.wait([for (var i = 0; i < workers; i++) worker()]);
+    }
+    PosViewReportData pack({
+      List<PosReportSlice> staff = const [],
+      List<Map<String, dynamic>> voids = const [],
+    }) {
+      return PosViewReportData(
+        summary: _summaryFromDocument(documents['summary']),
+        channels: _mixFromDocument(documents['channel']),
+        payments: _mixFromDocument(documents['consolidated']),
+        orderTypes: _mixFromDocument(documents['order_type']),
+        items: _mixFromDocument(documents['item']),
+        categories: _mixFromDocument(documents['category']),
+        taxes: _mixFromDocument(documents['tax']),
+        staff: staff,
+        voids: voids,
+        error: documents.isEmpty && voids.isEmpty && staff.isEmpty ? error : null,
+      );
+    }
+
+    if (!includeStaff && !includeVoids) return pack();
+    if (types.isNotEmpty) onPartial?.call(pack());
+    final voids = includeVoids
+        ? await _fetchVoidOrders(
+            client: client,
+            session: session,
+            serverUrl: serverUrl,
+            period: period,
+            dateFrom: dateFrom,
+            dateTo: dateTo,
+          )
+        : const <Map<String, dynamic>>[];
+    List<Map<String, dynamic>> staffOrders = const [];
+    if (includeStaff) {
+      try {
+        staffOrders = await _fetchSaleOrders(
+          client: client,
+          session: session,
+          serverUrl: serverUrl,
+          period: period,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+        );
+        staffOrders = await _withStaffNames(
+          client: client,
+          session: session,
+          serverUrl: serverUrl,
+          orders: staffOrders,
+          onBatch: (soFar) => onPartial?.call(pack(staff: _staffSlices(soFar), voids: voids)),
+        );
+      } on _ChartRequestException catch (e) {
+        error ??= e.message;
+      } catch (_) {
+        error ??= 'Could not load this report.';
+      }
+    }
+    final staff = _staffSlices(staffOrders);
+    return pack(staff: staff, voids: voids);
+  } finally {
+    client.close();
+  }
+}
+
+Future<Map<String, dynamic>> _fetchThermalRange({
+  required http.Client client,
+  required PosSession session,
+  required String serverUrl,
+  required String type,
+  required String dateFrom,
+  required String dateTo,
+}) async {
+  final uri = Uri.parse('$serverUrl/api/v1/pos/reports/thermal-print').replace(
+    queryParameters: {
+      'type': type,
+      'date_from': dateFrom,
+      'date_to': dateTo,
+    },
+  );
+  final response = await _reportGet(client, uri, session);
+  final decoded = jsonDecode(response.body);
+  final root = decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
+  final data = root['data'] is Map
+      ? Map<String, dynamic>.from(root['data'] as Map)
+      : root;
+  final document = data['document'] is Map
+      ? Map<String, dynamic>.from(data['document'] as Map)
+      : data;
+  return document;
+}
+
+Map<String, double> _summaryFromDocument(Map<String, dynamic>? document) {
+  if (document == null) return const {};
+  final summary = <String, double>{};
+  for (final row in _docRows(document)) {
+    final key = _summaryKey('${row['label']}');
+    if (key != null) {
+      summary[key] = parseReportAmount(row['amount'] ?? row['display'] ?? row['value'] ?? row['right']);
+    }
+  }
+  for (final row in _docRows(document, key: 'totals')) {
+    final label = '${row['label']}'.toUpperCase();
+    if (label.contains('TOTAL') && !label.contains('ORDER')) {
+      summary['total_revenue'] = parseReportAmount(row['amount'] ?? row['display']);
+    }
+  }
+  return summary;
+}
+
+String? _summaryKey(String label) {
+  final text = label.trim().toUpperCase();
+  switch (text) {
+    case 'TOTAL ORDERS':
+      return 'total_orders';
+    case 'ITEMS SOLD':
+      return 'items_sold';
+    case 'AVG ORDER':
+      return 'average_order';
+    case 'TAX':
+      return 'total_tax';
+    case 'DISCOUNTS':
+      return 'total_discounts';
+    case 'TIPS':
+      return 'total_tips';
+    case 'SERVICE CHARGE':
+      return 'total_service_charge';
+    case 'EXTRA CHARGES':
+      return 'total_extra_charges';
+    default:
+      break;
+  }
+  if (text.contains('ORDER') && !text.contains('AVG')) return 'total_orders';
+  if (text.contains('ITEM') && text.contains('SOLD')) return 'items_sold';
+  if (text.contains('AVG')) return 'average_order';
+  if (text.contains('DISCOUNT')) return 'total_discounts';
+  if (text.contains('SERVICE')) return 'total_service_charge';
+  if (text.contains('EXTRA')) return 'total_extra_charges';
+  if (text.contains('TIP')) return 'total_tips';
+  if (text == 'TAX' || text.contains('TOTAL TAX')) return 'total_tax';
+  return null;
+}
+
+List<PosReportSlice> _mixFromDocument(Map<String, dynamic>? document) {
+  if (document == null) return const [];
+  return [
+    for (final row in _docRows(document))
+      PosReportSlice(
+        label: '${row['label'] ?? row['description'] ?? row['name'] ?? ''}'.trim(),
+        amount: parseReportAmount(row['amount'] ?? row['display'] ?? row['value']),
+        count: _ordersInDisplay(row['display']),
+      ),
+  ].where((row) => row.label.isNotEmpty).toList();
+}
+
+int? _ordersInDisplay(Object? display) {
+  final text = '${display ?? ''}';
+  final slash = text.indexOf('/');
+  if (slash <= 0) return null;
+  return int.tryParse(text.substring(0, slash).trim());
+}
+
+List<Map<String, dynamic>> _docRows(
+  Map<String, dynamic> document, {
+  String key = 'rows',
+}) {
+  final rows = document[key];
+  if (rows is List && rows.isNotEmpty) {
+    return rows.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
+  }
+  if (key != 'rows') return const [];
+  final commands = document['commands'];
+  if (commands is! List) return const [];
+  final lines = <Map<String, dynamic>>[];
+  for (final command in commands) {
+    if (command is! Map) continue;
+    final type = '${command['type'] ?? ''}';
+    if (type != 'text' && type != 'row' && type != 'columns') continue;
+    final left = '${command['left'] ?? command['text'] ?? command['value'] ?? ''}'.trim();
+    final right = '${command['right'] ?? ''}'.trim();
+    if (left.isEmpty || right.isEmpty) continue;
+    lines.add({'label': left, 'amount': right, 'display': right});
+  }
+  return lines;
+}
+
+Future<List<Map<String, dynamic>>> _fetchVoidOrders({
+  required http.Client client,
+  required PosSession session,
+  required String serverUrl,
+  required String period,
+  required String dateFrom,
+  required String dateTo,
+}) async {
+  final rows = <Map<String, dynamic>>[];
+  for (final status in const ['cancelled', 'abandoned']) {
+    for (var page = 1; page <= 4; page++) {
+      final uri = Uri.parse('$serverUrl/api/v1/pos/admin/orders').replace(
+        queryParameters: {
+          'status': status,
+          'period': period,
+          'payment': 'all',
+          'page': '$page',
+          'per_page': '20',
+        },
+      );
+      try {
+        final response = await _reportGet(client, uri, session);
+        final batch = _orderRows(jsonDecode(response.body));
+        if (batch.isEmpty) break;
+        rows.addAll(_ordersInRange(batch, dateFrom, dateTo));
+      } on _ChartRequestException {
+        return rows;
+      } catch (_) {
+        break;
+      }
+    }
+  }
+  return rows;
+}
+
+bool _createdInRange(Map<String, dynamic> order, String dateFrom, String dateTo) {
+  final created = DateTime.tryParse('${order['created_at']}')?.toLocal();
+  if (created == null) return true;
+  final day = DateTime(created.year, created.month, created.day);
+  final start = DateTime.parse(dateFrom);
+  final end = DateTime.parse(dateTo);
+  return !day.isBefore(start) && !day.isAfter(end);
+}
+
+List<Map<String, dynamic>> _ordersInRange(
+  List<Map<String, dynamic>> orders,
+  String dateFrom,
+  String dateTo,
+) {
+  return [
+    for (final order in orders)
+      if (_createdInRange(order, dateFrom, dateTo)) order,
+  ];
+}
+
+Future<List<Map<String, dynamic>>> _fetchSaleOrders({
+  required http.Client client,
+  required PosSession session,
+  required String serverUrl,
+  required String period,
+  required String dateFrom,
+  required String dateTo,
+}) async {
+  final rows = <Map<String, dynamic>>[];
+  for (var page = 1; page <= 4; page++) {
+    final uri = Uri.parse('$serverUrl/api/v1/pos/admin/orders').replace(
+      queryParameters: {
+        'period': period,
+        'payment': 'all',
+        'page': '$page',
+        'per_page': '20',
+      },
+    );
+    try {
+      final response = await _reportGet(client, uri, session);
+      final batch = _orderRows(jsonDecode(response.body));
+      if (batch.isEmpty) break;
+      rows.addAll(_ordersInRange(batch, dateFrom, dateTo));
+    } on _ChartRequestException {
+      if (rows.isEmpty) rethrow;
+      break;
+    } catch (_) {
+      break;
+    }
+  }
+  return rows;
+}
+
+/// Staff names live on each order's status log, the same read the owner app uses.
+Future<List<Map<String, dynamic>>> _withStaffNames({
+  required http.Client client,
+  required PosSession session,
+  required String serverUrl,
+  required List<Map<String, dynamic>> orders,
+  void Function(List<Map<String, dynamic>> soFar)? onBatch,
+}) async {
+  const skipped = {'cancelled', 'abandoned', 'failed', 'draft', 'void', 'voided'};
+  final sales = [
+    for (final order in orders)
+      if (!skipped.contains('${order['status']}'.toLowerCase())) order,
+  ];
+  final detailed = <Map<String, dynamic>>[];
+  var stop = false;
+  for (var i = 0; i < sales.length && !stop; i += 8) {
+    final slice = sales.skip(i).take(8);
+    final loaded = await Future.wait(
+      slice.map(
+        (order) => _decorateOrder(
+          client: client,
+          session: session,
+          serverUrl: serverUrl,
+          order: order,
+        ),
+      ),
+    );
+    for (final order in loaded) {
+      if (order.remove('_stop') == true) stop = true;
+      detailed.add(order);
+    }
+    onBatch?.call(List<Map<String, dynamic>>.from(detailed));
+  }
+  return detailed;
+}
+
+Future<Map<String, dynamic>> _decorateOrder({
+  required http.Client client,
+  required PosSession session,
+  required String serverUrl,
+  required Map<String, dynamic> order,
+}) async {
+  final copy = Map<String, dynamic>.from(order);
+  final id = order['id'];
+  if (id == null) {
+    copy['staff_name'] = 'Unassigned / online';
+    return copy;
+  }
+  try {
+    final uri = Uri.parse('$serverUrl/api/v1/pos/admin/orders/$id');
+    final response = await _reportGet(client, uri, session);
+    final decoded = jsonDecode(response.body);
+    final root = decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
+    final data = root['data'];
+    final full = data is Map ? Map<String, dynamic>.from(data) : root;
+    copy.addAll(full);
+    copy['staff_name'] = _staffName(full);
+    final items = full['items'];
+    copy['items_count'] = items is List
+        ? items.fold<double>(0, (sum, item) {
+            if (item is! Map) return sum;
+            return sum + _money(item['quantity'] ?? 1);
+          })
+        : 0;
+  } on _ChartRequestException catch (error) {
+    copy['staff_name'] = 'Unassigned / online';
+    copy['items_count'] = 0;
+    if (error.stop) copy['_stop'] = true;
+  } catch (_) {
+    copy['staff_name'] = 'Unassigned / online';
+    copy['items_count'] = 0;
+  }
+  return copy;
+}
+
+String _staffName(Map<String, dynamic> order) {
+  final logs = order['status_logs'];
+  if (logs is List) {
+    for (final log in logs) {
+      if (log is! Map) continue;
+      final user = log['user'];
+      if (user is Map) {
+        final name = '${user['name'] ?? ''}'.trim();
+        if (name.isNotEmpty) return name;
+      }
+    }
+  }
+  return 'Unassigned / online';
+}
+
+double _money(Object? raw) {
+  if (raw is Map) {
+    return _money(raw['amount'] ?? raw['display'] ?? raw['value']);
+  }
+  return parseReportAmount(raw);
+}
+
+List<PosReportSlice> _staffSlices(List<Map<String, dynamic>> orders) {
+  final groups = <String, ({int orders, double revenue, double tips, double items})>{};
+  for (final order in orders) {
+    final name = '${order['staff_name'] ?? 'Unassigned / online'}'.trim();
+    final label = name.isEmpty ? 'Unassigned / online' : name;
+    final current = groups[label];
+    groups[label] = (
+      orders: (current?.orders ?? 0) + 1,
+      revenue: (current?.revenue ?? 0) + _money(order['total']),
+      tips: (current?.tips ?? 0) + _money(order['tip_total'] ?? order['tip']),
+      items: (current?.items ?? 0) + _money(order['items_count']),
+    );
+  }
+  final rows = [
+    for (final entry in groups.entries)
+      PosReportSlice(
+        label: entry.key,
+        amount: entry.value.revenue,
+        count: entry.value.orders,
+        tips: entry.value.tips,
+        items: entry.value.items,
+      ),
+  ]..sort((a, b) => b.amount.compareTo(a.amount));
+  return rows;
+}
+
+List<Map<String, dynamic>> _orderRows(Object? decoded) {
+  if (decoded is! Map) return const [];
+  final root = Map<String, dynamic>.from(decoded);
+  final data = root['data'];
+  final page = data is Map ? Map<String, dynamic>.from(data) : root;
+  final raw = page['data'] ?? page['orders'];
+  if (raw is! List) return const [];
+  return raw.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
 }

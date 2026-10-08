@@ -354,11 +354,17 @@ class _OtpPinInputState extends State<_OtpPinInput> {
     final text = widget.controller.text;
     final focused = widget.focusNode.hasFocus;
 
-    const boxSize = 48.0;
     const gap = 8.0;
 
-    return Center(
-      child: GestureDetector(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 320.0;
+        final boxSize = ((available - (widget.length - 1) * gap) /
+                widget.length)
+            .clamp(34.0, 48.0);
+        return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.enabled
             ? () {
@@ -444,7 +450,8 @@ class _OtpPinInputState extends State<_OtpPinInput> {
             ],
           ),
         ),
-      ),
+      );
+      },
     );
   }
 }

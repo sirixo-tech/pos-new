@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -207,7 +209,7 @@ class _NavItem extends StatelessWidget {
                     ),
                   ),
                   child: label == 'AI'
-                      ? _AiMark(color: color)
+                      ? _AiOrb(active: selected)
                       : Icon(icon, color: color, size: 22),
                 ),
                 const SizedBox(height: 2),
@@ -231,66 +233,128 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-/// One centered sparkle, same box as the other tab icons.
-class _AiMark extends StatelessWidget {
-  const _AiMark({required this.color});
+/// Small glass orb for the AI tab, in the same box as the other icons.
+class _AiOrb extends StatefulWidget {
+  const _AiOrb({required this.active});
 
-  final Color color;
+  final bool active;
+
+  @override
+  State<_AiOrb> createState() => _AiOrbState();
+}
+
+class _AiOrbState extends State<_AiOrb> with SingleTickerProviderStateMixin {
+  late final AnimationController _motion;
+
+  @override
+  void initState() {
+    super.initState();
+    _motion = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _motion.stop();
+    } else if (!_motion.isAnimating) {
+      _motion.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _motion.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(22, 22),
-      painter: _AiMarkPainter(color),
+    return AnimatedBuilder(
+      animation: _motion,
+      builder: (context, _) {
+        return CustomPaint(
+          size: const Size(28, 28),
+          painter: _AiOrbPainter(
+            t: _motion.value,
+            active: widget.active,
+          ),
+        );
+      },
     );
   }
 }
 
-class _AiMarkPainter extends CustomPainter {
-  _AiMarkPainter(this.color);
+class _AiOrbPainter extends CustomPainter {
+  _AiOrbPainter({required this.t, required this.active});
 
-  final Color color;
+  final double t;
+  final bool active;
+
+  static const _green = Color(0xFF3DDC8C);
+  static const _cyan = Color(0xFF3EE0FF);
+  static const _blue = Color(0xFF2F7BFF);
+  static const _purple = Color(0xFFB07CFF);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    canvas.drawPath(
-      _spark(center, size.shortestSide * 0.40),
-      Paint()..color = color,
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2;
+    final rect = Offset.zero & size;
+    final turn = t * math.pi * 2;
+    canvas.save();
+    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: center, radius: radius)));
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = SweepGradient(
+          transform: GradientRotation(turn),
+          colors: const [_green, _cyan, _blue, _purple, _green],
+        ).createShader(rect),
     );
-  }
-
-  Path _spark(Offset center, double radius) {
-    final path = Path()..moveTo(center.dx, center.dy - radius);
-    path.quadraticBezierTo(
-      center.dx,
-      center.dy,
-      center.dx + radius,
-      center.dy,
+    canvas.drawCircle(
+      center.translate(math.sin(turn) * radius * 0.12, math.cos(turn) * radius * 0.08),
+      radius * 0.78,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            const Color(0xFF8FD4FF),
+            _blue,
+            _blue.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.55, 1],
+        ).createShader(rect),
     );
-    path.quadraticBezierTo(
-      center.dx,
-      center.dy,
-      center.dx,
-      center.dy + radius,
+    for (var i = 0; i < 5; i++) {
+      final angle = turn * 0.55 + i * 1.25;
+      final orbit = radius * (0.22 + (i % 3) * 0.16);
+      final spark = center + Offset(math.cos(angle) * orbit, math.sin(angle * 0.85) * orbit * 0.72);
+      final twinkle = (math.sin(turn * 2 + i) + 1) / 2;
+      canvas.drawCircle(
+        spark,
+        0.55,
+        Paint()..color = Colors.white.withValues(alpha: 0.25 + twinkle * 0.75),
+      );
+    }
+    canvas.drawCircle(
+      center.translate(0, -radius * 0.34),
+      radius * 0.4,
+      Paint()
+        ..color = Colors.white.withValues(alpha: active ? 0.32 : 0.18)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
     );
-    path.quadraticBezierTo(
-      center.dx,
-      center.dy,
-      center.dx - radius,
-      center.dy,
+    canvas.restore();
+    canvas.drawCircle(
+      center,
+      radius - 0.5,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = Colors.white.withValues(alpha: active ? 0.92 : 0.7),
     );
-    path.quadraticBezierTo(
-      center.dx,
-      center.dy,
-      center.dx,
-      center.dy - radius,
-    );
-    path.close();
-    return path;
   }
 
   @override
-  bool shouldRepaint(covariant _AiMarkPainter oldDelegate) =>
-      oldDelegate.color != color;
+  bool shouldRepaint(covariant _AiOrbPainter oldDelegate) =>
+      oldDelegate.t != t || oldDelegate.active != active;
 }

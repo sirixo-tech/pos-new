@@ -1,8 +1,15 @@
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
 import '../../l10n/pos_l10n.dart';
 import '../../models/admin_models.dart';
+import '../../providers/pos_controller.dart';
+import '../../services/pos_api.dart';
+import '../../theme/pos_theme.dart';
+import '../../utils/pos_user_facing_error.dart';
+import '../../widgets/pos_overlay.dart';
 import '../../widgets/pos_ui.dart';
 import 'admin_chrome.dart';
 import 'admin_menu_image_picker.dart';
@@ -308,6 +315,52 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
     super.dispose();
   }
 
+  Future<void> _generateImage() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      showPosSnackBar(
+        context,
+        context.posText('adminEnterName', 'Enter a name'),
+        error: true,
+      );
+      return;
+    }
+    final choice = await showModalBottomSheet<_AiImageChoice>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => PosKeyboardSheetHost(
+        child: _AiImageStyleSheet(itemName: name),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    final session = context.read<PosController>().session;
+    if (session == null) return;
+    setState(() => _pickingImage = true);
+    try {
+      final categoryName = widget.categories
+          .where((cat) => cat.id == _categoryId)
+          .map((cat) => cat.name)
+          .firstOrNull;
+      final file = await context.read<PosApi>().generateMenuItemImage(
+        session,
+        name: name,
+        description: _descCtrl.text.trim(),
+        style: choice.style,
+        keywords: choice.keywords,
+        itemType: widget.item?.itemType,
+        categoryName: categoryName,
+      );
+      if (!mounted) return;
+      setState(() => _pickedImage = file);
+    } catch (error) {
+      if (!mounted) return;
+      showPosSnackBar(context, posUserFacingError(error), error: true);
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
+  }
+
   Future<void> _pickImage() async {
     setState(() => _pickingImage = true);
     try {
@@ -393,6 +446,7 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
             pickedImage: _pickedImage,
             picking: _pickingImage,
             onPick: _pickImage,
+            onGenerate: _generateImage,
           ),
           const SizedBox(height: 16),
           if (_isCreate) ...[
@@ -484,6 +538,111 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
             : context.l10n.commonSave,
         onCancel: () => Navigator.pop(context),
         onConfirm: _save,
+      ),
+    );
+  }
+}
+
+class _AiImageChoice {
+  const _AiImageChoice({required this.style, this.keywords = ''});
+
+  final String style;
+  final String keywords;
+}
+
+class _AiImageStyleSheet extends StatefulWidget {
+  const _AiImageStyleSheet({required this.itemName});
+
+  final String itemName;
+
+  @override
+  State<_AiImageStyleSheet> createState() => _AiImageStyleSheetState();
+}
+
+class _AiImageStyleSheetState extends State<_AiImageStyleSheet> {
+  static const _styles = <(String, String)>[
+    ('catalog', 'Catalog'),
+    ('hero', 'Hero'),
+    ('bright', 'Bright'),
+    ('flatlay', 'Flat lay'),
+    ('indian_thali', 'Thali'),
+    ('tandoor', 'Tandoor'),
+    ('street_chaat', 'Street'),
+    ('spice_kadhai', 'Kadhai'),
+    ('fresh_juice', 'Juice'),
+    ('custom', 'Custom'),
+  ];
+
+  String _style = 'catalog';
+  final _keywords = TextEditingController();
+
+  @override
+  void dispose() {
+    _keywords.dispose();
+    super.dispose();
+  }
+
+  void _use() {
+    final keywords = _keywords.text.trim();
+    if (_style == 'custom' && keywords.isEmpty) {
+      showPosSnackBar(context, 'Add a few words for a custom image.', error: true);
+      return;
+    }
+    Navigator.pop(context, _AiImageChoice(style: _style, keywords: keywords));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: posMobileSheetHeight(context), maxWidth: 520),
+        child: Material(
+          color: PosTheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Generate an image',
+                  style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(widget.itemName, style: TextStyle(color: PosTheme.inkMuted, fontSize: 13)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final style in _styles)
+                      ChoiceChip(
+                        label: Text(style.$2),
+                        selected: _style == style.$1,
+                        selectedColor: accent.withValues(alpha: 0.16),
+                        onSelected: (_) => setState(() => _style = style.$1),
+                      ),
+                  ],
+                ),
+                if (_style == 'custom') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _keywords,
+                    decoration: const InputDecoration(
+                      labelText: 'Describe the photo',
+                      hintText: 'Gold bowl, steam, dark wood',
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                FilledButton(onPressed: _use, child: const Text('Generate')),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

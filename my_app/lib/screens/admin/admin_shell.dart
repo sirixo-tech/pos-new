@@ -10,6 +10,7 @@ import '../../services/pos_api.dart';
 import '../../services/printing/pos_receipt_printer.dart';
 import '../../theme/pos_theme.dart';
 import '../../widgets/day_end_reports_sheet.dart';
+import '../../utils/pos_layout.dart';
 import '../../widgets/pos_overlay.dart';
 import '../../widgets/pos_ui.dart';
 import '../pos_billing_screen.dart';
@@ -52,11 +53,14 @@ Future<void> openPosAdminMenuSheet(BuildContext context) async {
   if (pos.bootstrap?.adminCapabilities.canAccessAdmin != true) return;
 
   final accent = Theme.of(context).colorScheme.primary;
+  final screenWidth = MediaQuery.sizeOf(context).width;
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.5),
+    // Material caps bottom sheets at 640. The menu needs the window width.
+    constraints: BoxConstraints(maxWidth: screenWidth),
     builder: (sheetContext) {
       return ChangeNotifierProvider(
         create: (_) => PosAdminController(api: api, pos: pos),
@@ -304,6 +308,7 @@ class _AdminHub extends StatelessWidget {
           title: context.posText('adminAiMenuUpload', 'AI Menu Upload'),
           subtitle: context.posText('adminAiMenuUploadSubtitle', 'Upload, review, and import your menu'),
           onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            settings: const RouteSettings(name: 'ai-menu'),
             builder: (_) => const AdminMenuImportScreen(),
           )),
         ),
@@ -481,8 +486,6 @@ class _AdminMenuPickerSheet extends StatelessWidget {
     final soft = posAccentSoft(accent);
     final size = MediaQuery.sizeOf(context);
     final maxHeight = posMobileSheetHeight(context);
-    // Leave a small side margin, then use the rest of the window so the
-    // search field and Reorder / Category / Item actions stay on screen.
     final available = size.width - (size.width >= 1100 ? 48 : 24);
     final sheetMaxWidth = available > 1280 ? 1280.0 : available;
 

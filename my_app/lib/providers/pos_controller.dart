@@ -140,7 +140,9 @@ class PosController extends ChangeNotifier {
   final List<WaiterAlert> _newOrderBannerQueue = [];
   final Set<int> _selfPlacedOrderIds = <int>{};
   VoidCallback? _connectivityListener;
-  static const Duration _newOrderPollInterval = Duration(seconds: 2);
+  /// Online-order alerts. Two seconds used about 30 requests a minute and
+  /// shared the server limit with checkout, receipt, and KOT fetches.
+  static const Duration _newOrderPollInterval = Duration(seconds: 8);
   List<Map<String, dynamic>> _registerFloorSnapshot = const [];
   final Set<String> _paymentSessionSignals = <String>{};
   bool _paymentSessionsBound = false;
@@ -212,6 +214,8 @@ class PosController extends ChangeNotifier {
 
   /// Held / parked tickets count (sidebar Held badge) — server + local.
   int heldOrderCount = 0;
+  Future<void>? _heldCountInFlight;
+  bool _heldCountDirty = false;
 
   /// Today's branch orders count (header Orders badge).
   int todayOrderCount = 0;
@@ -2291,7 +2295,23 @@ class PosController extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshHeldOrderCount() async {
+  Future<void> refreshHeldOrderCount() {
+    if (_heldCountInFlight != null) {
+      _heldCountDirty = true;
+      return _heldCountInFlight!;
+    }
+    late final Future<void> run;
+    run = _refreshHeldOrderCountNow().whenComplete(() {
+      if (identical(_heldCountInFlight, run)) _heldCountInFlight = null;
+      if (!_heldCountDirty) return;
+      _heldCountDirty = false;
+      unawaited(refreshHeldOrderCount());
+    });
+    _heldCountInFlight = run;
+    return run;
+  }
+
+  Future<void> _refreshHeldOrderCountNow() async {
     final current = session;
     if (current == null) {
       heldOrderCount = 0;
@@ -2818,7 +2838,8 @@ class PosController extends ChangeNotifier {
       registerSelfPlacedOrder(order.id);
       lastOfflineOrder = null;
       clearCart();
-      unawaited(refreshHeldOrderCount());
+      todayOrderCount += 1;
+      notifyListeners();
       return order;
     } on PosApiException catch (e) {
       if (parkedOrderId == null &&

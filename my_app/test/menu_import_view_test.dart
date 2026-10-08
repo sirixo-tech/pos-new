@@ -4,6 +4,10 @@ import 'package:my_app/screens/admin/menu_import_view.dart';
 
 Widget view({bool review = true, bool published = false, VoidCallback? onCamera, TargetPlatform platform = TargetPlatform.windows}) => MaterialApp(
   theme: ThemeData(platform: platform),
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(disableAnimations: true),
+    child: child ?? const SizedBox.shrink(),
+  ),
   home: MenuImportView(
     capabilities: {
       'max_upload_kb': 20480,

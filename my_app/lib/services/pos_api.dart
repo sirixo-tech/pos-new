@@ -76,6 +76,8 @@ class PosApi {
   static String get appVersion => PosAppInfo.version;
 
   static DateTime? _rateLimitedUntil;
+  static int? _rateRemaining;
+  static DateTime? _rateRemainingAt;
   static final Map<String, String> _scopedTokens = {};
 
   /// True while the server has asked us to wait after HTTP 429.
@@ -89,12 +91,76 @@ class PosApi {
 
   static void noteIfRateLimited(PosApiException error) {
     if (error.statusCode != 429) return;
-    final wait = error.retryAfter ?? const Duration(seconds: 45);
+    final wait = error.retryAfter ?? const Duration(seconds: 20);
     final until = DateTime.now().add(wait);
     final current = _rateLimitedUntil;
     if (current == null || until.isAfter(current)) {
       _rateLimitedUntil = until;
     }
+  }
+
+  /// Laravel sends these on limited and successful responses.
+  static void noteRateHeaders(http.Response response) {
+    final remaining = int.tryParse(response.headers['x-ratelimit-remaining'] ?? '');
+    if (remaining != null) {
+      _rateRemaining = remaining;
+      _rateRemainingAt = DateTime.now();
+    }
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        (remaining == null || remaining > 8)) {
+      _rateLimitedUntil = null;
+    }
+    if (response.statusCode != 429) return;
+    final retry = int.tryParse(response.headers['retry-after'] ?? '');
+    noteIfRateLimited(
+      PosApiException(
+        'Too many attempts.',
+        statusCode: 429,
+        retryAfter: retry == null ? null : Duration(seconds: retry),
+      ),
+    );
+  }
+
+  /// Background reads wait. Placing an order does not.
+  static bool get shouldDeferBackgroundReads {
+    if (isRateLimited) return true;
+    final remaining = _rateRemaining;
+    final seenAt = _rateRemainingAt;
+    if (remaining == null || seenAt == null) return false;
+    if (DateTime.now().difference(seenAt) > const Duration(seconds: 60)) {
+      return false;
+    }
+    return remaining <= 8;
+  }
+
+  /// How long background reads should wait. Checkout does not use this.
+  static Duration? get rateLimitRemaining {
+    if (!isRateLimited) return null;
+    final until = _rateLimitedUntil;
+    if (until == null) return null;
+    final remaining = until.difference(DateTime.now());
+    if (remaining.isNegative) return null;
+    return remaining;
+  }
+
+  /// A burst of sales can share the server limit with list refreshes.
+  /// Wait briefly and send the same checkout again. The idempotency key
+  /// keeps a repeated create from opening a second ticket.
+  Future<http.Response> _sendThroughRateLimit(
+    Future<http.Response> Function() send,
+  ) async {
+    var response = await send();
+    noteRateHeaders(response);
+    if (response.statusCode != 429) return response;
+    // One wait inside the server window, then the same idempotent sale.
+    // More immediate retries only spend the remaining allowance.
+    final header = int.tryParse(response.headers['retry-after'] ?? '');
+    final waitMs = header == null ? 800 : (header * 1000).clamp(400, 2000);
+    await Future<void>.delayed(Duration(milliseconds: waitMs));
+    response = await send();
+    noteRateHeaders(response);
+    return response;
   }
 
   final http.Client _client;
@@ -571,33 +637,37 @@ class PosApi {
     Map<String, dynamic>? discount,
     String? idempotencyKey,
   }) async {
-    final response = await _client
-        .post(
-          Uri.parse('${session.apiBaseUrl}/orders'),
-          headers: {
-            ..._jsonHeaders(
-              token: session.token,
-              restaurantId: session.restaurantId,
-              branchId: session.branchId,
-            ),
-            if (idempotencyKey != null && idempotencyKey.isNotEmpty)
-              'Idempotency-Key': idempotencyKey,
-          },
-          body: jsonEncode({
-            'items': items,
-            'type': type,
-            if (posTerminalId != null) 'pos_terminal_id': posTerminalId,
-            if (tableId != null) 'table_id': tableId,
-            if (customerId != null) 'customer_id': customerId,
-            if (customerName != null && customerName.isNotEmpty)
-              'customer_name': customerName,
-            if (notes != null && notes.isNotEmpty) 'notes': notes,
-            if (discount != null) 'discount': discount,
-            'pos_register_payment': payment,
-            if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
-          }),
-        )
-        .timeout(const Duration(seconds: 20));
+    final payload = jsonEncode({
+      'items': items,
+      'type': type,
+      if (posTerminalId != null) 'pos_terminal_id': posTerminalId,
+      if (tableId != null) 'table_id': tableId,
+      if (customerId != null) 'customer_id': customerId,
+      if (customerName != null && customerName.isNotEmpty)
+        'customer_name': customerName,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (discount != null) 'discount': discount,
+      'pos_register_payment': payment,
+      if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+    });
+    final headers = {
+      ..._jsonHeaders(
+        token: session.token,
+        restaurantId: session.restaurantId,
+        branchId: session.branchId,
+      ),
+      if (idempotencyKey != null && idempotencyKey.isNotEmpty)
+        'Idempotency-Key': idempotencyKey,
+    };
+    final response = await _sendThroughRateLimit(
+      () => _client
+          .post(
+            Uri.parse('${session.apiBaseUrl}/orders'),
+            headers: headers,
+            body: payload,
+          )
+          .timeout(const Duration(seconds: 20)),
+    );
     final json = _decodeJsonBody(response);
     final placed = _placedOrderFromBody(json);
     final status = response.statusCode;
@@ -616,7 +686,11 @@ class PosApi {
         statusCode: status,
       );
     }
-    throw _apiException(response, json);
+    throw _apiException(
+      response,
+      json,
+      recordBackoff: response.statusCode != 429,
+    );
   }
 
   Map<String, dynamic> _decodeJsonBody(http.Response response) {
@@ -669,7 +743,11 @@ class PosApi {
         message.contains('duplicate');
   }
 
-  PosApiException _apiException(http.Response response, Map<String, dynamic> body) {
+  PosApiException _apiException(
+    http.Response response,
+    Map<String, dynamic> body, {
+    bool recordBackoff = true,
+  }) {
     final message = body['message'] as String? ??
         body['error'] as String? ??
         (body['errors'] is Map
@@ -686,7 +764,7 @@ class PosApi {
       billingSelfServe: body['billing_self_serve'] == true,
       coveredByOrganization: body['covered_by_organization'] == true,
     );
-    noteIfRateLimited(error);
+    if (recordBackoff) noteIfRateLimited(error);
     return error;
   }
 
@@ -918,26 +996,33 @@ class PosApi {
     String? notes,
     Map<String, dynamic>? discount,
   }) async {
-    final response = await _client.post(
-      Uri.parse('${session.apiBaseUrl}/orders/$orderId/pay'),
-      headers: _jsonHeaders(
-        token: session.token,
-        restaurantId: session.restaurantId,
-        branchId: session.branchId,
-      ),
-      body: jsonEncode({
-        'pos_register_payment': payment,
-        if (items != null) 'items': items,
-        if (type != null && type.isNotEmpty) 'type': type,
-        if (tableId != null) 'table_id': tableId,
-        if (customerId != null) 'customer_id': customerId,
-        if (customerName != null && customerName.isNotEmpty)
-          'customer_name': customerName,
-        if (notes != null && notes.isNotEmpty) 'notes': notes,
-        if (discount != null) 'discount': discount,
-      }),
+    final payload = jsonEncode({
+      'pos_register_payment': payment,
+      if (items != null) 'items': items,
+      if (type != null && type.isNotEmpty) 'type': type,
+      if (tableId != null) 'table_id': tableId,
+      if (customerId != null) 'customer_id': customerId,
+      if (customerName != null && customerName.isNotEmpty)
+        'customer_name': customerName,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (discount != null) 'discount': discount,
+    });
+    final headers = _jsonHeaders(
+      token: session.token,
+      restaurantId: session.restaurantId,
+      branchId: session.branchId,
     );
-    final json = await _decode(response);
+    final response = await _sendThroughRateLimit(
+      () => _client.post(
+        Uri.parse('${session.apiBaseUrl}/orders/$orderId/pay'),
+        headers: headers,
+        body: payload,
+      ),
+    );
+    final json = await _decode(
+      response,
+      recordBackoff: response.statusCode != 429,
+    );
     return json['data'] as Map<String, dynamic>? ?? json;
   }
 
@@ -1447,6 +1532,134 @@ class PosApi {
       return http.Response.fromStream(await _client.send(request));
     })().timeout(const Duration(minutes: 2));
     return _unwrapData(await _decode(response));
+  }
+
+  /// Product photo from the same AI image route the web menu editor uses.
+  ///
+  /// That route is cookie-protected. A POS token is accepted after the CSRF
+  /// cookie from `/sanctum/csrf-cookie` is sent back.
+  Future<XFile> generateMenuItemImage(
+    PosSession session, {
+    required String name,
+    String description = '',
+    String style = 'catalog',
+    String keywords = '',
+    String? itemType,
+    String? categoryName,
+  }) async {
+    final origin = _origin(session);
+    final csrf = await _client
+        .get(
+          Uri.parse('$origin/sanctum/csrf-cookie'),
+          headers: const {'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 20));
+    if (csrf.statusCode < 200 || csrf.statusCode >= 300) {
+      throw PosApiException(
+        'Image generation could not start.',
+        statusCode: csrf.statusCode,
+      );
+    }
+    final xsrf = _cookieValue(csrf, 'XSRF-TOKEN');
+    if (xsrf == null || xsrf.isEmpty) {
+      throw PosApiException('Image generation could not start.');
+    }
+    final response = await _client
+        .post(
+          Uri.parse('$origin/ai/menu/generate-image'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${session.token}',
+            'X-XSRF-TOKEN': xsrf,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Origin': origin,
+            'Referer': '$origin/',
+            'Cookie': _cookieHeader(csrf),
+          },
+          body: jsonEncode({
+            'name': name,
+            'description': description,
+            'restaurant_id': session.restaurantId,
+            'style': style,
+            'keywords': keywords,
+            if (itemType != null && itemType.isNotEmpty) 'item_type': itemType,
+            if (categoryName != null && categoryName.isNotEmpty)
+              'category_name': categoryName,
+          }),
+        )
+        .timeout(const Duration(seconds: 180));
+    final body = await _decode(response, recordBackoff: false);
+    final data = body['data'] is Map
+        ? Map<String, dynamic>.from(body['data'] as Map)
+        : body;
+    final imageUrl = '${data['image_url'] ?? ''}'.trim();
+    if (imageUrl.isEmpty) {
+      throw PosApiException('The server did not return an image.');
+    }
+    return _imageFileFromUrl(origin, imageUrl);
+  }
+
+  String _origin(PosSession session) {
+    var base = session.serverUrl.trim();
+    while (base.endsWith('/')) {
+      base = base.substring(0, base.length - 1);
+    }
+    return base;
+  }
+
+  String? _cookieValue(http.Response response, String name) {
+    for (final raw in response.headersSplitValues['set-cookie'] ?? const []) {
+      final pair = raw.split(';').first.trim();
+      final eq = pair.indexOf('=');
+      if (eq <= 0) continue;
+      if (pair.substring(0, eq).trim() != name) continue;
+      return Uri.decodeComponent(pair.substring(eq + 1).trim());
+    }
+    return null;
+  }
+
+  String _cookieHeader(http.Response response) {
+    final parts = <String>[];
+    for (final raw in response.headersSplitValues['set-cookie'] ?? const []) {
+      final pair = raw.split(';').first.trim();
+      if (pair.contains('=')) parts.add(pair);
+    }
+    return parts.join('; ');
+  }
+
+  Future<XFile> _imageFileFromUrl(String origin, String imageUrl) async {
+    if (imageUrl.startsWith('data:')) {
+      final comma = imageUrl.indexOf(',');
+      if (comma <= 0) {
+        throw PosApiException('The generated image could not be read.');
+      }
+      final meta = imageUrl.substring(0, comma);
+      final bytes = base64Decode(imageUrl.substring(comma + 1));
+      final png = meta.contains('png');
+      return XFile.fromData(
+        bytes,
+        name: png ? 'ai-item.png' : 'ai-item.jpg',
+        mimeType: png ? 'image/png' : 'image/jpeg',
+      );
+    }
+    final uri = imageUrl.startsWith('http')
+        ? Uri.parse(imageUrl)
+        : Uri.parse('$origin${imageUrl.startsWith('/') ? '' : '/'}$imageUrl');
+    final downloaded = await _client.get(uri).timeout(const Duration(seconds: 60));
+    if (downloaded.statusCode < 200 || downloaded.statusCode >= 300) {
+      throw PosApiException(
+        'The generated image could not be downloaded.',
+        statusCode: downloaded.statusCode,
+      );
+    }
+    final type = downloaded.headers['content-type'] ?? '';
+    final png = type.contains('png') || imageUrl.toLowerCase().contains('.png');
+    return XFile.fromData(
+      downloaded.bodyBytes,
+      name: png ? 'ai-item.png' : 'ai-item.jpg',
+      mimeType: png ? 'image/png' : 'image/jpeg',
+    );
   }
 
   Future<String> menuImportErrors(PosSession session, int id) async {
@@ -2256,7 +2469,11 @@ class PosApi {
     await _decode(response);
   }
 
-  Future<Map<String, dynamic>> _decode(http.Response response) async {
+  Future<Map<String, dynamic>> _decode(
+    http.Response response, {
+    bool recordBackoff = true,
+  }) async {
+    noteRateHeaders(response);
     Map<String, dynamic> body;
     try {
       body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -2288,7 +2505,7 @@ class PosApi {
       billingSelfServe: body['billing_self_serve'] == true,
       coveredByOrganization: body['covered_by_organization'] == true,
     );
-    noteIfRateLimited(error);
+    if (recordBackoff) noteIfRateLimited(error);
     throw error;
   }
 

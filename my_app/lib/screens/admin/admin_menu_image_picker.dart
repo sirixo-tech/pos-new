@@ -15,6 +15,7 @@ class AdminMenuImagePickerSection extends StatelessWidget {
     required this.pickedImage,
     required this.picking,
     required this.onPick,
+    this.onGenerate,
     this.placeholderIcon = Icons.restaurant_rounded,
   });
 
@@ -23,6 +24,7 @@ class AdminMenuImagePickerSection extends StatelessWidget {
   final XFile? pickedImage;
   final bool picking;
   final VoidCallback onPick;
+  final VoidCallback? onGenerate;
   final IconData placeholderIcon;
 
   static Future<XFile?> pickFromGallery() {
@@ -56,20 +58,48 @@ class AdminMenuImagePickerSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: picking ? null : onPick,
-          icon: picking
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.photo_outlined, size: 18),
-          label: Text(
-            pickedImage != null
-                ? context.posText('adminChangePhoto', 'Change photo')
-                : context.posText('adminUpdatePhoto', 'Update photo'),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: picking ? null : onPick,
+                icon: picking && onGenerate == null
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.photo_outlined, size: 18),
+                label: Text(
+                  pickedImage != null
+                      ? context.posText('adminChangePhoto', 'Change photo')
+                      : context.posText('adminUpdatePhoto', 'Update photo'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            if (onGenerate != null) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: picking ? null : onGenerate,
+                  icon: picking
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_rounded, size: 18),
+                  label: const Text(
+                    'Generate with AI',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ],
     );
