@@ -46,7 +46,6 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   XFile? _selectedFile;
   int _selectedBytes = 0;
   MenuImportSource? _source;
-  bool _offering = false;
   int? _appliedOpen;
   PosSession? _adminSession;
   PosSession get _session {
@@ -92,9 +91,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     super.initState();
     _appliedOpen = widget.openToken;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _load();
-      _offerSource();
+      if (mounted) _load();
     });
   }
 
@@ -104,7 +101,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     if (widget.openToken == _appliedOpen) return;
     _appliedOpen = widget.openToken;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _offerSource();
+      if (mounted) _returnToSources();
     });
   }
 
@@ -280,48 +277,52 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
 
   bool get _importInProgress => _import != null && !_terminal;
 
-  Future<void> _offerSource() async {
-    if (!mounted || _offering) return;
-    _offering = true;
-    try {
-      while (mounted) {
-        final host = context;
-        final picked = await showMenuImportSourceSheet(
-          host,
-          enableVoice: widget.enableVoice,
-        );
-        if (!mounted || picked == null) return;
-        if (_importInProgress) {
-          setState(() => _error = 'Finish or cancel this import before starting another.');
-          return;
-        }
-        final back = await _applySource(picked);
-        if (!back) return;
-      }
-    } finally {
-      _offering = false;
-    }
+  bool _voiceNotice(String? message) {
+    const notices = {
+      'Allow the microphone and speech recognition, then try again.',
+      'Say each item, then its price.',
+    };
+    return notices.contains(message);
   }
 
-  /// Returns true when the person closed the file choices and should see the first popup again.
-  Future<bool> _applySource(MenuImportSource source) async {
+  void _clearVoiceNotice() {
+    if (_voiceNotice(_error)) setState(() => _error = null);
+  }
+
+  void _returnToSources() {
+    _clearVoiceNotice();
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      Navigator.of(context).pop();
+    }
+    if (_importInProgress) {
+      setState(() => _error = 'Finish or cancel this import before starting another.');
+      return;
+    }
+    setState(() => _source = null);
+  }
+
+  Future<void> _applySource(MenuImportSource source) async {
+    _clearVoiceNotice();
+    if (_importInProgress) {
+      setState(() => _error = 'Finish or cancel this import before starting another.');
+      return;
+    }
     if (source == MenuImportSource.zomato) {
       setState(() => _source = MenuImportSource.zomato);
-      return false;
+      return;
     }
     if (source == MenuImportSource.voice) {
       setState(() => _source = MenuImportSource.voice);
       final spoken = await captureSpokenMenu(context);
-      if (!mounted) return false;
-      if (spoken.message != null) setState(() => _error = spoken.message);
+      if (!mounted) return;
       if (spoken.csv != null) await _submitVoice(spoken.csv!);
-      return false;
+      return;
     }
     final choice = await showMenuImportFileSheet(context);
-    if (!mounted || choice == null) return true;
+    if (!mounted || choice == null) return;
     setState(() => _source = MenuImportSource.photo);
     await _pick(camera: choice == MenuFilePick.camera, gallery: choice == MenuFilePick.photo);
-    return false;
   }
 
   Future<void> _submitPrepared(Uint8List bytes, {required String name}) =>
@@ -587,7 +588,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     terminal: _terminal,
     busy: _busy,
     ai: _ai,
-    error: _error,
+    error: _voiceNotice(_error) ? null : _error,
     errors: _errors,
     selectedFile: _selectedFile,
     selectedBytes: _selectedBytes,
@@ -626,8 +627,12 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
         ? ZomatoMenuPanel(
             busy: _busy,
             onFetch: _fetchZomato,
+            onBack: () => setState(() => _source = null),
           )
-        : _MenuImportIdle(onChoose: _offerSource),
+        : MenuImportSourcePage(
+            enableVoice: widget.enableVoice,
+            onSelect: _applySource,
+          ),
     showSteps: _source == MenuImportSource.zomato || _import != null,
     stepTitles: switch (_source) {
       MenuImportSource.voice => const ['Speak', 'Read', 'Review', 'Live'],
@@ -645,50 +650,6 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
         _errors = null;
         _source = null;
       });
-      _offerSource();
     },
   );
-}
-
-class _MenuImportIdle extends StatelessWidget {
-  const _MenuImportIdle({required this.onChoose});
-
-  final VoidCallback onChoose;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'Add a menu',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF12253E)),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Use a photo, your voice, or a Zomato link. You confirm every price before it is saved.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF64748B)),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: onChoose,
-            style: FilledButton.styleFrom(
-              backgroundColor: accent,
-              minimumSize: const Size(160, 44),
-            ),
-            child: const Text('Choose a source'),
-          ),
-        ],
-      ),
-    );
-  }
 }

@@ -14,7 +14,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: MenuImportSourcePage(
       enableVoice: true, onSelect: (value) => selected = value,
     ))));
-    expect(find.text('Add your menu'), findsOneWidget);
+    expect(find.text('AI Menu Upload'), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);
     expect(tester.getSize(find.byType(MenuImportSourcePage)).width, 360);
     for (final entry in {

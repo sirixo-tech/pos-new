@@ -43,6 +43,7 @@ class _SpokenMenuOverlay extends StatefulWidget {
 class _SpokenMenuOverlayState extends State<_SpokenMenuOverlay> {
   String _transcript = '';
   final String _hint = 'Listening for the menu';
+  String? _notice;
   var _closed = false;
 
   @override
@@ -62,10 +63,8 @@ class _SpokenMenuOverlayState extends State<_SpokenMenuOverlay> {
       listenFor: const Duration(seconds: 60),
       pauseFor: const Duration(seconds: 4),
       onListening: (_) {},
-      onError: (_) => _finish(
-        const SpokenMenuResult(
-          message: 'Allow the microphone and speech recognition, then try again.',
-        ),
+      onError: (_) => _noticeOnly(
+        'Allow the microphone and speech recognition, then try again.',
       ),
       onResult: (words, isFinal) {
         if (!mounted) return;
@@ -74,21 +73,28 @@ class _SpokenMenuOverlayState extends State<_SpokenMenuOverlay> {
       },
     );
     if (!started) {
-      _finish(
-        const SpokenMenuResult(
-          message: 'Allow the microphone and speech recognition, then try again.',
-        ),
-      );
+      _noticeOnly('Allow the microphone and speech recognition, then try again.');
     }
   }
 
+  void _noticeOnly(String message) {
+    PosSpeech.instance.stop();
+    if (!mounted) {
+      _finish(const SpokenMenuResult());
+      return;
+    }
+    setState(() => _notice = message);
+  }
+
   void _finishFromTranscript() {
+    if (_notice != null) {
+      _finish(const SpokenMenuResult());
+      return;
+    }
     final lines = parseVoiceMenu(_transcript);
     final ready = lines.where((line) => line.isReady).toList();
     if (lines.isEmpty || ready.length != lines.length) {
-      _finish(
-        const SpokenMenuResult(message: 'Say each item, then its price.'),
-      );
+      _noticeOnly('Say each item, then its price.');
       return;
     }
     _finish(SpokenMenuResult(csv: voiceMenuCsv(ready)));
@@ -112,11 +118,41 @@ class _SpokenMenuOverlayState extends State<_SpokenMenuOverlay> {
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
-          child: PosListeningStatus(
-            transcript: _transcript,
-            hint: _hint,
-            onStop: _finishFromTranscript,
-          ),
+          child: _notice == null
+              ? PosListeningStatus(
+                  transcript: _transcript,
+                  hint: _hint,
+                  onStop: _finishFromTranscript,
+                )
+              : Material(
+                  color: Colors.white,
+                  elevation: 10,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.mic_off_rounded, color: Color(0xFFB42318)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _notice!,
+                            style: const TextStyle(
+                              color: Color(0xFFB42318),
+                              fontSize: 14,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close',
+                          onPressed: () => _finish(const SpokenMenuResult()),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
         ),
       ),
     );

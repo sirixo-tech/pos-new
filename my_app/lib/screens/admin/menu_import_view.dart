@@ -928,22 +928,24 @@ class _MenuImportViewState extends State<MenuImportView> {
         widget.terminal && ['completed', 'complete'].contains(status);
     final handheld = usePosHandheldLayout(context);
     final showBack = ModalRoute.of(context)?.settings.name == 'ai-menu';
+    final showAppBar = showBack || !handheld;
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
-      appBar: AppBar(
-        title: const Text('AI Menu Upload'),
-        backgroundColor: Colors.white,
-        automaticallyImplyLeading: showBack || !handheld,
-        actions: [
-          if (!handheld)
-            IconButton(
-              tooltip: 'Close',
-              onPressed: () => Navigator.of(context).maybePop(),
-              icon: const Icon(Icons.close_rounded),
-            ),
-          if (!handheld) const SizedBox(width: 8),
-        ],
-      ),
+      appBar: showAppBar
+          ? AppBar(
+              backgroundColor: Colors.white,
+              automaticallyImplyLeading: showBack || !handheld,
+              actions: [
+                if (!handheld)
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                if (!handheld) const SizedBox(width: 8),
+              ],
+            )
+          : null,
       bottomNavigationBar: widget.review ? _actionBar() : null,
       body: Center(
         child: ConstrainedBox(

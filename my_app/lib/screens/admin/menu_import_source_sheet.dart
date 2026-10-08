@@ -60,6 +60,74 @@ class _SourceSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
+    final choices = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _MenuMark(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI Menu Upload',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        letterSpacing: -0.3,
+                        color: PosTheme.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Pick one way. You confirm every price before it is saved.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.35,
+                        color: PosTheme.inkMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _SourceTile(
+          mark: const _FileMark(),
+          title: 'Photo or PDF',
+          subtitle: 'A photo of the printed menu, a PDF, or a spreadsheet.',
+          detail: 'Best when the menu is already on paper or in a file.',
+          onTap: () => _select(context, MenuImportSource.photo),
+        ),
+        if (enableVoice) ...[
+          const SizedBox(height: 10),
+          _SourceTile(
+            mark: const _VoiceMark(),
+            title: 'Voice',
+            subtitle: 'Say each item, then its price.',
+            detail: 'Best for a short list you can read aloud.',
+            onTap: () => _select(context, MenuImportSource.voice),
+          ),
+        ],
+        const SizedBox(height: 10),
+        _SourceTile(
+          mark: const ZomatoMark(size: 48),
+          title: 'Zomato',
+          subtitle: 'Paste the outlet share link from the partner app.',
+          detail: 'Best when this menu is already live on Zomato.',
+          onTap: () => _select(context, MenuImportSource.zomato),
+        ),
+      ],
+    );
+    if (fullPage) return choices;
     return Align(
       alignment: Alignment.bottomCenter,
       child: ConstrainedBox(
@@ -80,7 +148,6 @@ class _SourceSheet extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (!fullPage) ...[
               const SizedBox(height: 10),
               Container(
                 width: 36,
@@ -90,78 +157,23 @@ class _SourceSheet extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
-              ],
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 8, 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
+                child: Column(
                   children: [
-                    const _MenuMark(),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Add your menu',
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 18,
-                              letterSpacing: -0.3,
-                              color: PosTheme.ink,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Pick one way. You confirm every price before it is saved.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              height: 1.35,
-                              color: PosTheme.inkMuted,
-                            ),
-                          ),
-                        ],
-                      ),
+                    Row(
+                      children: [
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
                     ),
-                    if (!fullPage) IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
+                    choices,
                   ],
                 ),
               ),
-              Flexible(child: ListView(
-                shrinkWrap: true,
-                physics: const ClampingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                children: [
-                    _SourceTile(
-                      mark: const _FileMark(),
-                      title: 'Photo or PDF',
-                      subtitle: 'A photo of the printed menu, a PDF, or a spreadsheet.',
-                      detail: 'Best when the menu is already on paper or in a file.',
-                      onTap: () => _select(context, MenuImportSource.photo),
-                    ),
-                    if (enableVoice) ...[
-                      const SizedBox(height: 10),
-                      _SourceTile(
-                        mark: const _VoiceMark(),
-                        title: 'Voice',
-                        subtitle: 'Say each item, then its price.',
-                        detail: 'Best for a short list you can read aloud.',
-                        onTap: () => _select(context, MenuImportSource.voice),
-                      ),
-                    ],
-                    const SizedBox(height: 10),
-                    _SourceTile(
-                      mark: const ZomatoMark(size: 48),
-                      title: 'Zomato',
-                      subtitle: 'Paste the outlet share link from the partner app.',
-                      detail: 'Best when this menu is already live on Zomato.',
-                      onTap: () => _select(context, MenuImportSource.zomato),
-                    ),
-                  ],
-              )),
             ],
           ),
         ),
@@ -203,19 +215,39 @@ class _FilePickSheet extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'Add a photo or PDF',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                      color: PosTheme.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'The phone will ask for camera or photo access if it needs it.',
-                    style: TextStyle(fontSize: 13, height: 1.35, color: PosTheme.inkMuted),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      IconButton(
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Add a photo or PDF',
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 18,
+                                  color: PosTheme.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'The phone will ask for camera or photo access if it needs it.',
+                                style: TextStyle(fontSize: 13, height: 1.35, color: PosTheme.inkMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 14),
                   _FileChoice(
@@ -475,10 +507,12 @@ class ZomatoMenuPanel extends StatefulWidget {
     super.key,
     required this.busy,
     required this.onFetch,
+    required this.onBack,
   });
 
   final bool busy;
   final Future<void> Function(String input) onFetch;
+  final VoidCallback onBack;
 
   @override
   State<ZomatoMenuPanel> createState() => _ZomatoMenuPanelState();
@@ -534,6 +568,11 @@ class _ZomatoMenuPanelState extends State<ZomatoMenuPanel> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              IconButton(
+                tooltip: 'Back',
+                onPressed: widget.busy ? null : widget.onBack,
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
               const ZomatoMark(size: 46),
               const SizedBox(width: 12),
               Expanded(
@@ -560,10 +599,6 @@ class _ZomatoMenuPanelState extends State<ZomatoMenuPanel> {
               fillColor: const Color(0xFFF8FAFC),
               labelText: 'Outlet link or restaurant ID',
               hintText: 'https://www.zomato.com/…',
-              prefixIcon: const Padding(
-                padding: EdgeInsets.all(10),
-                child: ZomatoMark(size: 28),
-              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
