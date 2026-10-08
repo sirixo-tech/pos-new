@@ -7,6 +7,16 @@ import '../../widgets/pos_overlay.dart';
 
 enum MenuImportSource { photo, voice, zomato }
 
+enum MenuFilePick { camera, photo, pdf }
+
+Future<MenuFilePick?> showMenuImportFileSheet(BuildContext context) {
+  return showModalBottomSheet<MenuFilePick>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) => const PosKeyboardSheetHost(child: _FilePickSheet()),
+  );
+}
+
 Future<MenuImportSource?> showMenuImportSourceSheet(
   BuildContext context, {
   required bool enableVoice,
@@ -153,6 +163,144 @@ class _SourceSheet extends StatelessWidget {
                   ],
               )),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilePickSheet extends StatelessWidget {
+  const _FilePickSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Container(
+          decoration: BoxDecoration(
+            color: PosTheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(PosTheme.radiusXl)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: PosTheme.border,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Add a photo or PDF',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: PosTheme.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'The phone will ask for camera or photo access if it needs it.',
+                    style: TextStyle(fontSize: 13, height: 1.35, color: PosTheme.inkMuted),
+                  ),
+                  const SizedBox(height: 14),
+                  _FileChoice(
+                    icon: Icons.photo_camera_rounded,
+                    color: accent,
+                    title: 'Camera',
+                    subtitle: 'Photograph the menu',
+                    onTap: () => Navigator.pop(context, MenuFilePick.camera),
+                  ),
+                  _FileChoice(
+                    icon: Icons.photo_rounded,
+                    color: const Color(0xFF1D4ED8),
+                    title: 'Photo',
+                    subtitle: 'Choose a picture already on this phone',
+                    onTap: () => Navigator.pop(context, MenuFilePick.photo),
+                  ),
+                  _FileChoice(
+                    icon: Icons.picture_as_pdf_rounded,
+                    color: const Color(0xFFB91C1C),
+                    title: 'PDF',
+                    subtitle: 'Choose a PDF of the menu',
+                    onTap: () => Navigator.pop(context, MenuFilePick.pdf),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FileChoice extends StatelessWidget {
+  const _FileChoice({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                      Text(subtitle, style: TextStyle(fontSize: 12.5, color: PosTheme.inkMuted)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: PosTheme.inkFaint),
+              ],
+            ),
           ),
         ),
       ),
@@ -327,12 +475,10 @@ class ZomatoMenuPanel extends StatefulWidget {
     super.key,
     required this.busy,
     required this.onFetch,
-    required this.onChangeSource,
   });
 
   final bool busy;
   final Future<void> Function(String input) onFetch;
-  final VoidCallback onChangeSource;
 
   @override
   State<ZomatoMenuPanel> createState() => _ZomatoMenuPanelState();
@@ -399,22 +545,6 @@ class _ZomatoMenuPanelState extends State<ZomatoMenuPanel> {
                     letterSpacing: -0.3,
                     color: const Color(0xFF0F172A),
                   ),
-                ),
-              ),
-              FilledButton(
-                onPressed: widget.busy ? null : widget.onChangeSource,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  minimumSize: const Size(84, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text(
-                  'Change',
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, letterSpacing: 0.1),
                 ),
               ),
             ],

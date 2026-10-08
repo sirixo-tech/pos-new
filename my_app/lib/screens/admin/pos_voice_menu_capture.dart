@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,122 @@ import 'package:flutter/material.dart';
 import '../../services/pos_speech.dart';
 import '../../services/voice_menu_parser.dart';
 import '../../widgets/pos_listening_bars.dart';
+
+class SpokenMenuResult {
+  const SpokenMenuResult({this.csv, this.message});
+
+  final Uint8List? csv;
+  final String? message;
+}
+
+/// Starts listening immediately and shows the listening card until the menu is spoken.
+Future<SpokenMenuResult> captureSpokenMenu(BuildContext context) {
+  final completer = Completer<SpokenMenuResult>();
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => _SpokenMenuOverlay(
+      onDone: (result) {
+        if (completer.isCompleted) return;
+        entry.remove();
+        completer.complete(result);
+      },
+    ),
+  );
+  Overlay.of(context, rootOverlay: true).insert(entry);
+  return completer.future;
+}
+
+class _SpokenMenuOverlay extends StatefulWidget {
+  const _SpokenMenuOverlay({required this.onDone});
+
+  final ValueChanged<SpokenMenuResult> onDone;
+
+  @override
+  State<_SpokenMenuOverlay> createState() => _SpokenMenuOverlayState();
+}
+
+class _SpokenMenuOverlayState extends State<_SpokenMenuOverlay> {
+  String _transcript = '';
+  final String _hint = 'Listening for the menu';
+  var _closed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _listen());
+  }
+
+  @override
+  void dispose() {
+    if (!_closed) PosSpeech.instance.stop();
+    super.dispose();
+  }
+
+  Future<void> _listen() async {
+    final started = await PosSpeech.instance.listen(
+      listenFor: const Duration(seconds: 60),
+      pauseFor: const Duration(seconds: 4),
+      onListening: (_) {},
+      onError: (_) => _finish(
+        const SpokenMenuResult(
+          message: 'Allow the microphone and speech recognition, then try again.',
+        ),
+      ),
+      onResult: (words, isFinal) {
+        if (!mounted) return;
+        setState(() => _transcript = words);
+        if (isFinal) _finishFromTranscript();
+      },
+    );
+    if (!started) {
+      _finish(
+        const SpokenMenuResult(
+          message: 'Allow the microphone and speech recognition, then try again.',
+        ),
+      );
+    }
+  }
+
+  void _finishFromTranscript() {
+    final lines = parseVoiceMenu(_transcript);
+    final ready = lines.where((line) => line.isReady).toList();
+    if (lines.isEmpty || ready.length != lines.length) {
+      _finish(
+        const SpokenMenuResult(message: 'Say each item, then its price.'),
+      );
+      return;
+    }
+    _finish(SpokenMenuResult(csv: voiceMenuCsv(ready)));
+  }
+
+  void _finish(SpokenMenuResult result) {
+    if (_closed) return;
+    _closed = true;
+    PosSpeech.instance.stop();
+    widget.onDone(result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top + 12;
+    return Positioned(
+      top: top,
+      left: 16,
+      right: 16,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: PosListeningStatus(
+            transcript: _transcript,
+            hint: _hint,
+            onStop: _finishFromTranscript,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// Speaks menu items, then sends a CSV through the existing AI menu import.
 class PosVoiceMenuCapture extends StatefulWidget {

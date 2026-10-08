@@ -21,9 +21,12 @@ import '../../services/menu_spreadsheet_export.dart';
 import '../../services/menu_export_download.dart';
 
 class AdminMenuImportScreen extends StatefulWidget {
-  const AdminMenuImportScreen({super.key, this.enableVoice = true});
+  const AdminMenuImportScreen({super.key, this.enableVoice = true, this.openToken = 0});
 
   final bool enableVoice;
+
+  /// Changes each time the phone AI tab is opened, so the chooser appears again.
+  final int openToken;
 
   @override
   State<AdminMenuImportScreen> createState() => _AdminMenuImportScreenState();
@@ -42,9 +45,9 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   String? _errors;
   XFile? _selectedFile;
   int _selectedBytes = 0;
-  MenuImportSource _source = MenuImportSource.photo;
-  bool _choosingSource = true;
-  Future<void>? _initialLoad;
+  MenuImportSource? _source;
+  bool _offering = false;
+  int? _appliedOpen;
   PosSession? _adminSession;
   PosSession get _session {
     final current = _pos.session;
@@ -87,8 +90,21 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   @override
   void initState() {
     super.initState();
+    _appliedOpen = widget.openToken;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _initialLoad = _load();
+      if (!mounted) return;
+      _load();
+      _offerSource();
+    });
+  }
+
+  @override
+  void didUpdateWidget(AdminMenuImportScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.openToken == _appliedOpen) return;
+    _appliedOpen = widget.openToken;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _offerSource();
     });
   }
 
@@ -154,8 +170,6 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     if (data['active_import'] is Map) {
       _accept(Map<String, dynamic>.from(data['active_import'] as Map));
     }
-  }).whenComplete(() {
-    if (mounted && _import != null) setState(() => _choosingSource = false);
   });
 
   Future<void> _poll() async {
@@ -197,10 +211,32 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   }
 
   Future<void> _pick({bool camera = false, bool gallery = false}) => _run(() async {
-    final file = camera
-        ? await ImagePicker().pickImage(source: ImageSource.camera)
-        : gallery ? await ImagePicker().pickImage(source: ImageSource.gallery)
-        : await openFile();
+    final XFile? file;
+    try {
+      file = camera
+          ? await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85)
+          : gallery
+          ? await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85)
+          : await openFile(
+              acceptedTypeGroups: const [
+                XTypeGroup(
+                  label: 'PDF',
+                  extensions: ['pdf'],
+                  mimeTypes: ['application/pdf'],
+                ),
+              ],
+            );
+    } catch (error) {
+      final text = error.toString().toLowerCase();
+      if (text.contains('denied') || text.contains('permission') || text.contains('access')) {
+        throw PosApiException(
+          camera
+              ? 'Allow camera access to photograph the menu.'
+              : 'Allow photo access to choose a menu picture.',
+        );
+      }
+      rethrow;
+    }
     if (file == null) return;
     final maxKb = num.tryParse('${_caps?['max_upload_kb']}') ?? 20480;
     if (await file.length() > maxKb * 1024) {
@@ -237,35 +273,55 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
           !['csv', 'xlsx'].contains(ext) &&
           _caps?['ai_assist_available'] == true;
     });
+    await _uploadSelected();
   });
 
   Future<void> _upload() => _run(_uploadSelected);
 
-  Future<void> _chooseSource() async {
-    setState(() => _choosingSource = true);
+  bool get _importInProgress => _import != null && !_terminal;
+
+  Future<void> _offerSource() async {
+    if (!mounted || _offering) return;
+    _offering = true;
+    try {
+      while (mounted) {
+        final host = context;
+        final picked = await showMenuImportSourceSheet(
+          host,
+          enableVoice: widget.enableVoice,
+        );
+        if (!mounted || picked == null) return;
+        if (_importInProgress) {
+          setState(() => _error = 'Finish or cancel this import before starting another.');
+          return;
+        }
+        final back = await _applySource(picked);
+        if (!back) return;
+      }
+    } finally {
+      _offering = false;
+    }
   }
 
-  Future<void> _selectSource(MenuImportSource source) async {
-    setState(() {
-      _source = source;
-      _choosingSource = false;
-    });
-    if (source != MenuImportSource.photo) return;
-    final choice = await showModalBottomSheet<int>(
-      context: context,
-      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        ListTile(leading: const Icon(Icons.camera_alt_outlined), title: const Text('Camera'),
-          onTap: () => Navigator.pop(ctx, 0)),
-        ListTile(leading: const Icon(Icons.photo_library_outlined), title: const Text('Gallery'),
-          onTap: () => Navigator.pop(ctx, 1)),
-        ListTile(leading: const Icon(Icons.description_outlined), title: const Text('PDF or spreadsheet'),
-          onTap: () => Navigator.pop(ctx, 2)),
-      ])),
-    );
-    if (choice == null) return;
-    await _initialLoad;
-    if (!mounted) return;
-    await _pick(camera: choice == 0, gallery: choice == 1);
+  /// Returns true when the person closed the file choices and should see the first popup again.
+  Future<bool> _applySource(MenuImportSource source) async {
+    if (source == MenuImportSource.zomato) {
+      setState(() => _source = MenuImportSource.zomato);
+      return false;
+    }
+    if (source == MenuImportSource.voice) {
+      setState(() => _source = MenuImportSource.voice);
+      final spoken = await captureSpokenMenu(context);
+      if (!mounted) return false;
+      if (spoken.message != null) setState(() => _error = spoken.message);
+      if (spoken.csv != null) await _submitVoice(spoken.csv!);
+      return false;
+    }
+    final choice = await showMenuImportFileSheet(context);
+    if (!mounted || choice == null) return true;
+    setState(() => _source = MenuImportSource.photo);
+    await _pick(camera: choice == MenuFilePick.camera, gallery: choice == MenuFilePick.photo);
+    return false;
   }
 
   Future<void> _submitPrepared(Uint8List bytes, {required String name}) =>
@@ -523,9 +579,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   });
 
   @override
-  Widget build(BuildContext context) => _choosingSource
-      ? MenuImportSourcePage(enableVoice: widget.enableVoice, onSelect: _selectSource)
-      : MenuImportView(
+  Widget build(BuildContext context) => MenuImportView(
     capabilities: _caps,
     import: _import,
     rows: _rows,
@@ -568,33 +622,73 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     onViewMenu: () =>
         openPosAdminShell(context, initialSection: AdminShellSection.menu),
     onOpenPos: () => Navigator.of(context).popUntil((route) => route.isFirst),
-    onChangeSource: _chooseSource,
-    alternateBody: switch (_source) {
-      MenuImportSource.voice => PosVoiceMenuCapture(
-        busy: _busy,
-        onSubmit: _submitVoice,
-        onChangeSource: _chooseSource,
-      ),
-      MenuImportSource.zomato => ZomatoMenuPanel(
-        busy: _busy,
-        onFetch: _fetchZomato,
-        onChangeSource: _chooseSource,
-      ),
-      MenuImportSource.photo => null,
-    },
+    alternateBody: _source == MenuImportSource.zomato
+        ? ZomatoMenuPanel(
+            busy: _busy,
+            onFetch: _fetchZomato,
+          )
+        : _MenuImportIdle(onChoose: _offerSource),
+    showSteps: _source == MenuImportSource.zomato || _import != null,
     stepTitles: switch (_source) {
       MenuImportSource.voice => const ['Speak', 'Read', 'Review', 'Live'],
       MenuImportSource.zomato => const ['Link', 'Fetch', 'Review', 'Live'],
-      MenuImportSource.photo => const ['File', 'Read', 'Review', 'Live'],
+      _ => const ['File', 'Read', 'Review', 'Live'],
     },
-    onAnother: () => setState(() {
-      _timer?.cancel();
-      _import = null;
-      _rows = [];
-      _selectedFile = null;
-      _selectedBytes = 0;
-      _error = null;
-      _errors = null;
-    }),
+    onAnother: () {
+      setState(() {
+        _timer?.cancel();
+        _import = null;
+        _rows = [];
+        _selectedFile = null;
+        _selectedBytes = 0;
+        _error = null;
+        _errors = null;
+        _source = null;
+      });
+      _offerSource();
+    },
   );
+}
+
+class _MenuImportIdle extends StatelessWidget {
+  const _MenuImportIdle({required this.onChoose});
+
+  final VoidCallback onChoose;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Add a menu',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF12253E)),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Use a photo, your voice, or a Zomato link. You confirm every price before it is saved.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: onChoose,
+            style: FilledButton.styleFrom(
+              backgroundColor: accent,
+              minimumSize: const Size(160, 44),
+            ),
+            child: const Text('Choose a source'),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -202,6 +202,7 @@ class MenuImportView extends StatefulWidget {
     this.alternateBody,
     this.onChangeSource,
     this.stepTitles = const ['Upload', 'AI extract', 'Edit & review', 'Go live'],
+    this.showSteps = true,
     this.stepSubtitles = const [
       'Photo, PDF, or spreadsheet',
       'Build your menu catalog',
@@ -234,6 +235,7 @@ class MenuImportView extends StatefulWidget {
   final Widget? alternateBody;
   final VoidCallback? onChangeSource;
   final List<String> stepTitles;
+  final bool showSteps;
   final List<String> stepSubtitles;
 
   @override
@@ -981,7 +983,7 @@ class _MenuImportViewState extends State<MenuImportView> {
                 ),
                 const SizedBox(height: 20),
               ],
-              if (handheld) ...[
+              if (handheld && widget.showSteps) ...[
                 _steps(),
                 const SizedBox(height: 10),
               ],
@@ -989,7 +991,7 @@ class _MenuImportViewState extends State<MenuImportView> {
                 widget.alternateBody ?? _uploadPanel(),
                 const SizedBox(height: 16),
               ],
-              if (!handheld) ...[
+              if (!handheld && widget.showSteps) ...[
                 _steps(),
                 const SizedBox(height: 20),
               ],

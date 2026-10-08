@@ -1839,6 +1839,7 @@ class PosController extends ChangeNotifier {
     waiterTables = const [];
     waiterTableAreas = const [];
     waiterTablesWithoutArea = const [];
+    tablesSnapshot = null;
     waiterHeldOrders = const [];
     waiterRecentOrders = const [];
     waiterAlerts = const [];
@@ -2424,6 +2425,8 @@ class PosController extends ChangeNotifier {
     marketplaceOpenOrderCounts = next;
   }
 
+  Map<String, dynamic>? tablesSnapshot;
+
   Future<Map<String, dynamic>> fetchTables() async {
     final current = session;
     if (current == null) {
@@ -2431,7 +2434,9 @@ class PosController extends ChangeNotifier {
         PosTranslationStore.instance.text('authNotSignedIn', 'Not signed in'),
       );
     }
-    return _api.fetchTables(current);
+    final data = await _api.fetchTables(current);
+    tablesSnapshot = data;
+    return data;
   }
 
   Future<List<Map<String, dynamic>>> searchCustomers(String query) async {
@@ -4862,6 +4867,7 @@ class PosController extends ChangeNotifier {
         Future<void> loadTables() async {
         try {
           final data = await _api.fetchTables(current);
+          tablesSnapshot = data;
           waiterTables = _mapDynamicList(data['tables']);
           waiterTableAreas = _mapDynamicList(data['table_areas']);
           final without = _mapDynamicList(data['tables_without_area']);

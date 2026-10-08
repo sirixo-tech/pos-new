@@ -110,6 +110,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   final _searchFocus = FocusNode();
   bool _cartOpen = false;
   int _mobileTab = 0;
+  int _aiMenuOpens = 0;
   final Set<int> _seenMobileTabs = {0};
   BuildContext? _cartSheetContext;
   bool _scanPrintBusy = false;
@@ -157,6 +158,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     setState(() {
       _mobileTab = index;
       _seenMobileTabs.add(index);
+      if (index == 2) _aiMenuOpens++;
     });
   }
 
@@ -213,7 +215,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         ),
         tab(
           2,
-          const AdminMenuImportScreen(enableVoice: true),
+          AdminMenuImportScreen(enableVoice: true, openToken: _aiMenuOpens),
         ),
         // Load the editor while POS is visible, and retain its data between tabs.
         _mobileMenu(),

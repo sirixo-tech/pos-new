@@ -147,6 +147,7 @@ class _PosCartPanelState extends State<PosCartPanel> {
       setState(() {});
       try {
         final data = await pos.fetchTables();
+        pos.tablesSnapshot = data;
         final tables = _mapList(data['tables']);
         final areas = _mapList(data['table_areas']);
         final withoutArea = _mapList(data['tables_without_area']);
@@ -445,24 +446,10 @@ class _PosCartPanelState extends State<PosCartPanel> {
 Future<void> showPosTablePicker(BuildContext context) async {
   final pos = context.read<PosController>();
   final accent = Theme.of(context).colorScheme.primary;
-  List<Map<String, dynamic>> tables = const [];
-  List<Map<String, dynamic>> tableAreas = const [];
-  List<Map<String, dynamic>> tablesWithoutArea = const [];
-  try {
-    final data = await pos.fetchTables();
-    tables = _PosCartPanelState._mapList(data['tables']);
-    tableAreas = _PosCartPanelState._mapList(data['table_areas']);
-    final withoutArea = _PosCartPanelState._mapList(
-      data['tables_without_area'],
-    );
-    tablesWithoutArea = withoutArea.isNotEmpty
-        ? withoutArea
-        : _PosCartPanelState._tablesWithoutAreaFrom(tables);
-  } catch (_) {}
-  if (!context.mounted) return;
   if (pos.orderType != 'dine_in') {
     pos.setOrderType('dine_in');
   }
+  if (!context.mounted) return;
   final result = await showModalBottomSheet<_TablePick>(
     context: context,
     isScrollControlled: true,
@@ -471,10 +458,8 @@ Future<void> showPosTablePicker(BuildContext context) async {
       child: _TablePickerSheet(
         accent: accent,
         selectedId: pos.tableId,
-        tableAreas: tableAreas,
-        tablesWithoutArea: tablesWithoutArea.isNotEmpty
-            ? tablesWithoutArea
-            : tables,
+        initial: pos.tablesSnapshot,
+        load: pos.fetchTables,
       ),
     ),
   );
@@ -1284,18 +1269,61 @@ class _TablePickerTrigger extends StatelessWidget {
   }
 }
 
-class _TablePickerSheet extends StatelessWidget {
+class _TablePickerSheet extends StatefulWidget {
   const _TablePickerSheet({
     required this.accent,
     required this.selectedId,
-    required this.tableAreas,
-    required this.tablesWithoutArea,
+    required this.initial,
+    required this.load,
   });
 
   final Color accent;
   final int? selectedId;
-  final List<Map<String, dynamic>> tableAreas;
-  final List<Map<String, dynamic>> tablesWithoutArea;
+  final Map<String, dynamic>? initial;
+  final Future<Map<String, dynamic>> Function() load;
+
+  @override
+  State<_TablePickerSheet> createState() => _TablePickerSheetState();
+}
+
+class _TablePickerSheetState extends State<_TablePickerSheet> {
+  List<Map<String, dynamic>> _tableAreas = const [];
+  List<Map<String, dynamic>> _tablesWithoutArea = const [];
+  var _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    if (initial != null) {
+      _apply(initial);
+      _loading = false;
+    }
+    _refresh();
+  }
+
+  void _apply(Map<String, dynamic> data) {
+    final tables = _PosCartPanelState._mapList(data['tables']);
+    final areas = _PosCartPanelState._mapList(data['table_areas']);
+    final withoutArea = _PosCartPanelState._mapList(data['tables_without_area']);
+    _tableAreas = areas;
+    _tablesWithoutArea = withoutArea.isNotEmpty
+        ? withoutArea
+        : _PosCartPanelState._tablesWithoutAreaFrom(tables);
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final data = await widget.load();
+      if (!mounted) return;
+      setState(() {
+        _apply(data);
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   static List<Map<String, dynamic>> _areaTables(Map<String, dynamic> area) {
     return (area['tables'] as List?)
@@ -1307,6 +1335,10 @@ class _TablePickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = widget.accent;
+    final selectedId = widget.selectedId;
+    final tableAreas = _tableAreas;
+    final tablesWithoutArea = _tablesWithoutArea;
     final soft = posAccentSoft(accent);
     final size = MediaQuery.sizeOf(context);
     final maxHeight = posMobileSheetHeight(context);
@@ -1457,7 +1489,12 @@ class _TablePickerSheet extends StatelessWidget {
                         },
                       ),
                     ],
-                    if (!hasAreas && tablesWithoutArea.isEmpty)
+                    if (_loading && !hasAreas && tablesWithoutArea.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 28),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (!hasAreas && tablesWithoutArea.isEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 24),
                         child: PosEmptyState(
