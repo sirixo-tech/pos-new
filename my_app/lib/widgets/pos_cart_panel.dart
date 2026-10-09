@@ -589,7 +589,6 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
   @override
   Widget build(BuildContext context) {
     final accent = widget.accent;
-    final soft = widget.soft;
     final onPay = widget.onPay;
     final onPark = widget.onPark;
     final onDiscount = widget.onDiscount;
@@ -723,7 +722,11 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                         context.posText('cartTotalsDetails', 'Totals'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: PosTheme.ink,
+                        ),
                       ),
                       onPressed: () => showDialog<void>(
                         context: context,
@@ -758,14 +761,43 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
             )
           else
             ...totalRows,
+          if (handheld)
+            Container(
+              margin: const EdgeInsets.only(top: 4, bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: PosTheme.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${l10n.commonSubtotal} (${pos.cartItemCount} ${context.posText('cartItems', 'items')})',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: PosTheme.inkMuted,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    formatMoney(displaySubtotal, currency),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: PosTheme.ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           SizedBox(height: handheld ? 4 : 10),
           Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: handheld ? 6 : 10,
-            ),
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: soft.bg,
+              color: const Color(0xFFFFEFE3),
               borderRadius: BorderRadius.circular(PosTheme.radiusSm),
               border: Border.all(color: accent.withValues(alpha: 0.18)),
             ),
@@ -777,19 +809,19 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                         ? context.posText('cartRemaining', 'Remaining')
                         : l10n.cartPayable,
                     style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: soft.fg,
+                      fontWeight: FontWeight.w800,
+                      fontSize: handheld ? 16 : 13,
+                      color: const Color(0xFFBE4D0D),
                     ),
                   ),
                 ),
                 Text(
                   formatMoney(payable, currency),
                   style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    fontSize: handheld ? 18 : 22,
+                    fontWeight: FontWeight.w800,
+                    fontSize: handheld ? 24 : 22,
                     letterSpacing: -0.4,
-                    color: accent,
+                    color: const Color(0xFFFF6500),
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -875,6 +907,8 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                           tooltip: context.l10n.cartHold,
                           onPressed: !cartEmpty && !submitting ? onPark : null,
                           style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFDCCD),
+                            foregroundColor: const Color(0xFF704B3A),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -890,7 +924,7 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                         action(
                           'PRINT',
                           Icons.print_rounded,
-                          const Color(0xFF2E9644),
+                          const Color(0xFF009B3E),
                           'cash',
                         ),
                       if (methods[i] == 'upi')
@@ -904,7 +938,7 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                         action(
                           'CARD',
                           Icons.credit_card_rounded,
-                          const Color(0xFF7C3AED),
+                          const Color(0xFFFF6900),
                           'card',
                         ),
                     ],
@@ -927,7 +961,12 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                     child: PosPrimaryButton(
                       label: primaryLabel ?? l10n.cartPay,
                       icon: primaryIcon ?? Icons.payments_rounded,
-                      color: primaryColor ?? PosTheme.payAccent,
+                      color: primaryColor ?? const Color(0xFF008B35),
+                      gradient: primaryColor == null
+                          ? const LinearGradient(
+                              colors: [Color(0xFF0A9B3C), Color(0xFF006B29)],
+                            )
+                          : null,
                       loading: submitting,
                       shortcutLabel: showShortcuts && primaryLabel == null
                           ? 'F3'
@@ -1725,10 +1764,9 @@ class _QuickPayPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final tone = posAccentSoft(accent);
+    const accent = Color(0xFFFF6900);
     return Material(
-      color: selected ? tone.bg : PosTheme.surfaceMuted,
+      color: selected ? const Color(0xFFFFEFE3) : PosTheme.surfaceMuted,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(
@@ -1746,7 +1784,7 @@ class _QuickPayPill extends StatelessWidget {
                 icon,
                 size: 16,
                 color: selected
-                    ? tone.fg
+                    ? accent
                     : (enabled ? PosTheme.inkMuted : PosTheme.inkFaint),
               ),
               const SizedBox(height: 3),
@@ -1758,7 +1796,7 @@ class _QuickPayPill extends StatelessWidget {
                   fontSize: 10.5,
                   fontWeight: FontWeight.w800,
                   color: selected
-                      ? tone.fg
+                      ? accent
                       : (enabled ? PosTheme.ink : PosTheme.inkFaint),
                 ),
               ),
@@ -1783,12 +1821,11 @@ class _HoldButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final soft = posAccentSoft(PosTheme.holdAmberDark);
-    final ink = enabled ? soft.fg : PosTheme.inkFaint;
+    final ink = enabled ? const Color(0xFFB5470C) : PosTheme.inkFaint;
     final label = context.l10n.cartHold;
 
     return Material(
-      color: enabled ? soft.bg : PosTheme.surfaceMuted,
+      color: enabled ? const Color(0xFFFFEFE3) : PosTheme.surfaceMuted,
       borderRadius: BorderRadius.circular(PosTheme.radiusMd),
       child: InkWell(
         onTap: enabled ? onPressed : null,
@@ -1800,9 +1837,7 @@ class _HoldButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(PosTheme.radiusMd),
             border: Border.all(
-              color: enabled
-                  ? soft.fg.withValues(alpha: 0.45)
-                  : PosTheme.border,
+              color: enabled ? const Color(0xFFEDBD9B) : PosTheme.border,
               width: 1.4,
             ),
           ),
@@ -2109,7 +2144,6 @@ class _OrderTypeRow extends StatelessWidget {
     final types = allTypes
         .where((type) => allowedTypes.contains(type.$1))
         .toList();
-    final soft = posAccentSoft(accent);
 
     if (types.isEmpty) {
       return const SizedBox.shrink();
@@ -2118,7 +2152,7 @@ class _OrderTypeRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: PosTheme.surfaceMuted,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(PosTheme.radiusMd),
         border: Border.all(color: PosTheme.border),
       ),
@@ -2127,7 +2161,9 @@ class _OrderTypeRow extends StatelessWidget {
           final selected = value == type.$1;
           return Expanded(
             child: Material(
-              color: selected ? PosTheme.surface : Colors.transparent,
+              color: selected
+                  ? const Color(0xFFFF6900)
+                  : const Color(0xFFFFEFE3),
               borderRadius: BorderRadius.circular(PosTheme.radiusSm),
               child: InkWell(
                 onTap: () => onChanged(type.$1),
@@ -2151,40 +2187,66 @@ class _OrderTypeRow extends StatelessWidget {
                         : null,
                   ),
                   child: usePosHandheldLayout(context)
-                      ? Text(
-                          type.$2,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: selected ? soft.fg : PosTheme.inkMuted,
-                          ),
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              type.$3,
+                              size: 17,
+                              color: selected
+                                  ? Colors.white
+                                  : const Color(0xFFC45113),
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                type.$2,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: selected
+                                      ? Colors.white
+                                      : const Color(0xFFC45113),
+                                ),
+                              ),
+                            ),
+                          ],
                         )
                       : iconOnly
                       ? Icon(
                           type.$3,
                           size: 16,
-                          color: selected ? soft.fg : PosTheme.inkMuted,
+                          color: selected
+                              ? Colors.white
+                              : const Color(0xFFC45113),
                         )
-                      : Column(
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               type.$3,
                               size: 17,
-                              color: selected ? soft.fg : PosTheme.inkMuted,
+                              color: selected
+                                  ? Colors.white
+                                  : const Color(0xFFC45113),
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              type.$2,
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: selected ? soft.fg : PosTheme.inkMuted,
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                type.$2,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: selected
+                                      ? Colors.white
+                                      : const Color(0xFFC45113),
+                                ),
                               ),
                             ),
                           ],
@@ -2442,25 +2504,28 @@ class _CartLineRow extends StatelessWidget {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: PosTheme.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: PosTheme.border),
+                      color: const Color(0xFFFFEEE2),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       formatMoney(line.lineTotal, currency),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: PosTheme.ink,
+                        color: const Color(0xFFFF6500),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   IconButton(
                     tooltip: 'Remove item',
                     onPressed: onRemove,
                     style: IconButton.styleFrom(
                       foregroundColor: deleteTone.fg,
                       backgroundColor: deleteTone.bg,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     icon: const Icon(Icons.delete_outline_rounded, size: 18),
                   ),
@@ -2646,13 +2711,23 @@ class _CartLineRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      formatMoney(line.lineTotal, currency),
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: soft.fg,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFEEE2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        formatMoney(line.lineTotal, currency),
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: const Color(0xFFFF6500),
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -2942,12 +3017,12 @@ class _QtyStepper extends StatelessWidget {
   Widget build(BuildContext context) {
     final desktop = !usePosHandheldLayout(context);
     return Container(
-      padding: desktop ? const EdgeInsets.all(4) : EdgeInsets.zero,
+      padding: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: desktop ? Colors.white : PosTheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFBBD8C3)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFE1D5)),
       ),
       child: Row(
         children: [
@@ -2994,21 +3069,19 @@ class _QtyButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final desktop = !usePosHandheldLayout(context);
     final increase = icon == Icons.add_rounded;
-    final color = increase ? const Color(0xFF2E9347) : const Color(0xFFFF7900);
+    final color = increase ? const Color(0xFF16A34A) : const Color(0xFFFF343B);
     return Material(
-      color: desktop
-          ? (increase ? const Color(0xFF18B65A) : const Color(0xFFFF5145))
-          : (increase ? const Color(0xFFE0F2E6) : const Color(0xFFFFEADC)),
-      shape: desktop ? const CircleBorder() : null,
+      color: increase ? const Color(0xFFE5F4E9) : const Color(0xFFFDE7E7),
+      shape: const RoundedRectangleBorder(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        customBorder: desktop ? const CircleBorder() : null,
+
         child: Container(
-          width: desktop ? 34 : 40,
-          height: desktop ? 34 : 40,
+          width: desktop ? 44 : 40,
+          height: 40,
           alignment: Alignment.center,
-          child: Icon(icon, size: 22, color: desktop ? Colors.white : color),
+          child: Icon(icon, size: 22, color: color),
         ),
       ),
     );

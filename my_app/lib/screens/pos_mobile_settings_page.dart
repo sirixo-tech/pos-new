@@ -232,7 +232,7 @@ class _PosSettingsOverviewState extends State<PosSettingsOverview> {
                         'Settings',
                         style: TextStyle(
                           fontSize: compact ? 17 : 19,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                           color: PosTheme.ink,
                         ),
                       ),
@@ -249,10 +249,10 @@ class _PosSettingsOverviewState extends State<PosSettingsOverview> {
                       label: Text(_customizing ? 'Done' : 'Customize'),
                       style: TextButton.styleFrom(
                         foregroundColor: orange,
-                        backgroundColor: orange.withValues(alpha: .09),
+                        backgroundColor: orange.withValues(alpha: .13),
                         textStyle: const TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                         ),
                         minimumSize: const Size(0, 40),
                         padding: const EdgeInsets.symmetric(
@@ -274,13 +274,19 @@ class _PosSettingsOverviewState extends State<PosSettingsOverview> {
                 const SizedBox(height: 8),
                 Text(
                   'Manage your POS, store and device settings',
-                  style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color.lerp(PosTheme.inkMuted, PosTheme.ink, .3)!,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 if (_customizing) ...[
                   Text(
                     'Choose which actions appear in Settings.',
-                    style: TextStyle(fontSize: 13, color: PosTheme.inkMuted),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color.lerp(PosTheme.inkMuted, PosTheme.ink, .3)!,
+                    ),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -318,14 +324,18 @@ class _PosSettingsOverviewState extends State<PosSettingsOverview> {
                                 ListTile(
                                   leading: _SettingsIcon(
                                     icon: _items(i)[j].icon,
-                                    color: PosTheme.inkMuted,
+                                    color: Color.lerp(
+                                      PosTheme.inkMuted,
+                                      PosTheme.ink,
+                                      .3,
+                                    )!,
                                     size: 32,
                                   ),
                                   title: Text(
                                     _items(i)[j].label,
                                     style: const TextStyle(
                                       fontSize: 12,
-                                      fontWeight: FontWeight.w500,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   subtitle: _items(i)[j].subtitle == null
@@ -387,7 +397,7 @@ class _SettingsIcon extends StatelessWidget {
     width: size,
     height: size,
     decoration: BoxDecoration(
-      color: color.withValues(alpha: .09),
+      color: color.withValues(alpha: .13),
       borderRadius: BorderRadius.circular(14),
     ),
     child: Icon(icon, color: color, size: size * .55),
@@ -439,7 +449,7 @@ class _SettingsCategory extends StatelessWidget {
                       title,
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                         color: destructive ? color : PosTheme.ink,
                       ),
                     ),
@@ -449,7 +459,11 @@ class _SettingsCategory extends StatelessWidget {
                         subtitle!,
                         style: TextStyle(
                           fontSize: 12,
-                          color: PosTheme.inkMuted,
+                          color: Color.lerp(
+                            PosTheme.inkMuted,
+                            PosTheme.ink,
+                            .3,
+                          )!,
                         ),
                       ),
                     ],
@@ -461,7 +475,7 @@ class _SettingsCategory extends StatelessWidget {
                 expanded
                     ? CupertinoIcons.chevron_down
                     : CupertinoIcons.chevron_right,
-                color: PosTheme.inkMuted,
+                color: Color.lerp(PosTheme.inkMuted, PosTheme.ink, .3)!,
                 size: 18,
               ),
             ],
@@ -490,11 +504,11 @@ class PosMobileNavBar extends StatelessWidget {
     final accent = Theme.of(context).colorScheme.primary;
     final soft = posAccentSoft(accent);
     const items = [
-      (CupertinoIcons.creditcard, 'POS'),
-      (CupertinoIcons.doc_text, 'Orders'),
+      (Icons.point_of_sale_outlined, 'POS'),
+      (Icons.receipt_long_outlined, 'Orders'),
       (Icons.flare_rounded, 'AI'),
-      (CupertinoIcons.book, 'Menu'),
-      (CupertinoIcons.chart_bar_fill, 'Reports'),
+      (CupertinoIcons.list_bullet_below_rectangle, 'Menu'),
+      (CupertinoIcons.chart_pie, 'Reports'),
     ];
 
     return ColoredBox(

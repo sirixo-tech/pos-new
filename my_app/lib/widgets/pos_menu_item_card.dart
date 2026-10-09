@@ -1288,20 +1288,21 @@ class _Stepper extends StatelessWidget {
     final barColor = Colors.white.withValues(alpha: soft ? 0.85 : 1);
     return Material(
       color: barColor,
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        padding: const EdgeInsets.all(4),
+        padding: EdgeInsets.zero,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _StepperButton(
               icon: Icons.remove_rounded,
               size: size,
-              foreground: Colors.white,
+              foreground: const Color(0xFF239B4B),
               opacity: soft ? 0.82 : 1,
               onTap: onDecrement,
             ),
@@ -1321,7 +1322,7 @@ class _Stepper extends StatelessWidget {
             _StepperButton(
               icon: Icons.add_rounded,
               size: size,
-              foreground: Colors.white,
+              foreground: const Color(0xFFE53935),
               opacity: soft ? 0.82 : 1,
               onTap: onIncrement,
             ),
@@ -1351,16 +1352,15 @@ class _StepperButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.zero,
       child: Container(
-        width: size,
+        width: size + 6,
         height: size,
         decoration: BoxDecoration(
-          shape: BoxShape.circle,
           color:
               (icon == Icons.remove_rounded
-                      ? const Color(0xFFFF5145)
-                      : const Color(0xFF18B65A))
+                      ? const Color(0xFFE0F2E6)
+                      : const Color(0xFFFDE7E7))
                   .withValues(alpha: opacity),
         ),
         child: Icon(icon, color: foreground, size: size * 0.48),

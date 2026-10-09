@@ -25,6 +25,7 @@ class PosPrimaryButton extends StatelessWidget {
     this.loading = false,
     this.expanded = true,
     this.color,
+    this.gradient,
     this.glow = true,
     this.shortcutLabel,
   });
@@ -35,6 +36,7 @@ class PosPrimaryButton extends StatelessWidget {
   final bool loading;
   final bool expanded;
   final Color? color;
+  final Gradient? gradient;
   final bool glow;
 
   /// Optional keyboard hint (e.g. `F3`) shown beside the label.
@@ -48,7 +50,7 @@ class PosPrimaryButton extends StatelessWidget {
     final button = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(PosTheme.radiusMd),
-        gradient: enabled ? PosTheme.ctaGradient(accent) : null,
+        gradient: enabled ? (gradient ?? PosTheme.ctaGradient(accent)) : null,
         color: enabled ? null : PosTheme.inkFaint,
         boxShadow: enabled && glow ? PosTheme.buttonShadow(accent) : null,
       ),
@@ -61,7 +63,8 @@ class PosPrimaryButton extends StatelessWidget {
             builder: (context, constraints) {
               final w = constraints.maxWidth;
               final narrow = w < 140;
-              final showShortcut = shortcutLabel != null &&
+              final showShortcut =
+                  shortcutLabel != null &&
                   shortcutLabel!.isNotEmpty &&
                   w >= 160;
               final showLabel = w >= 72;
@@ -107,8 +110,7 @@ class PosPrimaryButton extends StatelessWidget {
                                 color: Colors.white.withValues(alpha: 0.18),
                                 borderRadius: BorderRadius.circular(5),
                                 border: Border.all(
-                                  color:
-                                      Colors.white.withValues(alpha: 0.28),
+                                  color: Colors.white.withValues(alpha: 0.28),
                                 ),
                               ),
                               child: Text(
@@ -116,8 +118,7 @@ class PosPrimaryButton extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
-                                  color:
-                                      Colors.white.withValues(alpha: 0.92),
+                                  color: Colors.white.withValues(alpha: 0.92),
                                   letterSpacing: 0.2,
                                   height: 1.1,
                                 ),
@@ -214,8 +215,10 @@ class PosBrandPanel extends StatelessWidget {
   final String? title;
   final String? subtitle;
   final IconData icon;
+
   /// Optional platform logo / mark shown above the title (e.g. lock screen).
   final Widget? brandMark;
+
   /// Optional middle content between title block and footer (fills tall panels).
   final Widget? brandBody;
   final Widget? footer;
@@ -246,17 +249,17 @@ class PosBrandPanel extends StatelessWidget {
               Text(
                 title ?? PosAppInfo.displayName,
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
                 subtitle ?? context.l10n.brandTagline,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      height: 1.45,
-                    ),
+                  color: Colors.white.withValues(alpha: 0.9),
+                  height: 1.45,
+                ),
               ),
               if (brandBody != null) ...[
                 const SizedBox(height: 28),
@@ -326,10 +329,11 @@ class PosEmptyState extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: tightHeight ? 2 : 3,
                 overflow: TextOverflow.ellipsis,
-                style: (tightHeight
-                        ? Theme.of(context).textTheme.titleMedium
-                        : Theme.of(context).textTheme.titleLarge)
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style:
+                    (tightHeight
+                            ? Theme.of(context).textTheme.titleMedium
+                            : Theme.of(context).textTheme.titleLarge)
+                        ?.copyWith(fontWeight: FontWeight.w800),
               ),
               if (subtitle != null && !veryTight) ...[
                 const SizedBox(height: 8),
@@ -438,6 +442,8 @@ class PosAuthScaffold extends StatelessWidget {
     this.compactHeader,
     this.maxFormWidth = 400,
     this.platformLogoHeight = 220,
+    this.restaurantLogoHeight = 36,
+    this.footerAtBottom = false,
   });
 
   final Color accent;
@@ -447,6 +453,7 @@ class PosAuthScaffold extends StatelessWidget {
   final String headline;
   final PosPlatformBranding? platform;
   final String? serverUrl;
+
   /// Restaurant logo URL only — do not pass the platform logo here.
   final String? logoUrl;
   final String? locationLine;
@@ -457,21 +464,26 @@ class PosAuthScaffold extends StatelessWidget {
   final IconData fallbackIcon;
   final String? footerNote;
   final bool showClock;
+
   /// Override for the narrow layout header.
   final Widget? compactHeader;
   final double maxFormWidth;
   final double platformLogoHeight;
+  final double restaurantLogoHeight;
+  final bool footerAtBottom;
 
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 960;
     final hasRestaurantLogo = logoUrl != null && logoUrl!.isNotEmpty;
-    final header = compactHeader ??
+    final header =
+        compactHeader ??
         (hasRestaurantLogo
             ? _CompactRestaurantMark(
                 logoUrl: logoUrl!,
                 fallbackInitials: fallbackInitials,
                 accent: accent,
+                height: restaurantLogoHeight,
               )
             : PosPlatformLogo(
                 platform: platform,
@@ -557,29 +569,47 @@ class PosAuthScaffold extends StatelessWidget {
           gradient: PosTheme.softCanvasGradient(accent),
         ),
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(PosTheme.isCompact(context) ? 16 : 24),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxFormWidth.clamp(400, 460)),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    header,
-                    const SizedBox(height: 16),
-                    form,
-                    if (hasRestaurantLogo) ...[
-                      const SizedBox(height: 20),
-                      PosPoweredBy(
-                        platform: platform,
-                        serverUrl: serverUrl,
-                        compact: true,
-                      ),
-                    ],
-                  ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final padding = PosTheme.isCompact(context) ? 16.0 : 24.0;
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(padding),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: maxFormWidth.clamp(400, 460),
+                      minHeight: footerAtBottom
+                          ? (constraints.maxHeight - padding * 2).clamp(
+                              0.0,
+                              double.infinity,
+                            )
+                          : 0,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: footerAtBottom
+                          ? MainAxisAlignment.spaceBetween
+                          : MainAxisAlignment.center,
+                      children: [
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [header, const SizedBox(height: 20), form],
+                        ),
+                        if (hasRestaurantLogo)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 28, bottom: 8),
+                            child: PosPoweredBy(
+                              platform: platform,
+                              serverUrl: serverUrl,
+                              compact: !footerAtBottom,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -592,8 +622,10 @@ class _CompactRestaurantMark extends StatelessWidget {
     required this.logoUrl,
     required this.fallbackInitials,
     required this.accent,
+    this.height = 36,
   });
 
+  final double height;
   final String logoUrl;
   final String fallbackInitials;
   final Color accent;
@@ -612,8 +644,8 @@ class _CompactRestaurantMark extends StatelessWidget {
         child: PosNetworkLogo(
           imageUrl: logoUrl,
           maxWidth: 192,
-          maxHeight: 36,
-          portraitSide: 56,
+          maxHeight: height,
+          portraitSide: height + 20,
           alignment: Alignment.centerLeft,
           errorWidget: (context, url, error) => Text(
             fallbackInitials,
@@ -654,8 +686,7 @@ class PosSelectTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
     final soft = posAccentSoft(accent);
-    final highlighted =
-        selected || trailing == PosSelectTileTrailing.chevron;
+    final highlighted = selected || trailing == PosSelectTileTrailing.chevron;
 
     return Material(
       color: selected ? soft.bg : PosTheme.surface,
@@ -680,10 +711,7 @@ class PosSelectTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              if (leading != null) ...[
-                leading!,
-                const SizedBox(width: 12),
-              ],
+              if (leading != null) ...[leading!, const SizedBox(width: 12)],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -716,8 +744,8 @@ class PosSelectTile extends StatelessWidget {
                 trailing == PosSelectTileTrailing.chevron
                     ? Icons.chevron_right_rounded
                     : (selected
-                        ? Icons.check_circle_rounded
-                        : Icons.circle_outlined),
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined),
                 size: 22,
                 color: selected || trailing == PosSelectTileTrailing.chevron
                     ? accent
@@ -833,239 +861,249 @@ class _PosSearchFieldState extends State<PosSearchField> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      height: 48,
-      decoration: BoxDecoration(
-        color: focused ? PosTheme.surface : PosTheme.searchFill,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: focused
-              ? accent.withValues(alpha: 0.55)
-              : PosTheme.border.withValues(alpha: 0.95),
-          width: focused ? 1.5 : 1,
-        ),
-        boxShadow: focused
-            ? [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.12),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.025),
-                  blurRadius: 6,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 8),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          height: 48,
+          decoration: BoxDecoration(
+            color: focused ? PosTheme.surface : PosTheme.searchFill,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
               color: focused
-                  ? soft.bg
-                  : PosTheme.surface.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: focused
-                    ? accent.withValues(alpha: 0.22)
-                    : PosTheme.border.withValues(alpha: 0.8),
-              ),
+                  ? accent.withValues(alpha: 0.55)
+                  : PosTheme.border.withValues(alpha: 0.95),
+              width: focused ? 1.5 : 1,
             ),
-            child: Icon(
-              Icons.search_rounded,
-              size: 18,
-              color: focused ? soft.fg : PosTheme.inkMuted,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: widget.controller,
-              focusNode: _focusNode,
-              onChanged: widget.onChanged,
-              onSubmitted: widget.onSubmitted,
-              style: TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w600,
-                color: PosTheme.ink,
-                height: 1.2,
-              ),
-              cursorColor: accent,
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: widget.hintText ?? l10n.menuSearchHint,
-                hintStyle: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: PosTheme.inkFaint.withValues(alpha: 0.95),
-                ),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-          if (hasText)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: Material(
-                color: PosTheme.surfaceMuted,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  onTap: widget.onClear,
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: 34,
-                    height: 34,
-                    child: Icon(
-                      Icons.close_rounded,
-                      size: 18,
-                      color: PosTheme.inkMuted,
+            boxShadow: focused
+                ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.12),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                ),
-              ),
-            ),
-          if (widget.onHeldQr != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: Tooltip(
-                message: context.posText(
-                  'qrPendingShortcut',
-                  'Show the held UPI QR',
-                ),
-                child: Material(
-                  color: const Color(0xFF059669).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                  child: InkWell(
-                    onTap: widget.onHeldQr,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      height: 32,
-                      constraints: const BoxConstraints(maxWidth: 148),
-                      padding: EdgeInsets.symmetric(horizontal: wide ? 10 : 8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: const Color(0xFF059669).withValues(alpha: 0.45),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.qr_code_2_rounded,
-                            size: 16,
-                            color: Color(0xFF047857),
-                          ),
-                          if (wide &&
-                              (widget.heldQrLabel?.trim().isNotEmpty ??
-                                  false)) ...[
-                            const SizedBox(width: 6),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 96),
-                              child: Text(
-                                widget.heldQrLabel!.trim(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF047857),
-                                  letterSpacing: 0.1,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.025),
+                      blurRadius: 6,
+                      offset: const Offset(0, 1),
                     ),
-                  ),
-                ),
-              ),
-            ),
-          if (widget.voiceSearch)
-            PosVoiceSearchButton(
-              itemNames: widget.voiceItemNames,
-              onBindStop: (stop) => _stopVoice = stop,
-              onListening: (listening, transcript) {
-                if (!mounted) return;
-                setState(() {
-                  _voiceListening = listening;
-                  _voiceTranscript = transcript;
-                });
-                _syncVoicePopup();
-              },
-              onText: (words) {
-                widget.controller.value = TextEditingValue(
-                  text: words,
-                  selection: TextSelection.collapsed(offset: words.length),
-                );
-                widget.onChanged(words);
-              },
-            ),
-          if (widget.onScan != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Tooltip(
-                message: l10n.menuBarcodeTooltip,
-                child: Material(
+                  ],
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 8),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
                   color: focused
                       ? soft.bg
-                      : PosTheme.surface.withValues(alpha: 0.78),
+                      : PosTheme.surface.withValues(alpha: 0.72),
                   borderRadius: BorderRadius.circular(10),
-                  child: InkWell(
-                    onTap: widget.onScan,
+                  border: Border.all(
+                    color: focused
+                        ? accent.withValues(alpha: 0.22)
+                        : PosTheme.border.withValues(alpha: 0.8),
+                  ),
+                ),
+                child: Icon(
+                  Icons.search_rounded,
+                  size: 18,
+                  color: focused ? soft.fg : PosTheme.inkMuted,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: widget.controller,
+                  focusNode: _focusNode,
+                  onChanged: widget.onChanged,
+                  onSubmitted: widget.onSubmitted,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                    color: PosTheme.ink,
+                    height: 1.2,
+                  ),
+                  cursorColor: accent,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: widget.hintText ?? l10n.menuSearchHint,
+                    hintStyle: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: PosTheme.inkFaint.withValues(alpha: 0.95),
+                    ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              if (hasText)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Material(
+                    color: PosTheme.surfaceMuted,
                     borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      height: 32,
-                      padding: EdgeInsets.symmetric(horizontal: wide ? 10 : 8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: focused
-                              ? accent.withValues(alpha: 0.2)
-                              : PosTheme.border.withValues(alpha: 0.85),
+                    child: InkWell(
+                      onTap: widget.onClear,
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox(
+                        width: 34,
+                        height: 34,
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: PosTheme.inkMuted,
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.qr_code_scanner_rounded,
-                            size: 16,
-                            color: focused ? soft.fg : PosTheme.inkMuted,
-                          ),
-                          if (wide) ...[
-                            const SizedBox(width: 6),
-                            Text(
-                              l10n.menuScan,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: focused ? soft.fg : PosTheme.inkMuted,
-                                letterSpacing: 0.1,
-                              ),
-                            ),
-                          ],
-                        ],
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
-        ],
-      ),
+              if (widget.onHeldQr != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Tooltip(
+                    message: context.posText(
+                      'qrPendingShortcut',
+                      'Show the held UPI QR',
+                    ),
+                    child: Material(
+                      color: const Color(0xFF059669).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      child: InkWell(
+                        onTap: widget.onHeldQr,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          height: 32,
+                          constraints: const BoxConstraints(maxWidth: 148),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: wide ? 10 : 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(
+                                0xFF059669,
+                              ).withValues(alpha: 0.45),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.qr_code_2_rounded,
+                                size: 16,
+                                color: Color(0xFF047857),
+                              ),
+                              if (wide &&
+                                  (widget.heldQrLabel?.trim().isNotEmpty ??
+                                      false)) ...[
+                                const SizedBox(width: 6),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 96,
+                                  ),
+                                  child: Text(
+                                    widget.heldQrLabel!.trim(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF047857),
+                                      letterSpacing: 0.1,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (widget.voiceSearch)
+                PosVoiceSearchButton(
+                  itemNames: widget.voiceItemNames,
+                  onBindStop: (stop) => _stopVoice = stop,
+                  onListening: (listening, transcript) {
+                    if (!mounted) return;
+                    setState(() {
+                      _voiceListening = listening;
+                      _voiceTranscript = transcript;
+                    });
+                    _syncVoicePopup();
+                  },
+                  onText: (words) {
+                    widget.controller.value = TextEditingValue(
+                      text: words,
+                      selection: TextSelection.collapsed(offset: words.length),
+                    );
+                    widget.onChanged(words);
+                  },
+                ),
+              if (widget.onScan != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Tooltip(
+                    message: l10n.menuBarcodeTooltip,
+                    child: Material(
+                      color: focused
+                          ? soft.bg
+                          : PosTheme.surface.withValues(alpha: 0.78),
+                      borderRadius: BorderRadius.circular(10),
+                      child: InkWell(
+                        onTap: widget.onScan,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          height: 32,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: wide ? 10 : 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: focused
+                                  ? accent.withValues(alpha: 0.2)
+                                  : PosTheme.border.withValues(alpha: 0.85),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.qr_code_scanner_rounded,
+                                size: 16,
+                                color: focused ? soft.fg : PosTheme.inkMuted,
+                              ),
+                              if (wide) ...[
+                                const SizedBox(width: 6),
+                                Text(
+                                  l10n.menuScan,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: focused
+                                        ? soft.fg
+                                        : PosTheme.inkMuted,
+                                    letterSpacing: 0.1,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );
@@ -1157,11 +1195,7 @@ void showPosSnackBar(
 
 /// Error toast with staff-safe copy (no URLs, API paths, or raw exceptions).
 void showPosErrorSnackBar(BuildContext context, Object error) {
-  showPosSnackBar(
-    context,
-    posUserFacingError(error),
-    error: true,
-  );
+  showPosSnackBar(context, posUserFacingError(error), error: true);
 }
 
 void _dismissPosToast() {
@@ -1230,14 +1264,14 @@ class _PosToastState extends State<_PosToast>
   Widget build(BuildContext context) {
     final iconColor = widget.error ? const Color(0xFFDC2626) : widget.accent;
     final iconBg = widget.error
-        ? (PosTheme.isDark
-            ? const Color(0xFF4C0519)
-            : const Color(0xFFFEE2E2))
+        ? (PosTheme.isDark ? const Color(0xFF4C0519) : const Color(0xFFFEE2E2))
         : posAccentSoft(widget.accent).bg;
-    final icon =
-        widget.error ? Icons.error_outline_rounded : Icons.check_circle_rounded;
-    final borderColor =
-        widget.error ? const Color(0xFFFECACA) : PosTheme.border;
+    final icon = widget.error
+        ? Icons.error_outline_rounded
+        : Icons.check_circle_rounded;
+    final borderColor = widget.error
+        ? const Color(0xFFFECACA)
+        : PosTheme.border;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final toastWidth = screenWidth - 32 < 420 ? screenWidth - 32 : 420.0;
 
@@ -1262,70 +1296,72 @@ class _PosToastState extends State<_PosToast>
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: toastWidth),
-                    child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-                    decoration: BoxDecoration(
-                      color: PosTheme.surface,
-                      borderRadius: BorderRadius.circular(PosTheme.radiusMd),
-                      border: Border.all(color: borderColor),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
-                        ),
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: iconBg,
-                            borderRadius: BorderRadius.circular(9),
+                      constraints: BoxConstraints(maxWidth: toastWidth),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+                        decoration: BoxDecoration(
+                          color: PosTheme.surface,
+                          borderRadius: BorderRadius.circular(
+                            PosTheme.radiusMd,
                           ),
-                          child: Icon(icon, color: iconColor, size: 18),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            widget.message,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: PosTheme.ink,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13.5,
-                              height: 1.3,
+                          border: Border.all(color: borderColor),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 24,
+                              offset: const Offset(0, 10),
                             ),
-                          ),
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
-                        IconButton(
-                          onPressed: _close,
-                          tooltip: context.l10n.commonDismiss,
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
-                          ),
-                          icon: Icon(
-                            Icons.close_rounded,
-                            size: 16,
-                            color: PosTheme.inkFaint,
-                          ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: iconBg,
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Icon(icon, color: iconColor, size: 18),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                widget.message,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: PosTheme.ink,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13.5,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _close,
+                              tooltip: context.l10n.commonDismiss,
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              icon: Icon(
+                                Icons.close_rounded,
+                                size: 16,
+                                color: PosTheme.inkFaint,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
                     ),
                   ),
                 ),
@@ -1350,6 +1386,7 @@ class PosDialogShell extends StatelessWidget {
     this.footer,
     this.maxWidth = 420,
     this.onClose,
+
     /// Fill a side panel / bottom sheet instead of a centered [Dialog].
     this.embedded = false,
   });
@@ -1398,12 +1435,12 @@ class PosDialogShell extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.2,
-                                    color: PosTheme.ink,
-                                  ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.2,
+                                color: PosTheme.ink,
+                              ),
                         ),
                         if (hasSubtitle) ...[
                           const SizedBox(height: 2),
@@ -1430,10 +1467,7 @@ class PosDialogShell extends StatelessWidget {
                         child: SizedBox(
                           width: 36,
                           height: 36,
-                          child: Icon(
-                            Icons.close_rounded,
-                            color: soft.fg,
-                          ),
+                          child: Icon(Icons.close_rounded, color: soft.fg),
                         ),
                       ),
                     ),
@@ -1603,8 +1637,7 @@ Widget posDialogActionFooter({
   final accent = Theme.of(context).colorScheme.primary;
   final resolvedConfirm = confirmLabel ?? l10n.commonConfirm;
   final resolvedCancel = cancelLabel ?? l10n.commonCancel;
-  final fill = confirmColor ??
-      (destructive ? const Color(0xFFDC2626) : accent);
+  final fill = confirmColor ?? (destructive ? const Color(0xFFDC2626) : accent);
 
   final cancel = OutlinedButton(
     onPressed: onCancel,
@@ -1614,8 +1647,11 @@ Widget posDialogActionFooter({
       side: BorderSide(color: PosTheme.border),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    child: Text(resolvedCancel, textAlign: TextAlign.center,
-        style: const TextStyle(fontWeight: FontWeight.w700)),
+    child: Text(
+      resolvedCancel,
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontWeight: FontWeight.w700),
+    ),
   );
   final confirm = FilledButton(
     onPressed: onConfirm,
@@ -1628,21 +1664,25 @@ Widget posDialogActionFooter({
     ),
     child: Text(resolvedConfirm, textAlign: TextAlign.center),
   );
-  return LayoutBuilder(builder: (context, constraints) {
-    final largeText = MediaQuery.textScalerOf(context).scale(15) > 19;
-    if (constraints.maxWidth < 400 || largeText) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [cancel, const SizedBox(height: 10), confirm],
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final largeText = MediaQuery.textScalerOf(context).scale(15) > 19;
+      if (constraints.maxWidth < 400 || largeText) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [cancel, const SizedBox(height: 10), confirm],
+        );
+      }
+      return Row(
+        children: [
+          Expanded(child: cancel),
+          const SizedBox(width: 10),
+          Expanded(child: confirm),
+        ],
       );
-    }
-    return Row(children: [
-      Expanded(child: cancel),
-      const SizedBox(width: 10),
-      Expanded(child: confirm),
-    ]);
-  });
+    },
+  );
 }
 
 Future<bool> showPosConfirmDialog(
@@ -1657,8 +1697,7 @@ Future<bool> showPosConfirmDialog(
 }) async {
   final l10n = context.l10n;
   final accent = Theme.of(context).colorScheme.primary;
-  final headerColor =
-      destructive ? const Color(0xFFB91C1C) : accent;
+  final headerColor = destructive ? const Color(0xFFB91C1C) : accent;
 
   // Prefer the nearest navigator (e.g. lock-screen overlay). Fall back to root.
   final hasLocalNav = Navigator.maybeOf(context) != null;
@@ -1670,9 +1709,10 @@ Future<bool> showPosConfirmDialog(
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) => PosDialogShell(
         title: title,
-        subtitle: subtitle ??
-            (destructive ? l10n.confirmDestructiveSubtitle : null),
-        icon: icon ??
+        subtitle:
+            subtitle ?? (destructive ? l10n.confirmDestructiveSubtitle : null),
+        icon:
+            icon ??
             (destructive
                 ? Icons.warning_amber_rounded
                 : Icons.help_outline_rounded),
@@ -1702,10 +1742,7 @@ Future<bool> showPosConfirmDialog(
 }
 
 /// Result of the POS cancel-order confirmation sheet.
-enum PosCancelOrderChoice {
-  cancel,
-  cancelAndRefund,
-}
+enum PosCancelOrderChoice { cancel, cancelAndRefund }
 
 class PosCancelOrderResult {
   const PosCancelOrderResult({
@@ -1761,10 +1798,7 @@ Future<String?> showPosMarkPaidMethodDialog(
       return StatefulBuilder(
         builder: (ctx, setLocal) {
           return PosDialogShell(
-            title: context.posText(
-              'markPaidMethodTitle',
-              'How did they pay?',
-            ),
+            title: context.posText('markPaidMethodTitle', 'How did they pay?'),
             subtitle: context.posText(
               'markPaidMethodDescription',
               'Select the payment method used so reports stay accurate.',
@@ -1885,10 +1919,7 @@ class _PosCancelOrderDialogState extends State<_PosCancelOrderDialog> {
           ),
           const SizedBox(height: 14),
           Text(
-            context.posText(
-              'cancelReasonLabel',
-              'Cancel reason (optional)',
-            ),
+            context.posText('cancelReasonLabel', 'Cancel reason (optional)'),
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,

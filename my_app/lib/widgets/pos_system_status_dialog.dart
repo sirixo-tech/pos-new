@@ -15,7 +15,6 @@ import '../services/printing/printer_status_service.dart';
 import '../services/scanner_connection_service.dart';
 import '../theme/pos_theme.dart';
 import '../utils/pos_layout.dart';
-import 'pos_ui.dart';
 
 /// Header Status control: internet, printer, scanner, and customer QR display.
 class PosSystemStatusButton extends StatefulWidget {
@@ -229,8 +228,8 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
           displayConnected: displayConnected,
           scannerConnected: scanner.connected,
         );
-        return PosDialogShell(
-          title: 'System status',
+        return _StatusDialogShell(
+          title: 'System Status',
           subtitle: summary.ready
               ? 'Internet, printer, and this register are ready.'
               : 'One or more devices need attention.',
@@ -242,7 +241,7 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
               : summary.severe
               ? const Color(0xFFB91C1C)
               : const Color(0xFFD97706),
-          maxWidth: 440,
+          maxWidth: 400,
           onClose: () => Navigator.pop(context),
           body: Column(
             children: [
@@ -284,17 +283,23 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
           footer: Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: OutlinedButton.icon(
                   onPressed: _refreshing ? null : () => unawaited(_refresh()),
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 48),
+                    foregroundColor: const Color(0xFFF26500),
+                    side: const BorderSide(color: Color(0xFFF26500)),
+                    minimumSize: const Size(0, 42),
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                   ),
-                  child: Text(
+                  icon: const Icon(Icons.refresh_rounded, size: 22),
+                  label: Text(
                     _refreshing ? 'Refreshing…' : 'Refresh',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -303,7 +308,9 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
                 child: FilledButton(
                   onPressed: () => Navigator.pop(context),
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 48),
+                    backgroundColor: const Color(0xFFFF6500),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 42),
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                   ),
                   child: Text(l10n.commonClose, maxLines: 1),
@@ -337,6 +344,102 @@ class _PosSystemStatusDialogState extends State<_PosSystemStatusDialog> {
   }
 }
 
+class _StatusDialogShell extends StatelessWidget {
+  const _StatusDialogShell({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.headerColor,
+    required this.maxWidth,
+    required this.onClose,
+    required this.body,
+    required this.footer,
+  });
+  final String title, subtitle;
+  final IconData icon;
+  final Color headerColor;
+  final double maxWidth;
+  final VoidCallback onClose;
+  final Widget body, footer;
+  @override
+  Widget build(BuildContext context) => Dialog(
+    insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+    backgroundColor: PosTheme.surface,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    clipBehavior: Clip.antiAlias,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: maxWidth,
+        maxHeight: MediaQuery.sizeOf(context).height * .85,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFFF9C00), Color(0xFFFF5100)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(icon, color: const Color(0xFFFF6500), size: 24),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                ),
+              ],
+            ),
+          ),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: body,
+            ),
+          ),
+          Padding(padding: const EdgeInsets.all(12), child: footer),
+        ],
+      ),
+    ),
+  );
+}
+
 class _StatusRow extends StatelessWidget {
   const _StatusRow({
     required this.icon,
@@ -362,42 +465,70 @@ class _StatusRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: PosTheme.surfaceMuted,
+        color: connected ? const Color(0xFFF0F9F4) : const Color(0xFFFFF7F0),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Row(
               children: [
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: soft.bg,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, size: 18, color: soft.fg),
+                  child: Icon(icon, size: 20, color: soft.fg),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          color: PosTheme.ink,
-                        ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              color: PosTheme.ink,
+                            ),
+                          ),
+
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: .1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              connected
+                                  ? (label == 'Printer' ? 'Ready' : 'Connected')
+                                  : 'Not Connected',
+                              style: TextStyle(
+                                color: accent,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         detail,
                         style: TextStyle(
-                          fontSize: 12.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w500,
                           color: PosTheme.inkMuted,
                         ),

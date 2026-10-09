@@ -40,22 +40,38 @@ class PairDeviceScreen extends StatelessWidget {
             SizedBox(height: compact ? 10 : 18),
             Text(
               l10n.pairThisTablet,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    letterSpacing: -0.3,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(letterSpacing: -0.3),
             ),
             const SizedBox(height: 6),
             Text(
-              l10n.pairAdminHint,
+              'Connect this device.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: PosTheme.surfaceMuted,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                'On the register, open Admin -> POS terminals -> Pair tablet, then enter this code.',
+                style: TextStyle(fontSize: 12),
+              ),
             ),
             SizedBox(height: compact ? 14 : 24),
             Container(
               width: double.infinity,
-              padding: EdgeInsets.symmetric(vertical: compact ? 12 : 20, horizontal: 12),
+              padding: EdgeInsets.symmetric(
+                vertical: compact ? 12 : 20,
+                horizontal: 12,
+              ),
               decoration: BoxDecoration(
-                color: PosTheme.surfaceMuted,
+                color: soft.bg,
                 borderRadius: BorderRadius.circular(PosTheme.radiusLg),
                 border: Border.all(color: accent.withValues(alpha: 0.2)),
               ),
@@ -63,9 +79,9 @@ class PairDeviceScreen extends StatelessWidget {
                 code,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 40,
+                  fontSize: compact ? 28 : 36,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 10,
+                  letterSpacing: compact ? 5 : 8,
                   color: accent,
                 ),
               ),
@@ -83,14 +99,16 @@ class PairDeviceScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Flexible(child: Text(
-                  l10n.pairWaitingManager,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: soft.fg,
-                    fontWeight: FontWeight.w600,
+                Flexible(
+                  child: Text(
+                    'Waiting for manager confirmation...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: soft.fg,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                )),
+                ),
               ],
             ),
             if (pos.errorMessage != null) ...[
@@ -108,7 +126,7 @@ class PairDeviceScreen extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: () => pos.refreshPairingCode(),
               icon: const Icon(Icons.refresh_rounded),
-              label: Text(l10n.pairNewCode),
+              label: const Text('Generate new code'),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 48),
                 shape: RoundedRectangleBorder(
@@ -116,9 +134,22 @@ class PairDeviceScreen extends StatelessWidget {
                 ),
               ),
             ),
-            TextButton(
-              onPressed: () => pos.skipPairingToLogin(),
-              child: Text(l10n.pairSkipToSignIn),
+            const SizedBox(height: 8),
+            Text(
+              'or',
+              style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: PosTheme.surfaceMuted,
+                  minimumSize: const Size(0, 40),
+                ),
+                onPressed: () => pos.skipPairingToLogin(),
+                child: const Text('Skip and sign in'),
+              ),
             ),
           ],
         ),
@@ -127,7 +158,8 @@ class PairDeviceScreen extends StatelessWidget {
 
     return PosAuthScaffold(
       accent: accent,
-      platformLogoHeight: 220,
+      platformLogoHeight: 120,
+      maxFormWidth: 420,
       statusIcon: Icons.link_rounded,
       statusLabel: l10n.pairDeviceTitle,
       headline: PosAppInfo.displayName,

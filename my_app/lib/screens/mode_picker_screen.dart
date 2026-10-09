@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:provider/provider.dart';
 
 import '../config/pos_app_info.dart';
@@ -62,10 +63,7 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
         ? platform.name.trim()
         : PosAppInfo.displayName;
     final restaurantName = restaurant?.name.trim();
-    final logoUrl = resolveMediaUrl(
-      restaurant?.logoUrl,
-      serverUrl: serverUrl,
-    );
+    final logoUrl = resolveMediaUrl(restaurant?.logoUrl, serverUrl: serverUrl);
     final staffName = pos.session?.userName?.trim();
     final location = [
       if (branch?.name.trim().isNotEmpty == true) branch!.name.trim(),
@@ -89,8 +87,8 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
         subtitle: subtitle,
         trailing: PosSelectTileTrailing.chevron,
         leading: Container(
-          width: 48,
-          height: 48,
+          width: 34,
+          height: 34,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: soft.bg,
@@ -104,31 +102,28 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
 
     final form = PosSlideFade(
       child: PosSurfaceCard(
-        padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              l10n.modePickerTitle,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    letterSpacing: -0.3,
-                  ),
+              'Choose your workspace',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(letterSpacing: -0.3),
             ),
             const SizedBox(height: 6),
             Text(
-              context.posText(
-                'modePickerSubtitle',
-                'Choose register POS, kitchen display, or waiter floor service.',
-              ),
+              "Select how you?ll use this device.",
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 20),
             if (showRegister)
               modeTile(
-                title: l10n.modePickerRegisterTitle,
-                subtitle: l10n.modePickerRegisterSubtitle,
-                icon: Icons.point_of_sale_rounded,
+                title: 'Register POS',
+                subtitle: 'Billing, payments and shifts',
+                icon: CupertinoIcons.creditcard,
                 onTap: () => _select(PosWorkMode.register),
               ),
             if (showRegister && (showCaptain || showKitchen))
@@ -139,19 +134,16 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
                   'modePickerKitchenTitle',
                   'Kitchen Display',
                 ),
-                subtitle: context.posText(
-                  'modePickerKitchenSubtitle',
-                  'KOT board: new, cooking, and ready tickets',
-                ),
-                icon: Icons.soup_kitchen_outlined,
+                subtitle: 'View, cook, and complete orders',
+                icon: CupertinoIcons.flame,
                 onTap: () => _select(PosWorkMode.kitchen),
               ),
             if (showKitchen && showCaptain) const SizedBox(height: 8),
             if (showCaptain)
               modeTile(
-                title: l10n.modePickerWaiterTitle,
-                subtitle: l10n.modePickerWaiterSubtitle,
-                icon: Icons.room_service_rounded,
+                title: 'Waiter / Captain',
+                subtitle: 'Manage tables and send orders',
+                icon: CupertinoIcons.person_2,
                 onTap: () => _select(PosWorkMode.waiter),
               ),
             const SizedBox(height: 12),
@@ -166,10 +158,14 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
 
     return PosAuthScaffold(
       accent: accent,
+      platformLogoHeight: 150,
+      restaurantLogoHeight: 72,
+      footerAtBottom: true,
+      maxFormWidth: 420,
       platform: platform,
       serverUrl: serverUrl,
       statusIcon: Icons.devices_rounded,
-      statusLabel: l10n.modePickerTitle,
+      statusLabel: 'Choose your workspace',
       logoUrl: logoUrl,
       headline: restaurantName?.isNotEmpty == true
           ? restaurantName!

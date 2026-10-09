@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/pos_controller.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -21,14 +23,15 @@ class _CameraScanToPrintDialog extends StatefulWidget {
   const _CameraScanToPrintDialog();
 
   @override
-  State<_CameraScanToPrintDialog> createState() => _CameraScanToPrintDialogState();
+  State<_CameraScanToPrintDialog> createState() =>
+      _CameraScanToPrintDialogState();
 }
 
 class _CameraScanToPrintDialogState extends State<_CameraScanToPrintDialog> {
   final _camera = MobileScannerController(
     facing: CameraFacing.back,
     detectionSpeed: DetectionSpeed.noDuplicates,
-    formats: [BarcodeFormat.qrCode, BarcodeFormat.code128, BarcodeFormat.code39],
+    formats: const [],
   );
   bool _completed = false;
   String? _hint;
@@ -36,7 +39,12 @@ class _CameraScanToPrintDialogState extends State<_CameraScanToPrintDialog> {
   void _detected(BarcodeCapture capture) {
     if (_completed || !mounted) return;
     for (final barcode in capture.barcodes) {
-      final raw = barcode.rawValue ?? '';
+      final raw = (barcode.rawValue ?? '').trim();
+      if (context.read<PosController>().matchBarcode(raw) != null) {
+        _completed = true;
+        Navigator.of(context).pop(raw);
+        return;
+      }
       if (!OrderBarcodeScan.isOrderReference(raw)) continue;
       final number = OrderBarcodeScan.parseOrderNumber(raw);
       if (number == null) continue;
@@ -44,7 +52,10 @@ class _CameraScanToPrintDialogState extends State<_CameraScanToPrintDialog> {
       Navigator.of(context).pop(number);
       return;
     }
-    setState(() => _hint = 'Show an order QR or order barcode to print its receipt.');
+    setState(
+      () => _hint =
+          'No matching item found. Show an item SKU barcode or an order QR.',
+    );
   }
 
   Future<void> _manual() async {
@@ -71,8 +82,9 @@ class _CameraScanToPrintDialogState extends State<_CameraScanToPrintDialog> {
 
   @override
   Widget build(BuildContext context) => PosDialogShell(
-    title: 'Scan to print',
-    subtitle: 'Point the camera at the order QR. The receipt prints automatically.',
+    title: 'Scan barcode',
+    subtitle:
+        'Scan an item barcode to add it to the cart, or an order QR to print.',
     icon: Icons.qr_code_scanner_rounded,
     headerColor: Theme.of(context).colorScheme.primary,
     maxWidth: 480,
@@ -88,23 +100,35 @@ class _CameraScanToPrintDialogState extends State<_CameraScanToPrintDialog> {
               controller: _camera,
               onDetect: _detected,
               errorBuilder: (_, error) => const Center(
-                child: Text('Camera unavailable. Allow camera permission, or enter the order number below.', textAlign: TextAlign.center),
+                child: Text(
+                  'Camera unavailable. Allow camera permission, or enter the order number below.',
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           ),
         ),
-        if (_hint != null) Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(_hint!, textAlign: TextAlign.center),
-        ),
+        if (_hint != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(_hint!, textAlign: TextAlign.center),
+          ),
       ],
     ),
     footer: Wrap(
       alignment: WrapAlignment.center,
       spacing: 8,
       children: [
-        TextButton.icon(onPressed: () => _camera.switchCamera(), icon: const Icon(Icons.flip_camera_android), label: const Text('Switch camera')),
-        TextButton.icon(onPressed: _manual, icon: const Icon(Icons.keyboard), label: const Text('Enter order number')),
+        TextButton.icon(
+          onPressed: () => _camera.switchCamera(),
+          icon: const Icon(Icons.flip_camera_android),
+          label: const Text('Switch camera'),
+        ),
+        TextButton.icon(
+          onPressed: _manual,
+          icon: const Icon(Icons.keyboard),
+          label: const Text('Enter order number'),
+        ),
       ],
     ),
   );
@@ -165,9 +189,7 @@ class _ScanToPrintDialogState extends State<_ScanToPrintDialog> {
           hintText: 'ORD-20260730110050',
           prefixIcon: const Icon(Icons.receipt_long_outlined),
           helperText: 'USB scanners type into this field automatically.',
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
       footer: posDialogActionFooter(

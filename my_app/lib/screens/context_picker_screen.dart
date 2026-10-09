@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:provider/provider.dart';
 
 import '../config/pos_app_info.dart';
@@ -31,7 +32,8 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
     super.initState();
     final pos = context.read<PosController>();
     final profile = pos.profile;
-    _selectedRestaurantId = profile?.currentRestaurantId ??
+    _selectedRestaurantId =
+        profile?.currentRestaurantId ??
         (profile?.restaurants.isNotEmpty == true
             ? profile!.restaurants.first.id
             : null);
@@ -65,13 +67,14 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
     final pos = context.read<PosController>();
     final restaurants = pos.profile?.restaurants ?? [];
     final restaurant = restaurants.cast<StaffRestaurantOption?>().firstWhere(
-          (r) => r!.id == _selectedRestaurantId,
-          orElse: () => restaurants.isNotEmpty ? restaurants.first : null,
-        );
+      (r) => r!.id == _selectedRestaurantId,
+      orElse: () => restaurants.isNotEmpty ? restaurants.first : null,
+    );
     if (restaurant == null) return;
 
     final branches = restaurant.branches;
-    _selectedBranchId = branches
+    _selectedBranchId =
+        branches
             .where((b) => b.id == pos.profile?.currentBranchId)
             .map((b) => b.id)
             .firstOrNull ??
@@ -119,11 +122,12 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
     final pos = context.watch<PosController>();
     final accent = Theme.of(context).colorScheme.primary;
     final restaurants = pos.profile?.restaurants ?? [];
-    final selectedRestaurant =
-        restaurants.cast<StaffRestaurantOption?>().firstWhere(
-              (r) => r!.id == _selectedRestaurantId,
-              orElse: () => restaurants.isNotEmpty ? restaurants.first : null,
-            );
+    final selectedRestaurant = restaurants
+        .cast<StaffRestaurantOption?>()
+        .firstWhere(
+          (r) => r!.id == _selectedRestaurantId,
+          orElse: () => restaurants.isNotEmpty ? restaurants.first : null,
+        );
     final branches = selectedRestaurant?.branches ?? [];
     final platform = pos.bootstrap?.platform ?? const PosPlatformBranding();
     final serverUrl = pos.serverUrl ?? pos.session?.serverUrl;
@@ -143,20 +147,20 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
 
     final form = PosSlideFade(
       child: PosSurfaceCard(
-        padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
               l10n.contextChooseLocation,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    letterSpacing: -0.3,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(letterSpacing: -0.3),
             ),
             const SizedBox(height: 6),
             Text(
-              l10n.contextSubtitle,
+              'Select the restaurant and branch for this register.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             if (restaurants.length > 1) ...[
@@ -175,6 +179,10 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
                 (r) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: PosSelectTile(
+                    leading: Icon(
+                      CupertinoIcons.building_2_fill,
+                      color: accent,
+                    ),
                     title: r.name,
                     selected: r.id == _selectedRestaurantId,
                     enabled: !_loading,
@@ -190,6 +198,7 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
             ] else if (restaurantName != null && restaurantName.isNotEmpty) ...[
               const SizedBox(height: 16),
               PosSelectTile(
+                leading: Icon(CupertinoIcons.building_2_fill, color: accent),
                 title: restaurantName,
                 subtitle: l10n.contextCurrentRestaurant,
                 selected: true,
@@ -212,6 +221,7 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
                 (b) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: PosSelectTile(
+                    leading: Icon(CupertinoIcons.location_solid, color: accent),
                     title: b.name,
                     subtitle: b.isDefault ? l10n.contextDefaultBranch : null,
                     selected: b.id == _selectedBranchId,
@@ -223,6 +233,7 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
             ] else if (branches.length == 1) ...[
               const SizedBox(height: 12),
               PosSelectTile(
+                leading: Icon(CupertinoIcons.location_solid, color: accent),
                 title: branches.first.name,
                 subtitle: l10n.contextBranch,
                 selected: true,
@@ -248,6 +259,9 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
 
     return PosAuthScaffold(
       accent: accent,
+      platformLogoHeight: 150,
+      restaurantLogoHeight: 72,
+      maxFormWidth: 420,
       platform: platform,
       serverUrl: serverUrl,
       statusIcon: Icons.storefront_rounded,

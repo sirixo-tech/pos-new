@@ -1056,7 +1056,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   Future<void> _openScanToPrintDialog() async {
     final reference = await showPosScanToPrintDialog(context);
     if (reference == null || !mounted) return;
-    await _handleScannedPayload(reference, orderOnly: true);
+    await _handleScannedPayload(reference);
   }
 
   Future<void> _submitSearch(String raw) async {
