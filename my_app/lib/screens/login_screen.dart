@@ -516,6 +516,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     return PosAuthScaffold(
+      showHeroPanel: false,
+      maxFormWidth: 500,
+      platformLogoHeight: 100,
       accent: accent,
       platform: platform,
       serverUrl: serverUrl,

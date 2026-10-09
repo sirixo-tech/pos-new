@@ -557,7 +557,9 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
       color: PosTheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: PosTheme.border),
+        side: BorderSide(
+          color: unavailable ? const Color(0xFFEF9A9A) : PosTheme.border,
+        ),
       ),
       child: InkWell(
         onTap: unavailable ? null : _handleTap,
@@ -587,6 +589,31 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                           : _handheldColorMark(accent),
                     ),
                   ),
+                  if (unavailable)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: ColoredBox(
+                        color: widget.item.isManuallyUnavailable
+                            ? const Color(0xCCB93232)
+                            : const Color(0xCCB45309),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Text(
+                            widget.item.isManuallyUnavailable
+                                ? 'Not available'
+                                : 'Outside schedule',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 6),
@@ -626,12 +653,6 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                 ],
               ),
               const SizedBox(height: 6),
-              if (unavailable)
-                Text(
-                  'Not available',
-                  maxLines: 1,
-                  style: TextStyle(color: PosTheme.inkMuted, fontSize: 10),
-                ),
               const Spacer(),
               if (stepper)
                 SizedBox(

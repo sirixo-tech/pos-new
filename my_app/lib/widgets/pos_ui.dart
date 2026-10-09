@@ -444,6 +444,7 @@ class PosAuthScaffold extends StatelessWidget {
     this.platformLogoHeight = 220,
     this.restaurantLogoHeight = 36,
     this.footerAtBottom = false,
+    this.showHeroPanel = true,
   });
 
   final Color accent;
@@ -471,6 +472,7 @@ class PosAuthScaffold extends StatelessWidget {
   final double platformLogoHeight;
   final double restaurantLogoHeight;
   final bool footerAtBottom;
+  final bool showHeroPanel;
 
   @override
   Widget build(BuildContext context) {
@@ -493,7 +495,7 @@ class PosAuthScaffold extends StatelessWidget {
                 maxWidth: 300,
               ));
 
-    if (wide) {
+    if (wide && showHeroPanel) {
       return Scaffold(
         body: Row(
           children: [
@@ -577,8 +579,10 @@ class PosAuthScaffold extends StatelessWidget {
                 child: Center(
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxWidth: maxFormWidth.clamp(400, 460),
-                      minHeight: footerAtBottom
+                      maxWidth: showHeroPanel
+                          ? maxFormWidth.clamp(400, 460)
+                          : maxFormWidth,
+                      minHeight: footerAtBottom || !showHeroPanel
                           ? (constraints.maxHeight - padding * 2).clamp(
                               0.0,
                               double.infinity,

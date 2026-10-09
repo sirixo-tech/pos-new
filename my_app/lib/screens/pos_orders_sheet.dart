@@ -73,7 +73,8 @@ class PosOrdersSheet extends StatefulWidget {
   State<PosOrdersSheet> createState() => _PosOrdersSheetState();
 }
 
-class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObserver {
+class _PosOrdersSheetState extends State<PosOrdersSheet>
+    with WidgetsBindingObserver {
   late String _tab;
   late String _filter;
   String? _statusFilter;
@@ -105,7 +106,9 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
 
   bool _isAllowedFilter(String filter) {
     if (_coreFilters.contains(filter)) return true;
-    return context.read<PosController>().bootstrap?.marketplaceEnabled(filter) ??
+    return context.read<PosController>().bootstrap?.marketplaceEnabled(
+          filter,
+        ) ??
         false;
   }
 
@@ -120,15 +123,19 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
     if (source == 'delivery' || source == 'swiggy' || source == 'zomato') {
       return true;
     }
-    final platforms = context.read<PosController>().bootstrap?.marketplacePlatforms ??
+    final platforms =
+        context.read<PosController>().bootstrap?.marketplacePlatforms ??
         const <MarketplacePlatformInfo>[];
-    return platforms.any((platform) => platform.provider.toLowerCase() == source);
+    return platforms.any(
+      (platform) => platform.provider.toLowerCase() == source,
+    );
   }
 
   bool _isOnlineChannelOrder(Map<String, dynamic> order) {
-    final raw = '${order['source'] ?? order['channel'] ?? order['order_source'] ?? ''}'
-        .trim()
-        .toLowerCase();
+    final raw =
+        '${order['source'] ?? order['channel'] ?? order['order_source'] ?? ''}'
+            .trim()
+            .toLowerCase();
     if (raw.isEmpty) return false;
     return raw == 'online' ||
         raw == 'website' ||
@@ -146,7 +153,8 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
     if (widget.deliveryOnly) {
       _tab = 'orders';
       _filter = 'today';
-    } else if (widget.initialTab == 'orders' || widget.initialTab == 'cancelled') {
+    } else if (widget.initialTab == 'orders' ||
+        widget.initialTab == 'cancelled') {
       _tab = widget.initialTab;
     } else {
       _tab = 'held';
@@ -165,8 +173,15 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
     if (_isCancelledTab) {
       _statusFilter = 'cancelled';
     }
-    _heldCount = context.read<PosController>().heldOrderCount;
-    _load();
+    final pos = context.read<PosController>();
+    _heldCount = pos.heldOrderCount;
+    final cached = pos.cachedHeldOrders;
+    if (_isHeldTab && cached != null) {
+      _orders = cached;
+      _heldCount = cached.length;
+      _loading = false;
+    }
+    _load(silent: _isHeldTab && cached != null);
     WidgetsBinding.instance.addObserver(this);
     _silentRefresh = Timer.periodic(const Duration(seconds: 10), (_) {
       final lifecycle = WidgetsBinding.instance.lifecycleState;
@@ -216,6 +231,16 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
     try {
       if (_isHeldTab) {
         final pos = context.read<PosController>();
+        if (_loading && pos.cachedHeldOrders == null) {
+          final local = await pos.fetchLocalHeldOrders();
+          if (!mounted || revision != _loadRevision) return;
+          if (local.isNotEmpty) {
+            setState(() {
+              _orders = local;
+              _loading = false;
+            });
+          }
+        }
         final orders = await pos.fetchHeldOrders();
         if (!mounted || revision != _loadRevision) return;
         setState(() {
@@ -244,7 +269,8 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
         perPage: _onlineOnly ? 50 : 10,
       );
       if (!mounted || revision != _loadRevision) return;
-      var orders = (data['orders'] as List?)
+      var orders =
+          (data['orders'] as List?)
               ?.whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
               .toList() ??
@@ -257,7 +283,8 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
       }
       orders = orders.where((order) {
         final status = '${order['status'] ?? ''}'.toLowerCase();
-        final hasIdentity = order['id'] != null ||
+        final hasIdentity =
+            order['id'] != null ||
             '${order['order_number'] ?? ''}'.trim().isNotEmpty;
         if (!hasIdentity) return false;
         if (_isCancelledTab) return status == 'cancelled';
@@ -312,7 +339,8 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
 
   Future<void> _resume(Map<String, dynamic> order) async {
     final localUuid = order['local_uuid'] as String?;
-    final isLocal = order['is_local'] == true ||
+    final isLocal =
+        order['is_local'] == true ||
         (localUuid != null && localUuid.isNotEmpty);
     final id = order['id'];
     final orderId = (id is int || id is num) ? (id as num).toInt() : null;
@@ -463,8 +491,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
 
   Future<void> _confirmCancel(Map<String, dynamic> order) async {
     final paymentStatus = '${order['payment_status'] ?? ''}';
-    final canRefund =
-        paymentStatus == 'paid' || paymentStatus == 'partial';
+    final canRefund = paymentStatus == 'paid' || paymentStatus == 'partial';
     final currency = context.read<PosController>().currency;
     final amount = order['total'];
     final amountLabel = canRefund ? _money(amount, currency) : null;
@@ -488,10 +515,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
   Future<void> _confirmClearHeld(Map<String, dynamic> order) async {
     final ok = await showPosConfirmDialog(
       context,
-      title: context.posText(
-        'ordersClearHeldTitle',
-        'Clear this held ticket?',
-      ),
+      title: context.posText('ordersClearHeldTitle', 'Clear this held ticket?'),
       message: context.posText(
         'ordersClearHeldDescription',
         'This removes the parked draft from the held list. It won’t be sent to the kitchen.',
@@ -506,24 +530,22 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
     if (!mounted || !ok) return;
 
     final localUuid = order['local_uuid'] as String?;
-    final isLocal = order['is_local'] == true ||
+    final isLocal =
+        order['is_local'] == true ||
         (localUuid != null && localUuid.isNotEmpty);
     final id = order['id'];
     final orderId = (id is int || id is num) ? (id as num).toInt() : null;
 
     try {
       await context.read<PosController>().discardHeldOrder(
-            orderId: isLocal ? null : orderId,
-            localUuid: isLocal ? localUuid : null,
-          );
+        orderId: isLocal ? null : orderId,
+        localUuid: isLocal ? localUuid : null,
+      );
       if (!mounted) return;
       setState(() {
         _orders = [
           for (final o in _orders)
-            if (isLocal
-                ? o['local_uuid'] != localUuid
-                : o['id'] != orderId)
-              o,
+            if (isLocal ? o['local_uuid'] != localUuid : o['id'] != orderId) o,
         ];
         _heldCount = _orders.length;
       });
@@ -681,7 +703,8 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
     if (session == null) return;
 
     final localUuid = order['local_uuid'] as String?;
-    final isLocal = order['is_local'] == true ||
+    final isLocal =
+        order['is_local'] == true ||
         (localUuid != null && localUuid.isNotEmpty);
     final id = order['id'];
     final orderId = (id is int || id is num) ? (id as num).toInt() : null;
@@ -697,11 +720,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
     // Server-held tickets still need network; local held can settle offline.
     if (!isLocal && pos.isOffline) {
       if (!mounted) return;
-      showPosSnackBar(
-        context,
-        context.l10n.offlineHeldPayBlocked,
-        error: true,
-      );
+      showPosSnackBar(context, context.l10n.offlineHeldPayBlocked, error: true);
       return;
     }
 
@@ -722,10 +741,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
         await _load();
         await pos.refreshHeldOrderCount();
         if (!mounted) return;
-        showPosSnackBar(
-          context,
-          context.l10n.ordersPaymentRecorded(label),
-        );
+        showPosSnackBar(context, context.l10n.ordersPaymentRecorded(label));
         return;
       }
 
@@ -804,10 +820,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
           return;
         }
 
-        showPosSnackBar(
-          context,
-          context.l10n.ordersPaymentRecorded(label),
-        );
+        showPosSnackBar(context, context.l10n.ordersPaymentRecorded(label));
         await _load();
         await pos.refreshHeldOrderCount();
       } on PosApiException catch (e) {
@@ -832,7 +845,8 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
     );
     if (payment == null || !mounted) return;
 
-    final isQrPayment = payment.method == 'phonepe' || payment.method == 'paytm';
+    final isQrPayment =
+        payment.method == 'phonepe' || payment.method == 'paytm';
     final paymentPayload = {
       'method': payment.method,
       if (payment.cashTendered != null) 'cash_tendered': payment.cashTendered,
@@ -928,7 +942,10 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
     }
   }
 
-  Widget _buildBody(BuildContext context, {ScrollController? scrollController}) {
+  Widget _buildBody(
+    BuildContext context, {
+    ScrollController? scrollController,
+  }) {
     final accent = Theme.of(context).colorScheme.primary;
     final l10n = context.l10n;
     final pos = context.watch<PosController>();
@@ -1047,117 +1064,106 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
-                  ? _ErrorPane(
-                      message: _error!,
-                      onRetry: _load,
-                    )
-                  : _orders.isEmpty
-                      ? PosEmptyState(
-                          icon: _isHeldTab
-                              ? Icons.pause_circle_outline_rounded
-                              : Icons.receipt_long_outlined,
-                          title: _isHeldTab
-                              ? l10n.ordersNoHeldTitle
-                              : _onlineOnly
-                                  ? 'No online orders'
-                                  : () {
-                                  final platforms = context
-                                          .read<PosController>()
-                                          .bootstrap
-                                          ?.marketplacePlatforms ??
-                                      const <MarketplacePlatformInfo>[];
-                                  final match = platforms
-                                      .where((p) => p.provider == _sourceFilter)
-                                      .firstOrNull;
-                                  if (match != null) {
-                                    return marketplacePlatformDisplayLabel(
-                                      l10n,
-                                      match,
-                                    );
-                                  }
-                                  return l10n.ordersNoOrdersTitle;
-                                }(),
-                          subtitle: _isHeldTab
-                              ? l10n.ordersNoHeldSubtitle
-                              : () {
-                                  final platforms = context
-                                          .read<PosController>()
-                                          .bootstrap
-                                          ?.marketplacePlatforms ??
-                                      const <MarketplacePlatformInfo>[];
-                                  final match = platforms
-                                      .where((p) => p.provider == _sourceFilter)
-                                      .firstOrNull;
-                                  if (match != null) {
-                                    return marketplaceEmptySubtitle(
-                                      l10n,
-                                      match,
-                                      _sourceFilter ?? _filter,
-                                    );
-                                  }
-                                  return l10n.ordersNoOrdersSubtitle;
-                                }(),
-                          accent: _isHeldTab
-                              ? PosTheme.holdAmberDark
-                              : (context
-                                          .read<PosController>()
-                                          .bootstrap
-                                          ?.marketplaceEnabled(
-                                            _sourceFilter ?? '',
-                                          ) ??
-                                      false)
-                                  ? marketplaceBrandColor(_sourceFilter!)
-                                  : accent,
-                        )
-                      : ListView.separated(
-                          controller: scrollController,
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                          itemCount: _orders.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final order = _orders[index];
-                            final paymentDraft = order['is_payment_draft'] == true;
-                            final id = (order['id'] is num)
-                                ? (order['id'] as num).toInt()
-                                : null;
-                            final localUuid = order['local_uuid'] as String?;
-                            final rowKey = localUuid != null &&
-                                    localUuid.isNotEmpty
-                                ? 'local:$localUuid'
-                                : (id != null ? 'server:$id' : null);
-                            final isActive = localUuid != null &&
-                                    localUuid.isNotEmpty
-                                ? localUuid == parkedLocalUuid
-                                : id != null && id == parkedId;
-                            return _OrderCard(
-                              compact: widget.embedded,
-                              order: order,
-                              heldStyle: _isHeldTab,
-                              active: isActive,
-                              money: (v) => _money(v, currency),
-                              onResume: _isHeldTab && !paymentDraft
-                                  ? () => _resume(order)
-                                  : null,
-                              resuming: rowKey != null &&
-                                  rowKey == _resumingKey,
-                              nextAdvance: (_isHeldTab || _isCancelledTab)
-                                  ? null
-                                  : _nextAdvance(order),
-                              advanceLabel: _advanceLabel,
-                              onAdvance: (status) =>
-                                  _setStatus(order, status),
-                              onCancel: () => _confirmCancel(order),
-                              onClearHeld: _isHeldTab && !paymentDraft
-                                  ? () => _confirmClearHeld(order)
-                                  : null,
-                              onCollect: () => _collectPayment(order),
-                              onPrint: () => _printOrder(order),
-                              onPrintKot: () => _printKot(order),
-                              onViewDetails: () => _openOrderDetails(order),
+              ? _ErrorPane(message: _error!, onRetry: _load)
+              : _orders.isEmpty
+              ? PosEmptyState(
+                  icon: _isHeldTab
+                      ? Icons.pause_circle_outline_rounded
+                      : Icons.receipt_long_outlined,
+                  title: _isHeldTab
+                      ? l10n.ordersNoHeldTitle
+                      : _onlineOnly
+                      ? 'No online orders'
+                      : () {
+                          final platforms =
+                              context
+                                  .read<PosController>()
+                                  .bootstrap
+                                  ?.marketplacePlatforms ??
+                              const <MarketplacePlatformInfo>[];
+                          final match = platforms
+                              .where((p) => p.provider == _sourceFilter)
+                              .firstOrNull;
+                          if (match != null) {
+                            return marketplacePlatformDisplayLabel(l10n, match);
+                          }
+                          return l10n.ordersNoOrdersTitle;
+                        }(),
+                  subtitle: _isHeldTab
+                      ? l10n.ordersNoHeldSubtitle
+                      : () {
+                          final platforms =
+                              context
+                                  .read<PosController>()
+                                  .bootstrap
+                                  ?.marketplacePlatforms ??
+                              const <MarketplacePlatformInfo>[];
+                          final match = platforms
+                              .where((p) => p.provider == _sourceFilter)
+                              .firstOrNull;
+                          if (match != null) {
+                            return marketplaceEmptySubtitle(
+                              l10n,
+                              match,
+                              _sourceFilter ?? _filter,
                             );
-                          },
-                        ),
+                          }
+                          return l10n.ordersNoOrdersSubtitle;
+                        }(),
+                  accent: _isHeldTab
+                      ? PosTheme.holdAmberDark
+                      : (context
+                                .read<PosController>()
+                                .bootstrap
+                                ?.marketplaceEnabled(_sourceFilter ?? '') ??
+                            false)
+                      ? marketplaceBrandColor(_sourceFilter!)
+                      : accent,
+                )
+              : ListView.separated(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                  itemCount: _orders.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final order = _orders[index];
+                    final paymentDraft = order['is_payment_draft'] == true;
+                    final id = (order['id'] is num)
+                        ? (order['id'] as num).toInt()
+                        : null;
+                    final localUuid = order['local_uuid'] as String?;
+                    final rowKey = localUuid != null && localUuid.isNotEmpty
+                        ? 'local:$localUuid'
+                        : (id != null ? 'server:$id' : null);
+                    final isActive = localUuid != null && localUuid.isNotEmpty
+                        ? localUuid == parkedLocalUuid
+                        : id != null && id == parkedId;
+                    return _OrderCard(
+                      compact: widget.embedded,
+                      order: order,
+                      heldStyle: _isHeldTab,
+                      active: isActive,
+                      money: (v) => _money(v, currency),
+                      onResume: _isHeldTab && !paymentDraft
+                          ? () => _resume(order)
+                          : null,
+                      resuming: rowKey != null && rowKey == _resumingKey,
+                      nextAdvance: (_isHeldTab || _isCancelledTab)
+                          ? null
+                          : _nextAdvance(order),
+                      advanceLabel: _advanceLabel,
+                      onAdvance: (status) => _setStatus(order, status),
+                      onCancel: () => _confirmCancel(order),
+                      onClearHeld: _isHeldTab && !paymentDraft
+                          ? () => _confirmClearHeld(order)
+                          : null,
+                      onCollect: () => _collectPayment(order),
+                      onPrint: () => _printOrder(order),
+                      onPrintKot: () => _printKot(order),
+                      onViewDetails: () => _openOrderDetails(order),
+                    );
+                  },
+                ),
         ),
         if (!_isHeldTab &&
             (_meta['last_page'] as num?)?.toInt() != null &&
@@ -1180,15 +1186,10 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObse
   @override
   Widget build(BuildContext context) {
     if (widget.embedded) {
-      return ColoredBox(
-        color: PosTheme.canvas,
-        child: _buildBody(context),
-      );
+      return ColoredBox(color: PosTheme.canvas, child: _buildBody(context));
     }
     if (widget.asSidePanel) {
-      return PosSidePanelShell(
-        child: _buildBody(context),
-      );
+      return PosSidePanelShell(child: _buildBody(context));
     }
 
     return DraggableScrollableSheet(
@@ -1233,81 +1234,97 @@ class _SheetHeader extends StatelessWidget {
     final headerAccent = isHeld
         ? PosTheme.holdAmberDark
         : isCancelled
-            ? const Color(0xFFBE123C)
-            : accent;
+        ? const Color(0xFFBE123C)
+        : accent;
     final soft = posAccentSoft(headerAccent);
     if (compact) return const SizedBox.shrink();
     return Padding(
-      padding: EdgeInsets.fromLTRB(compact ? 8 : 16, compact ? 0 : 14, 4, compact ? 0 : 8),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 8 : 16,
+        compact ? 0 : 14,
+        4,
+        compact ? 0 : 8,
+      ),
       child: Row(
         children: [
-          if (!compact) Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: soft.bg,
-              borderRadius: BorderRadius.circular(14),
+          if (!compact)
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: soft.bg,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                isHeld
+                    ? Icons.pause_circle_rounded
+                    : isCancelled
+                    ? Icons.cancel_outlined
+                    : deliveryOnly
+                    ? Icons.delivery_dining_rounded
+                    : Icons.receipt_long_rounded,
+                color: soft.fg,
+                size: 24,
+              ),
             ),
-            child: Icon(
-              isHeld
-                  ? Icons.pause_circle_rounded
-                  : isCancelled
-                      ? Icons.cancel_outlined
-                      : deliveryOnly
-                          ? Icons.delivery_dining_rounded
-                          : Icons.receipt_long_rounded,
-              color: soft.fg,
-              size: 24,
-            ),
-          ),
           if (!compact) const SizedBox(width: 12),
           if (!compact)
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  deliveryOnly
-                      ? context.posText('ordersDeliveryTitle', 'Delivery orders')
-                      : context.l10n.ordersTitle,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        fontSize: compact ? 16 : null,
-                        letterSpacing: -0.3,
-                      ),
-                ),
-                if (!compact) const SizedBox(height: 2),
-                if (!compact) Text(
-                  isHeld
-                      ? (heldCount > 0
-                          ? (heldCount == 1
-                              ? context.l10n.ordersHeldCountSubtitle(heldCount)
-                              : context.l10n
-                                  .ordersHeldCountSubtitlePlural(heldCount))
-                          : context.l10n.ordersHeldSubtitle)
-                      : isCancelled
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    deliveryOnly
+                        ? context.posText(
+                            'ordersDeliveryTitle',
+                            'Delivery orders',
+                          )
+                        : context.l10n.ordersTitle,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      fontSize: compact ? 16 : null,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  if (!compact) const SizedBox(height: 2),
+                  if (!compact)
+                    Text(
+                      isHeld
+                          ? (heldCount > 0
+                                ? (heldCount == 1
+                                      ? context.l10n.ordersHeldCountSubtitle(
+                                          heldCount,
+                                        )
+                                      : context.l10n
+                                            .ordersHeldCountSubtitlePlural(
+                                              heldCount,
+                                            ))
+                                : context.l10n.ordersHeldSubtitle)
+                          : isCancelled
                           ? context.posText(
                               'ordersCancelledSubtitle',
                               'Cancelled tickets',
                             )
                           : deliveryOnly
-                              ? context.posText(
-                                  'ordersDeliverySubtitle',
-                                  'Swiggy, Zomato and other delivery tickets',
-                                )
-                              : context.l10n.ordersBranchActivity,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: PosTheme.inkMuted,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+                          ? context.posText(
+                              'ordersDeliverySubtitle',
+                              'Swiggy, Zomato and other delivery tickets',
+                            )
+                          : context.l10n.ordersBranchActivity,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: PosTheme.inkMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
           if (compact) const Spacer(),
           IconButton(
-            visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+            visualDensity: compact
+                ? VisualDensity.compact
+                : VisualDensity.standard,
             tooltip: context.l10n.commonRefresh,
             onPressed: loading ? null : onRefresh,
             icon: loading
@@ -1318,11 +1335,12 @@ class _SheetHeader extends StatelessWidget {
                   )
                 : const Icon(Icons.refresh_rounded),
           ),
-          if (!compact) IconButton(
-            tooltip: context.l10n.commonClose,
-            onPressed: onClose,
-            icon: const Icon(Icons.close_rounded),
-          ),
+          if (!compact)
+            IconButton(
+              tooltip: context.l10n.commonClose,
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded),
+            ),
         ],
       ),
     );
@@ -1372,7 +1390,9 @@ class _SegmentedTabs extends StatelessWidget {
           for (final tab in tabs)
             Expanded(
               child: Material(
-                color: selected == tab.id ? PosTheme.surface : Colors.transparent,
+                color: selected == tab.id
+                    ? PosTheme.surface
+                    : Colors.transparent,
                 elevation: selected == tab.id ? 1.5 : 0,
                 shadowColor: Colors.black26,
                 borderRadius: BorderRadius.circular(11),
@@ -1509,10 +1529,7 @@ class _FilterPill extends StatelessWidget {
                 width: 6,
                 height: 6,
                 margin: const EdgeInsets.only(right: 6),
-                decoration: BoxDecoration(
-                  color: fg,
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
               ),
               Text(
                 label,
@@ -1543,17 +1560,11 @@ class _HeldHintBar extends StatelessWidget {
         decoration: BoxDecoration(
           color: soft.bg,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: soft.fg.withValues(alpha: 0.35),
-          ),
+          border: Border.all(color: soft.fg.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.info_outline_rounded,
-              size: 18,
-              color: soft.fg,
-            ),
+            Icon(Icons.info_outline_rounded, size: 18, color: soft.fg),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -1574,10 +1585,7 @@ class _HeldHintBar extends StatelessWidget {
 }
 
 class _OrdersSearchField extends StatelessWidget {
-  const _OrdersSearchField({
-    required this.controller,
-    required this.onSubmit,
-  });
+  const _OrdersSearchField({required this.controller, required this.onSubmit});
 
   final TextEditingController controller;
   final VoidCallback onSubmit;
@@ -1597,7 +1605,10 @@ class _OrdersSearchField extends StatelessWidget {
         ),
         filled: true,
         fillColor: PosTheme.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: PosTheme.border),
@@ -1639,9 +1650,9 @@ class _ErrorPane extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               l10n.ordersCouldNotLoad,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
             Text(
@@ -1712,7 +1723,9 @@ class _PaginationBar extends StatelessWidget {
           const Spacer(),
           IconButton(
             onPressed: loading || page <= 1 ? null : onPrev,
-            visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+            visualDensity: compact
+                ? VisualDensity.compact
+                : VisualDensity.standard,
             style: IconButton.styleFrom(
               minimumSize: Size(compact ? 28 : 40, compact ? 28 : 40),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1739,7 +1752,9 @@ class _PaginationBar extends StatelessWidget {
           ),
           IconButton(
             onPressed: loading || page >= lastPage ? null : onNext,
-            visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+            visualDensity: compact
+                ? VisualDensity.compact
+                : VisualDensity.standard,
             style: IconButton.styleFrom(
               minimumSize: Size(compact ? 28 : 40, compact ? 28 : 40),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1784,9 +1799,7 @@ class _OrderHeaderBand extends StatelessWidget {
               ? (emphasized ? 0.28 : 0.18)
               : (emphasized ? 0.16 : 0.09),
         ),
-        border: Border(
-          bottom: BorderSide(color: color.withValues(alpha: 0.2)),
-        ),
+        border: Border(bottom: BorderSide(color: color.withValues(alpha: 0.2))),
       ),
       child: Row(
         children: [
@@ -1828,9 +1841,9 @@ class _OrderHeaderBand extends StatelessWidget {
                 color: posAccentSoft(PosTheme.holdAmberDark).bg,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: posAccentSoft(PosTheme.holdAmberDark)
-                      .fg
-                      .withValues(alpha: 0.4),
+                  color: posAccentSoft(
+                    PosTheme.holdAmberDark,
+                  ).fg.withValues(alpha: 0.4),
                 ),
               ),
               child: Text(
@@ -1955,60 +1968,63 @@ class _OrderCard extends StatelessWidget {
     }
     final customerName = order['customer_name']?.toString().trim();
     final notes = order['notes']?.toString().trim();
-    final isCancelled =
-        '${order['status'] ?? ''}'.toLowerCase() == 'cancelled';
-    final cancelReasonCode =
-        (order['cancel_reason'] as String?)?.trim() ?? '';
+    final isCancelled = '${order['status'] ?? ''}'.toLowerCase() == 'cancelled';
+    final cancelReasonCode = (order['cancel_reason'] as String?)?.trim() ?? '';
     final cancelReasonLabelRaw =
         (order['cancel_reason_label'] as String?)?.trim() ?? '';
     final cancelNote = (order['cancel_note'] as String?)?.trim() ?? '';
 
-    final canCancelLive = !heldStyle &&
+    final canCancelLive =
+        !heldStyle &&
         !isCancelled &&
         ((order['next_statuses'] as List?)
                 ?.map((e) => '$e')
                 .contains('cancelled') ??
             false);
-    final isLocalHeld = heldStyle &&
+    final isLocalHeld =
+        heldStyle &&
         (order['is_local'] == true ||
             ((order['local_uuid'] as String?)?.isNotEmpty ?? false));
-    final canClearHeld = heldStyle &&
+    final canClearHeld =
+        heldStyle &&
         onClearHeld != null &&
         (isLocalHeld ||
             ((order['next_statuses'] as List?)
                     ?.map((e) => '$e')
                     .contains('cancelled') ??
                 false));
-    final canCollect = !heldStyle &&
-        !isCancelled &&
-        order['can_collect_payment'] == true;
-    final hasOrderNumber =
-        '${order['order_number'] ?? ''}'.trim().isNotEmpty;
+    final canCollect =
+        !heldStyle && !isCancelled && order['can_collect_payment'] == true;
+    final hasOrderNumber = '${order['order_number'] ?? ''}'.trim().isNotEmpty;
     final canPrint = hasOrderNumber && !isCancelled;
     final canPrintKot = hasOrderNumber && !heldStyle && !isCancelled;
     final due = order['amount_due'] ?? order['total'];
     final status = '${order['status'] ?? ''}'.toLowerCase();
-    final allowedNext = (order['next_statuses'] as List?)
-            ?.map((e) => '$e')
-            .toSet() ??
+    final allowedNext =
+        (order['next_statuses'] as List?)?.map((e) => '$e').toSet() ??
         <String>{};
-    final canMarkReady = !heldStyle &&
+    final canMarkReady =
+        !heldStyle &&
         allowedNext.contains('ready') &&
         nextAdvance != 'ready' &&
         status != 'ready' &&
         status != 'delivered' &&
         status != 'cancelled';
-    final canMarkDone = !heldStyle &&
+    final canMarkDone =
+        !heldStyle &&
         allowedNext.contains('delivered') &&
         nextAdvance != 'delivered' &&
         status != 'delivered' &&
         status != 'cancelled';
-    final markReadyLabel =
-        context.posText('kitchenActionMarkReady', 'Mark as Ready');
+    final markReadyLabel = context.posText(
+      'kitchenActionMarkReady',
+      'Mark as Ready',
+    );
     final markDoneLabel = (orderType == 'dine_in' || orderType == 'delivery')
         ? context.posText('kitchenActionDone', 'Delivered')
         : context.posText('kitchenActionMarkDone', 'Done');
-    final hasActions = onResume != null ||
+    final hasActions =
+        onResume != null ||
         nextAdvance != null ||
         canCancelLive ||
         canClearHeld ||
@@ -2036,46 +2052,34 @@ class _OrderCard extends StatelessWidget {
       held: heldStyle,
       highlight: highlight,
     );
-    final statusLabel = _orderStatusTitle(
-      context,
-      statusRaw,
-      held: heldStyle,
-    );
+    final statusLabel = _orderStatusTitle(context, statusRaw, held: heldStyle);
     final hasTable = tableName?.isNotEmpty == true;
     final hasToken = token?.isNotEmpty == true;
     final statusColor = heldStyle
         ? PosTheme.holdAmberDark
         : _orderStatusColor(statusRaw);
-    final statusIcon = _orderStatusIcon(
-      context,
-      statusRaw,
-      held: heldStyle,
-    );
+    final statusIcon = _orderStatusIcon(context, statusRaw, held: heldStyle);
     final sourceRaw = order['source']?.toString();
-    final paymentStatusRaw =
-        '${order['payment_status'] ?? ''}'.trim().toLowerCase();
-    final paymentDraft = order['is_payment_draft'] == true ||
+    final paymentStatusRaw = '${order['payment_status'] ?? ''}'
+        .trim()
+        .toLowerCase();
+    final paymentDraft =
+        order['is_payment_draft'] == true ||
         '${order['status'] ?? ''}'.toLowerCase() == 'draft';
     final paymentLabel = heldStyle && !paymentDraft
         ? null
         : billRequested
-            ? (isSplitBill
-                ? l10n.registerSplitBillBadge
-                : l10n.waiterBillRequestedBadge)
-            : switch (paymentStatusRaw) {
-                'paid' => l10n.commonPaid,
-                'pending' when paymentDraft => 'Payment pending',
-                'failed' || 'failure' => 'Payment failed',
-                'partial' => context.posText(
-                    'payStatusPartial',
-                    'Partially paid',
-                  ),
-                'refunded' => context.posText(
-                    'payStatusRefunded',
-                    'Refunded',
-                  ),
-                _ => context.posText('ordersUnpaid', 'Unpaid'),
-              };
+        ? (isSplitBill
+              ? l10n.registerSplitBillBadge
+              : l10n.waiterBillRequestedBadge)
+        : switch (paymentStatusRaw) {
+            'paid' => l10n.commonPaid,
+            'pending' when paymentDraft => 'Payment pending',
+            'failed' || 'failure' => 'Payment failed',
+            'partial' => context.posText('payStatusPartial', 'Partially paid'),
+            'refunded' => context.posText('payStatusRefunded', 'Refunded'),
+            _ => context.posText('ordersUnpaid', 'Unpaid'),
+          };
     final paymentMethodLabel = heldStyle && !paymentDraft
         ? ''
         : formatPaymentMethod(order['payment_method']?.toString());
@@ -2115,7 +2119,12 @@ class _OrderCard extends StatelessWidget {
               child: InkWell(
                 onTap: onViewDetails,
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(12, compact ? 6 : 10, 12, hasActions ? 0 : 12),
+                  padding: EdgeInsets.fromLTRB(
+                    12,
+                    compact ? 6 : 10,
+                    12,
+                    hasActions ? 0 : 12,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -2170,8 +2179,8 @@ class _OrderCard extends StatelessWidget {
                                         message: 'Copy order number',
                                         child: InkWell(
                                           onTap: () async {
-                                            final raw = orderNumber
-                                                    .startsWith('#')
+                                            final raw =
+                                                orderNumber.startsWith('#')
                                                 ? orderNumber.substring(1)
                                                 : orderNumber;
                                             await Clipboard.setData(
@@ -2183,8 +2192,9 @@ class _OrderCard extends StatelessWidget {
                                               'Copied $raw',
                                             );
                                           },
-                                          borderRadius:
-                                              BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                           child: Padding(
                                             padding: const EdgeInsets.all(4),
                                             child: Icon(
@@ -2224,21 +2234,23 @@ class _OrderCard extends StatelessWidget {
                                           text: paymentLabel,
                                           icon: billRequested
                                               ? (isSplitBill
-                                                  ? Icons.call_split_rounded
-                                                  : Icons.request_quote_outlined)
+                                                    ? Icons.call_split_rounded
+                                                    : Icons
+                                                          .request_quote_outlined)
                                               : (paid
-                                                  ? Icons.check_rounded
-                                                  : Icons.payments_outlined),
+                                                    ? Icons.check_rounded
+                                                    : Icons.payments_outlined),
                                           color: billRequested
                                               ? const Color(0xFFD97706)
                                               : (paid
-                                                  ? Colors.green.shade700
-                                                  : PosTheme.holdAmberDark),
+                                                    ? Colors.green.shade700
+                                                    : PosTheme.holdAmberDark),
                                         ),
                                       if (paymentMethodLabel.isNotEmpty)
                                         _Chip(
                                           text: paymentMethodLabel,
-                                          icon: Icons.account_balance_wallet_outlined,
+                                          icon: Icons
+                                              .account_balance_wallet_outlined,
                                           color: paid
                                               ? Colors.green.shade700
                                               : const Color(0xFF334155),
@@ -2330,95 +2342,95 @@ class _OrderCard extends StatelessWidget {
                           ),
                         ),
                       ],
-                if (notes != null && notes.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: notesTone.bg,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: notesTone.border),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.sticky_note_2_outlined,
-                          size: 15,
-                          color: notesTone.fg,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            notes,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: notesTone.fg,
-                              fontWeight: FontWeight.w600,
-                              height: 1.35,
-                            ),
+                      if (notes != null && notes.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: notesTone.bg,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: notesTone.border),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.sticky_note_2_outlined,
+                                size: 15,
+                                color: notesTone.fg,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  notes,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: notesTone.fg,
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                ],
-                if (isCancelled &&
-                    (cancelReasonCode.isNotEmpty ||
-                        cancelReasonLabelRaw.isNotEmpty ||
-                        cancelNote.isNotEmpty)) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                    decoration: BoxDecoration(
-                      color: cancelTone.bg,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: cancelTone.border),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (cancelReasonCode.isNotEmpty ||
-                            cancelReasonLabelRaw.isNotEmpty)
-                          Text(
-                            context.posText(
-                              'cancelReasonBanner',
-                              'Reason: {reason}',
-                              {
-                                'reason': cancelReasonLabelRaw.isNotEmpty
-                                    ? cancelReasonLabelRaw
-                                    : orderCancelReasonLabel(
-                                        context,
-                                        cancelReasonCode,
-                                      ),
-                              },
-                            ),
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: cancelTone.fg,
-                            ),
+                      if (isCancelled &&
+                          (cancelReasonCode.isNotEmpty ||
+                              cancelReasonLabelRaw.isNotEmpty ||
+                              cancelNote.isNotEmpty)) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                          decoration: BoxDecoration(
+                            color: cancelTone.bg,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: cancelTone.border),
                           ),
-                        if (cancelNote.isNotEmpty) ...[
-                          if (cancelReasonCode.isNotEmpty ||
-                              cancelReasonLabelRaw.isNotEmpty)
-                            const SizedBox(height: 3),
-                          Text(
-                            cancelNote,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: PosTheme.inkMuted,
-                              height: 1.3,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (cancelReasonCode.isNotEmpty ||
+                                  cancelReasonLabelRaw.isNotEmpty)
+                                Text(
+                                  context.posText(
+                                    'cancelReasonBanner',
+                                    'Reason: {reason}',
+                                    {
+                                      'reason': cancelReasonLabelRaw.isNotEmpty
+                                          ? cancelReasonLabelRaw
+                                          : orderCancelReasonLabel(
+                                              context,
+                                              cancelReasonCode,
+                                            ),
+                                    },
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: cancelTone.fg,
+                                  ),
+                                ),
+                              if (cancelNote.isNotEmpty) ...[
+                                if (cancelReasonCode.isNotEmpty ||
+                                    cancelReasonLabelRaw.isNotEmpty)
+                                  const SizedBox(height: 3),
+                                Text(
+                                  cancelNote,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: PosTheme.inkMuted,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
+                        ),
                       ],
-                    ),
-                  ),
-                ],
                     ],
                   ),
                 ),
@@ -2428,50 +2440,51 @@ class _OrderCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(10),
                 child: _OrderActionBar(
-              accent: accent,
-              onResume: onResume,
-              resuming: resuming,
-              active: active,
-              canClearHeld: canClearHeld,
-              onClearHeld: onClearHeld,
-              canCollect: canCollect,
-              onCollect: onCollect,
-              collectLabel: l10n.ordersCollect(money(due)),
-              nextAdvance: isCancelled ? null : nextAdvance,
-              advanceLabel:
-                  nextAdvance != null ? advanceLabel(nextAdvance!) : null,
-              onAdvance: nextAdvance != null && !isCancelled
-                  ? () => onAdvance(nextAdvance!)
-                  : null,
-              canPrint: canPrint,
-              printAsPrimary: isCancelled && canPrint,
-              onPrint: onPrint,
-              canPrintKot: canPrintKot,
-              onPrintKot: onPrintKot,
-              canCancelLive: canCancelLive,
-              onCancel: onCancel,
-              onViewDetails: onViewDetails,
-              resumeLabel: active
-                  ? l10n.ordersAlreadyOnCart
-                  : resuming
+                  accent: accent,
+                  onResume: onResume,
+                  resuming: resuming,
+                  active: active,
+                  canClearHeld: canClearHeld,
+                  onClearHeld: onClearHeld,
+                  canCollect: canCollect,
+                  onCollect: onCollect,
+                  collectLabel: l10n.ordersCollect(money(due)),
+                  nextAdvance: isCancelled ? null : nextAdvance,
+                  advanceLabel: nextAdvance != null
+                      ? advanceLabel(nextAdvance!)
+                      : null,
+                  onAdvance: nextAdvance != null && !isCancelled
+                      ? () => onAdvance(nextAdvance!)
+                      : null,
+                  canPrint: canPrint,
+                  printAsPrimary: isCancelled && canPrint,
+                  onPrint: onPrint,
+                  canPrintKot: canPrintKot,
+                  onPrintKot: onPrintKot,
+                  canCancelLive: canCancelLive,
+                  onCancel: onCancel,
+                  onViewDetails: onViewDetails,
+                  resumeLabel: active
+                      ? l10n.ordersAlreadyOnCart
+                      : resuming
                       ? l10n.commonLoading
                       : l10n.ordersResumeTicket,
-              clearHeldLabel:
-                  context.posText('ordersClearHeld', 'Clear held'),
-              printReceiptLabel: l10n.ordersPrintReceipt,
-              printKotLabel: l10n.ordersPrintKot,
-              cancelLabel: l10n.commonCancel,
-              viewDetailsLabel: context.posText(
-                'ordersViewDetails',
-                'View order details',
-              ),
-              markReadyLabel: canMarkReady ? markReadyLabel : null,
-              onMarkReady:
-                  canMarkReady ? () => onAdvance('ready') : null,
-              markDoneLabel: canMarkDone ? markDoneLabel : null,
-              onMarkDone:
-                  canMarkDone ? () => onAdvance('delivered') : null,
-            ),
+                  clearHeldLabel: context.posText(
+                    'ordersClearHeld',
+                    'Clear held',
+                  ),
+                  printReceiptLabel: l10n.ordersPrintReceipt,
+                  printKotLabel: l10n.ordersPrintKot,
+                  cancelLabel: l10n.commonCancel,
+                  viewDetailsLabel: context.posText(
+                    'ordersViewDetails',
+                    'View order details',
+                  ),
+                  markReadyLabel: canMarkReady ? markReadyLabel : null,
+                  onMarkReady: canMarkReady ? () => onAdvance('ready') : null,
+                  markDoneLabel: canMarkDone ? markDoneLabel : null,
+                  onMarkDone: canMarkDone ? () => onAdvance('delivered') : null,
+                ),
               ),
           ],
         ),
@@ -2621,7 +2634,8 @@ class _OrderActionBar extends StatelessWidget {
       );
     }
 
-    final showAdvanceBesideCollect = canCollect &&
+    final showAdvanceBesideCollect =
+        canCollect &&
         nextAdvance != null &&
         onAdvance != null &&
         onResume == null;
@@ -2819,8 +2833,9 @@ class _OrderPrimaryMark extends StatelessWidget {
     final tokenValue = (token != null && token!.trim().isNotEmpty)
         ? token!.trim()
         : fallback;
-    final compactToken =
-        tokenValue.length > 4 ? tokenValue.substring(tokenValue.length - 4) : tokenValue;
+    final compactToken = tokenValue.length > 4
+        ? tokenValue.substring(tokenValue.length - 4)
+        : tokenValue;
 
     return Container(
       width: size,
@@ -2871,9 +2886,7 @@ ButtonStyle _orderPrimaryButtonStyle({required Color backgroundColor}) {
     disabledForegroundColor: Colors.white,
     minimumSize: const Size(0, 40),
     padding: const EdgeInsets.symmetric(horizontal: 12),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(10),
-    ),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
   );
 }
 
@@ -2888,11 +2901,7 @@ Widget _orderActionLabel(String text) {
 }
 
 class _ItemRow extends StatelessWidget {
-  const _ItemRow({
-    required this.item,
-    required this.money,
-    this.accentColor,
-  });
+  const _ItemRow({required this.item, required this.money, this.accentColor});
 
   final Map item;
   final String Function(dynamic) money;
@@ -2968,11 +2977,7 @@ class _ItemRow extends StatelessWidget {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.text,
-    required this.color,
-    this.icon,
-  });
+  const _Chip({required this.text, required this.color, this.icon});
 
   final String text;
   final Color color;
@@ -3094,18 +3099,20 @@ Color _orderCardBackground(
   final lane = _orderLaneKey(status);
   if (lane.isNotEmpty) return kitchenLaneCardBackground(lane);
   return switch (status.toLowerCase()) {
-    'delivered' => Color.lerp(
+    'delivered' =>
+      Color.lerp(
+            PosTheme.surface,
+            Colors.teal,
+            PosTheme.isDark ? 0.22 : 0.08,
+          ) ??
           PosTheme.surface,
-          Colors.teal,
-          PosTheme.isDark ? 0.22 : 0.08,
-        ) ??
-        PosTheme.surface,
-    'cancelled' => Color.lerp(
+    'cancelled' =>
+      Color.lerp(
+            PosTheme.surface,
+            const Color(0xFFBE123C),
+            PosTheme.isDark ? 0.22 : 0.08,
+          ) ??
           PosTheme.surface,
-          const Color(0xFFBE123C),
-          PosTheme.isDark ? 0.22 : 0.08,
-        ) ??
-        PosTheme.surface,
     _ => PosTheme.surface,
   };
 }
@@ -3121,12 +3128,14 @@ Color _orderCardBorderColor(
   final lane = _orderLaneKey(status);
   if (lane.isNotEmpty) return kitchenLaneCardBorder(lane, urgent: false);
   return switch (status.toLowerCase()) {
-    'delivered' => PosTheme.isDark
-        ? Colors.teal.shade400.withValues(alpha: 0.5)
-        : Colors.teal.shade200,
-    'cancelled' => PosTheme.isDark
-        ? const Color(0xFFFDA4AF).withValues(alpha: 0.5)
-        : const Color(0xFFFECACA),
+    'delivered' =>
+      PosTheme.isDark
+          ? Colors.teal.shade400.withValues(alpha: 0.5)
+          : Colors.teal.shade200,
+    'cancelled' =>
+      PosTheme.isDark
+          ? const Color(0xFFFDA4AF).withValues(alpha: 0.5)
+          : const Color(0xFFFECACA),
     _ => PosTheme.border,
   };
 }

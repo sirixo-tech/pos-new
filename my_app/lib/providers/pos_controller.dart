@@ -67,13 +67,13 @@ class PosController extends ChangeNotifier {
     OrderSyncService? syncService,
     PrintJobCoordinator? printJobs,
     Future<void> Function(PosBootstrap? bootstrap)? onBootstrapChanged,
-  })  : _storage = storage ?? PosStorage(),
-        _api = api ?? PosApi(),
-        _displaySync = displaySync ?? PosDisplaySync(),
-        _connectivity = connectivity,
-        _syncService = syncService,
-        _printJobs = printJobs,
-        _onBootstrapChanged = onBootstrapChanged;
+  }) : _storage = storage ?? PosStorage(),
+       _api = api ?? PosApi(),
+       _displaySync = displaySync ?? PosDisplaySync(),
+       _connectivity = connectivity,
+       _syncService = syncService,
+       _printJobs = printJobs,
+       _onBootstrapChanged = onBootstrapChanged;
 
   final PosStorage _storage;
   final PosApi _api;
@@ -99,6 +99,7 @@ class PosController extends ChangeNotifier {
     _printerSetupShownForSession = true;
     return true;
   }
+
   StaffProfile? profile;
   PosBootstrap? bootstrap;
   PosAppUpdate appUpdate = PosAppUpdate.none();
@@ -148,6 +149,7 @@ class PosController extends ChangeNotifier {
   final List<WaiterAlert> _newOrderBannerQueue = [];
   final Set<int> _selfPlacedOrderIds = <int>{};
   VoidCallback? _connectivityListener;
+
   /// Online-order alerts. Two seconds used about 30 requests a minute and
   /// shared the server limit with checkout, receipt, and KOT fetches.
   static const Duration _newOrderPollInterval = Duration(seconds: 8);
@@ -167,15 +169,13 @@ class PosController extends ChangeNotifier {
   /// Newest bill-request / new-order alert for register toast (consumed by PosShell).
   WaiterAlert? registerBannerAlert;
 
-  int get waiterUnreadAlertCount =>
-      waiterAlerts.where((a) => !a.isRead).length;
+  int get waiterUnreadAlertCount => waiterAlerts.where((a) => !a.isRead).length;
 
   int get registerBillUnreadCount => waiterAlerts
       .where(
         (a) =>
             !a.isRead &&
-            (a.type == WaiterAlertType.billRequested ||
-                a.type.isNewOrderCue),
+            (a.type == WaiterAlertType.billRequested || a.type.isNewOrderCue),
       )
       .length;
 
@@ -224,6 +224,17 @@ class PosController extends ChangeNotifier {
   int heldOrderCount = 0;
   Future<void>? _heldCountInFlight;
   bool _heldCountDirty = false;
+  PosSession? _heldRowsSession;
+  List<Map<String, dynamic>>? _heldRows;
+
+  List<Map<String, dynamic>>? get cachedHeldOrders =>
+      identical(_heldRowsSession, session) ? _heldRows : null;
+
+  void _cacheHeldRows(PosSession current, List<Map<String, dynamic>> rows) {
+    if (!identical(current, session)) return;
+    _heldRowsSession = current;
+    _heldRows = List.unmodifiable(rows);
+  }
 
   /// Today's branch orders count (header Orders badge).
   int todayOrderCount = 0;
@@ -237,8 +248,7 @@ class PosController extends ChangeNotifier {
     return marketplaceOpenOrderCounts[key] ?? 0;
   }
 
-  bool get hasParkedTicket =>
-      parkedOrderId != null || parkedLocalUuid != null;
+  bool get hasParkedTicket => parkedOrderId != null || parkedLocalUuid != null;
 
   void _forgetParkedPayment() {
     parkedAmountPaid = 0;
@@ -248,8 +258,7 @@ class PosController extends ChangeNotifier {
   void _rememberParkedPayment(Map<String, dynamic> summary) {
     parkedAmountPaid = parseJsonDouble(summary['amount_paid']);
     final status = summary['payment_status']?.toString().trim();
-    parkedPaymentStatus =
-        (status != null && status.isNotEmpty) ? status : null;
+    parkedPaymentStatus = (status != null && status.isNotEmpty) ? status : null;
   }
 
   /// Bumps whenever cart lines change — use with `context.select` to avoid
@@ -358,8 +367,9 @@ class PosController extends ChangeNotifier {
       return _flatItemsCache!;
     }
     _flatItemsBootstrap = bootstrap;
-    _flatItemsCache =
-        categories.expand((category) => category.items).toList(growable: false);
+    _flatItemsCache = categories
+        .expand((category) => category.items)
+        .toList(growable: false);
     _itemsToDisplayCache = null;
     _itemsToDisplayKey = null;
     _popularItemsCache = null;
@@ -369,13 +379,14 @@ class PosController extends ChangeNotifier {
   MenuItem? menuItemForBarcode(String code) => matchBarcode(code)?.item;
 
   MenuBarcodeMatch? matchBarcode(String code) {
-    final needle = code
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[\u0000-\u001F]'), '');
+    final needle = code.trim().toLowerCase().replaceAll(
+      RegExp(r'[\u0000-\u001F]'),
+      '',
+    );
     if (needle.isEmpty) return null;
     for (final item in flatItems) {
-      if (_sameBarcode(item.barcode, needle) || _sameBarcode(item.sku, needle)) {
+      if (_sameBarcode(item.barcode, needle) ||
+          _sameBarcode(item.sku, needle)) {
         return MenuBarcodeMatch(item: item);
       }
       for (final variant in item.variants) {
@@ -621,8 +632,7 @@ class PosController extends ChangeNotifier {
     return current.toApiJson();
   }
 
-  int? get _tableIdForPayload =>
-      orderType == 'dine_in' ? tableId : null;
+  int? get _tableIdForPayload => orderType == 'dine_in' ? tableId : null;
 
   String get currency => bootstrap?.restaurant.defaultCurrency ?? 'USD';
 
@@ -688,15 +698,13 @@ class PosController extends ChangeNotifier {
     if (current == null) {
       throw StateError('Not signed in.');
     }
-    final key = '${current.serverUrl}|${current.restaurantId}|${current.branchId}|${current.token}';
+    final key =
+        '${current.serverUrl}|${current.restaurantId}|${current.branchId}|${current.token}';
     final cached = _kitchenTokenSessionKey == key ? _kitchenApiToken : null;
     if (cached != null && cached.isNotEmpty) {
       return cached;
     }
-    final token = await _api.issueScopedToken(
-      current,
-      ability: 'kitchen',
-    );
+    final token = await _api.issueScopedToken(current, ability: 'kitchen');
     if (identical(session, current)) {
       _kitchenApiToken = token;
       _kitchenTokenSessionKey = key;
@@ -887,7 +895,8 @@ class PosController extends ChangeNotifier {
         // Stale pairing from another server/env sends a restaurant_id the
         // staffer cannot access (403). Retry unbound, then drop the binding.
         final boundRestaurantId = binding?.restaurantId;
-        final shouldRetryUnbound = boundRestaurantId != null &&
+        final shouldRetryUnbound =
+            boundRestaurantId != null &&
             (e.statusCode == 403 || e.statusCode == 422);
         if (!shouldRetryUnbound) rethrow;
 
@@ -961,7 +970,10 @@ class PosController extends ChangeNotifier {
     await _afterAuth(profile!, fromResume: true);
   }
 
-  Future<void> _afterAuth(StaffProfile staffProfile, {bool fromResume = false}) async {
+  Future<void> _afterAuth(
+    StaffProfile staffProfile, {
+    bool fromResume = false,
+  }) async {
     _syncService?.configure(session);
     if (staffProfile.needsContextPicker) {
       final preferred = await _preferredLocation(
@@ -998,7 +1010,10 @@ class PosController extends ChangeNotifier {
 
     final binding = deviceBinding;
     if (binding != null &&
-        staffProfile.canAccessLocation(binding.restaurantId, binding.branchId)) {
+        staffProfile.canAccessLocation(
+          binding.restaurantId,
+          binding.branchId,
+        )) {
       return PosLocationPreference(
         restaurantId: binding.restaurantId,
         branchId: binding.branchId,
@@ -1060,7 +1075,10 @@ class PosController extends ChangeNotifier {
       var activeProfile = profile;
 
       if (activeProfile?.currentRestaurantId != restaurantId) {
-        activeProfile = await _api.switchRestaurant(activeSession, restaurantId);
+        activeProfile = await _api.switchRestaurant(
+          activeSession,
+          restaurantId,
+        );
         activeSession = activeSession.copyWith(
           restaurantId: activeProfile.currentRestaurantId ?? restaurantId,
           branchId: activeProfile.currentBranchId ?? activeSession.branchId,
@@ -1076,7 +1094,8 @@ class PosController extends ChangeNotifier {
       if (activeProfile?.currentBranchId != branchId) {
         activeProfile = await _api.switchBranch(activeSession, branchId);
         activeSession = activeSession.copyWith(
-          restaurantId: activeProfile.currentRestaurantId ?? activeSession.restaurantId,
+          restaurantId:
+              activeProfile.currentRestaurantId ?? activeSession.restaurantId,
           branchId: activeProfile.currentBranchId ?? branchId,
           userId: activeProfile.user.id,
           userName: activeProfile.user.name,
@@ -1316,11 +1335,11 @@ class PosController extends ChangeNotifier {
       return PosAppPhase.ready;
     }
 
-    final storedCode =
-        await PosTerminalStorage.readTerminalCode(current.branchId);
+    final storedCode = await PosTerminalStorage.readTerminalCode(
+      current.branchId,
+    );
     final binding = deviceBinding;
-    final bindingCode = binding != null &&
-            binding.branchId == current.branchId
+    final bindingCode = binding != null && binding.branchId == current.branchId
         ? binding.terminalCode
         : null;
 
@@ -1637,9 +1656,7 @@ class PosController extends ChangeNotifier {
     }
 
     try {
-      await _api
-          .verifyPosPin(current, pin)
-          .timeout(const Duration(seconds: 5));
+      await _api.verifyPosPin(current, pin).timeout(const Duration(seconds: 5));
       await _finishOnlinePinUnlock(current, pin: pin, userId: userId);
       return true;
     } on TimeoutException {
@@ -1751,11 +1768,7 @@ class PosController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _api.setPosPin(
-        current,
-        pin: pin,
-        currentPassword: currentPassword,
-      );
+      await _api.setPosPin(current, pin: pin, currentPassword: currentPassword);
       profile = await _api.fetchMe(current);
       final userId = profile?.user.id ?? current.userId;
       session = current.copyWith(
@@ -1785,23 +1798,23 @@ class PosController extends ChangeNotifier {
     final store = PosTranslationStore.instance;
     final fallback = e.canManageBilling
         ? (e.trialExpired
-            ? store.text(
-                'billingUpgradeBody',
-                'Choose a plan to restore POS access for this restaurant.',
-              )
-            : store.text(
-                'billingRenewBody',
-                'Your subscription is inactive. Choose a plan to restore POS access.',
-              ))
+              ? store.text(
+                  'billingUpgradeBody',
+                  'Choose a plan to restore POS access for this restaurant.',
+                )
+              : store.text(
+                  'billingRenewBody',
+                  'Your subscription is inactive. Choose a plan to restore POS access.',
+                ))
         : (e.trialExpired
-            ? store.text(
-                'subscriptionTrialEndedBody',
-                'This restaurant\'s free trial has ended. Ask an owner to choose a plan to continue.',
-              )
-            : store.text(
-                'subscriptionEndedBody',
-                'This restaurant\'s subscription is inactive. Ask an owner to renew billing to keep using POS.',
-              ));
+              ? store.text(
+                  'subscriptionTrialEndedBody',
+                  'This restaurant\'s free trial has ended. Ask an owner to choose a plan to continue.',
+                )
+              : store.text(
+                  'subscriptionEndedBody',
+                  'This restaurant\'s subscription is inactive. Ask an owner to renew billing to keep using POS.',
+                ));
     final apiMessage = e.message.trim();
     errorMessage = apiMessage.isNotEmpty && apiMessage.length <= 200
         ? apiMessage
@@ -1897,7 +1910,8 @@ class PosController extends ChangeNotifier {
       _dismissedOptionalLatest = null;
       _applyAppUpdate(status.appUpdate, manual: true);
 
-      final needsBootstrap = (status.bootstrapRevision ?? '').isNotEmpty &&
+      final needsBootstrap =
+          (status.bootstrapRevision ?? '').isNotEmpty &&
           status.bootstrapRevision != _bootstrapRevision;
       if (needsBootstrap) {
         await _loadBootstrap();
@@ -1967,9 +1981,11 @@ class PosController extends ChangeNotifier {
       final updateSignature =
           '${appUpdate.latestVersion}|${appUpdate.isRequired}|${appUpdate.isOptional}|${appUpdate.hasDownload}';
 
-      final needsBootstrap = (status.bootstrapRevision ?? '').isNotEmpty &&
+      final needsBootstrap =
+          (status.bootstrapRevision ?? '').isNotEmpty &&
           status.bootstrapRevision != _bootstrapRevision;
-      final needsMenu = (status.menuRevision ?? '').isNotEmpty &&
+      final needsMenu =
+          (status.menuRevision ?? '').isNotEmpty &&
           status.menuRevision != _menuRevision;
 
       if (!needsBootstrap && !needsMenu) {
@@ -1993,11 +2009,7 @@ class PosController extends ChangeNotifier {
     final current = session;
     if (current == null) return;
 
-    await _api.openShift(
-      current,
-      openingFloat: openingFloat,
-      notes: notes,
-    );
+    await _api.openShift(current, openingFloat: openingFloat, notes: notes);
     await _loadBootstrap();
     notifyListeners();
   }
@@ -2016,11 +2028,7 @@ class PosController extends ChangeNotifier {
     final current = session;
     if (current == null) return;
 
-    await _api.closeShift(
-      current,
-      closingCash: closingCash,
-      notes: notes,
-    );
+    await _api.closeShift(current, closingCash: closingCash, notes: notes);
     await _loadBootstrap();
     notifyListeners();
   }
@@ -2129,10 +2137,7 @@ class PosController extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _modifiersMatch(
-    List<ModifierOption> a,
-    List<ModifierOption> b,
-  ) {
+  bool _modifiersMatch(List<ModifierOption> a, List<ModifierOption> b) {
     if (a.length != b.length) return false;
     final aIds = a.map((m) => m.id).toSet();
     final bIds = b.map((m) => m.id).toSet();
@@ -2239,10 +2244,7 @@ class PosController extends ChangeNotifier {
   bool get hasWaiterSentItems => waiterSentCart.isNotEmpty;
 
   /// Lines already sent + newly added (for park/sync payload).
-  List<CartLine> get _waiterParkPayloadCart => [
-        ...waiterSentCart,
-        ...cart,
-      ];
+  List<CartLine> get _waiterParkPayloadCart => [...waiterSentCart, ...cart];
 
   Future<List<Map<String, dynamic>>> fetchHeldOrders() async {
     final current = session;
@@ -2252,16 +2254,18 @@ class PosController extends ChangeNotifier {
     final localRows = local.map((e) => e.toListRow()).toList();
 
     if (!isOnline) {
+      _cacheHeldRows(current, localRows);
       return localRows;
     }
 
     var server = const <Map<String, dynamic>>[];
+    final draftsFuture = _paymentDraftRows(current);
     try {
       server = await _api.fetchOpenOrders(current);
     } catch (_) {
       server = const [];
     }
-    final drafts = await _paymentDraftRows(current);
+    final drafts = await draftsFuture;
     final seen = server
         .map((order) => parseJsonIntOrNull(order['id']))
         .whereType<int>()
@@ -2270,10 +2274,22 @@ class PosController extends ChangeNotifier {
       final id = parseJsonIntOrNull(order['id']);
       return id != null && seen.add(id);
     });
-    return [...localRows, ...server, ...extra];
+    final rows = [...localRows, ...server, ...extra];
+    _cacheHeldRows(current, rows);
+    return rows;
   }
 
-  Future<List<Map<String, dynamic>>> _paymentDraftRows(PosSession current) async {
+  Future<List<Map<String, dynamic>>> fetchLocalHeldOrders() async {
+    final current = session;
+    if (current == null) return const [];
+    final local = await LocalHeldOrderStore.listForBranch(current.branchId);
+    if (!identical(current, session)) return const [];
+    return local.map((order) => order.toListRow()).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _paymentDraftRows(
+    PosSession current,
+  ) async {
     try {
       final page = await _api.fetchAdminOrders(
         current,
@@ -2333,27 +2349,39 @@ class PosController extends ChangeNotifier {
       return;
     }
 
-    final localCount =
-        await LocalHeldOrderStore.countForBranch(current.branchId);
+    final localRows = (await LocalHeldOrderStore.listForBranch(
+      current.branchId,
+    )).map((order) => order.toListRow()).toList();
+    final localCount = localRows.length;
     var serverCount = 0;
     var todayCount = todayOrderCount;
     var partnerCounts = Map<String, int>.from(marketplaceOpenOrderCounts);
     if (isOnline) {
       try {
+        final draftsFuture = _paymentDraftRows(current);
         final orders = await _api.fetchOpenOrders(current);
         for (final order in orders) {
           await _rememberOnlineToken(current, order['token']);
         }
-        final drafts = await _paymentDraftRows(current);
+        final drafts = await draftsFuture;
         final seen = orders
             .map((order) => parseJsonIntOrNull(order['id']))
             .whereType<int>()
             .toSet();
-        serverCount = orders.length +
+        serverCount =
+            orders.length +
             drafts.where((order) {
               final id = parseJsonIntOrNull(order['id']);
               return id != null && !seen.contains(id);
             }).length;
+        _cacheHeldRows(current, [
+          ...localRows,
+          ...orders,
+          ...drafts.where((order) {
+            final id = parseJsonIntOrNull(order['id']);
+            return id != null && !seen.contains(id);
+          }),
+        ]);
       } catch (_) {
         // Keep local count on transient failures.
       }
@@ -2461,19 +2489,11 @@ class PosController extends ChangeNotifier {
         PosTranslationStore.instance.text('authNotSignedIn', 'Not signed in'),
       );
     }
-    return _api.createCustomer(
-      current,
-      name: name,
-      phone: phone,
-      email: email,
-    );
+    return _api.createCustomer(current, name: name, phone: phone, email: email);
   }
 
   /// Discard a held draft (local delete or server soft-cancel).
-  Future<void> discardHeldOrder({
-    int? orderId,
-    String? localUuid,
-  }) async {
+  Future<void> discardHeldOrder({int? orderId, String? localUuid}) async {
     final current = session;
     if (current == null) {
       throw PosApiException(
@@ -2520,10 +2540,7 @@ class PosController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> resumeHeldOrder({
-    int? orderId,
-    String? localUuid,
-  }) async {
+  Future<void> resumeHeldOrder({int? orderId, String? localUuid}) async {
     if (localUuid != null && localUuid.isNotEmpty) {
       await _resumeLocalHeldOrder(localUuid);
       return;
@@ -2547,7 +2564,8 @@ class PosController extends ChangeNotifier {
     final payload = await _api.fetchOrderForResume(current, orderId: orderId);
     final summary = payload['order'] as Map<String, dynamic>? ?? const {};
     final form = payload['form'] as Map<String, dynamic>? ?? const {};
-    final cartRows = (payload['cart'] as List?)
+    final cartRows =
+        (payload['cart'] as List?)
             ?.whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList() ??
@@ -2588,7 +2606,8 @@ class PosController extends ChangeNotifier {
     }
 
     final payload = held.payload;
-    final cartRows = (payload['resume_cart'] as List?)
+    final cartRows =
+        (payload['resume_cart'] as List?)
             ?.whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList() ??
@@ -2631,7 +2650,9 @@ class PosController extends ChangeNotifier {
       orderType = type;
     }
     final name = form['customer_name'] as String?;
-    customerName = (name != null && name.trim().isNotEmpty) ? name.trim() : null;
+    customerName = (name != null && name.trim().isNotEmpty)
+        ? name.trim()
+        : null;
     final rawCustomerId = form['customer_id'];
     customerId = rawCustomerId == null || '$rawCustomerId'.isEmpty
         ? null
@@ -2641,8 +2662,9 @@ class PosController extends ChangeNotifier {
         ? null
         : parseJsonIntOrNull(rawTableId);
     final notes = form['notes'] as String?;
-    orderNotes =
-        (notes != null && notes.trim().isNotEmpty) ? notes.trim() : null;
+    orderNotes = (notes != null && notes.trim().isNotEmpty)
+        ? notes.trim()
+        : null;
     discount = discountJson is Map
         ? CartDiscount.tryParse(Map<String, dynamic>.from(discountJson))
         : null;
@@ -2664,7 +2686,8 @@ class PosController extends ChangeNotifier {
       }
     }
 
-    final modRows = (row['modifiers'] as List?)
+    final modRows =
+        (row['modifiers'] as List?)
             ?.whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList() ??
@@ -2689,7 +2712,8 @@ class PosController extends ChangeNotifier {
         matched ??
             ModifierOption(
               id: optionId,
-              name: mod['option_name'] as String? ??
+              name:
+                  mod['option_name'] as String? ??
                   mod['modifier_name'] as String? ??
                   'Option',
               priceAdjustment: parseJsonDouble(mod['price_adjustment']),
@@ -2707,7 +2731,8 @@ class PosController extends ChangeNotifier {
       }
     }
 
-    final menuItem = live ??
+    final menuItem =
+        live ??
         MenuItem(
           id: menuItemId,
           name: name,
@@ -2757,7 +2782,8 @@ class PosController extends ChangeNotifier {
       );
     }
 
-    final canOffline = allowOffline &&
+    final canOffline =
+        allowOffline &&
         isOfflineAllowedPaymentMethod(paymentMethod) &&
         !isQrPaymentMethod(paymentMethod);
 
@@ -2998,7 +3024,8 @@ class PosController extends ChangeNotifier {
     }
 
     final payload = held.payload;
-    final cartRows = (payload['resume_cart'] as List?)
+    final cartRows =
+        (payload['resume_cart'] as List?)
             ?.whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList() ??
@@ -3078,10 +3105,7 @@ class PosController extends ChangeNotifier {
       );
       await LocalHeldOrderStore.delete(localUuid);
       final wasOpen = parkedLocalUuid == localUuid;
-      final placed = _finishOfflineSale(
-        offlineOrder,
-        clearOpenCart: wasOpen,
-      );
+      final placed = _finishOfflineSale(offlineOrder, clearOpenCart: wasOpen);
       unawaited(refreshHeldOrderCount());
       return placed;
     } finally {
@@ -3243,11 +3267,13 @@ class PosController extends ChangeNotifier {
       }
       // A Captain ticket is released to the kitchen before payment, unlike
       // a POS checkout. Queue it here instead of relying on the new-order feed.
-      unawaited(_printJobs?.enqueueKot(
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        source: 'captain',
-      ));
+      unawaited(
+        _printJobs?.enqueueKot(
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          source: 'captain',
+        ),
+      );
       clearCart();
       unawaited(refreshWaiterFloor());
       return order;
@@ -3539,22 +3565,28 @@ class PosController extends ChangeNotifier {
         'require_shift_for_pos': data.requireShiftForPos,
         'pos_blocked': data.posBlocked,
         'pos_terminals': data.posTerminals.map(_terminalToJson).toList(),
-        if (data.currentShift != null) 'current_shift': _shiftToJson(data.currentShift!),
-        if (data.sync != null) 'sync': {
-          'menu_revision': data.sync?.menuRevision,
-          'bootstrap_revision': data.sync?.bootstrapRevision,
-        },
-        if (data.receiptSettings != null) 'receipt_settings': data.receiptSettings?.toJson(),
-        if (data.posReceiptPrintMode != null) 'pos_receipt_print_mode': data.posReceiptPrintMode,
-        'payment_gateways':
-            data.paymentGateways.map((gateway) => gateway.toJson()).toList(),
+        if (data.currentShift != null)
+          'current_shift': _shiftToJson(data.currentShift!),
+        if (data.sync != null)
+          'sync': {
+            'menu_revision': data.sync?.menuRevision,
+            'bootstrap_revision': data.sync?.bootstrapRevision,
+          },
+        if (data.receiptSettings != null)
+          'receipt_settings': data.receiptSettings?.toJson(),
+        if (data.posReceiptPrintMode != null)
+          'pos_receipt_print_mode': data.posReceiptPrintMode,
+        'payment_gateways': data.paymentGateways
+            .map((gateway) => gateway.toJson())
+            .toList(),
         'payment_qr_timeout_seconds': data.paymentQrTimeoutSeconds,
         'platform': data.platform.toJson(),
         'permissions': data.permissions,
         'languages': {
           'show_switcher': data.showLanguageSwitcher,
-          'supported':
-              data.supportedLanguages.map((lang) => lang.toJson()).toList(),
+          'supported': data.supportedLanguages
+              .map((lang) => lang.toJson())
+              .toList(),
           'catalogs': data.languageCatalogs,
         },
       },
@@ -3581,105 +3613,114 @@ class PosController extends ChangeNotifier {
   }
 
   Map<String, dynamic> _restaurantToJson(PosRestaurantInfo r) => {
-        'id': r.id,
-        'name': r.name,
-        'logo_url': r.logoUrl,
-        'primary_color': r.primaryColor,
-        'default_currency': r.defaultCurrency,
-        'tax_settings': {
-          'prices_include_tax': r.taxSettings.pricesIncludeTax,
-          'tax_rate': r.taxSettings.taxRate,
-          'taxes': r.taxSettings.taxes
-              .map(
-                (tax) => {
-                  'name': tax.name,
-                  'rate': tax.rate,
-                  'included': tax.included,
-                },
-              )
-              .toList(),
-        },
-        'service_charge': {
-          'enabled': r.serviceCharge.enabled,
-          'rate': r.serviceCharge.rate,
-          'label': r.serviceCharge.label,
-          'taxable': r.serviceCharge.taxable,
-        },
-        'order_type_charges': r.orderTypeCharges,
-        'order_type_surcharge_settings': r.orderTypeSurchargeSettings,
-        'ordering': {
-          'enable_pickup': r.ordering.enablePickup,
-          'enable_delivery': r.ordering.enableDelivery,
-          'enable_dine_in': r.ordering.enableDineIn,
-          'pos_order_types': r.ordering.posOrderTypes,
-          'allowed_order_types': r.ordering.posOrderTypes
-              .map((type) => type == 'takeaway' ? 'pickup' : type)
-              .toList(),
-        },
-        'tips': {
-          'enabled': r.tips.enabled,
-          'presets': r.tips.presets,
-        },
-      };
+    'id': r.id,
+    'name': r.name,
+    'logo_url': r.logoUrl,
+    'primary_color': r.primaryColor,
+    'default_currency': r.defaultCurrency,
+    'tax_settings': {
+      'prices_include_tax': r.taxSettings.pricesIncludeTax,
+      'tax_rate': r.taxSettings.taxRate,
+      'taxes': r.taxSettings.taxes
+          .map(
+            (tax) => {
+              'name': tax.name,
+              'rate': tax.rate,
+              'included': tax.included,
+            },
+          )
+          .toList(),
+    },
+    'service_charge': {
+      'enabled': r.serviceCharge.enabled,
+      'rate': r.serviceCharge.rate,
+      'label': r.serviceCharge.label,
+      'taxable': r.serviceCharge.taxable,
+    },
+    'order_type_charges': r.orderTypeCharges,
+    'order_type_surcharge_settings': r.orderTypeSurchargeSettings,
+    'ordering': {
+      'enable_pickup': r.ordering.enablePickup,
+      'enable_delivery': r.ordering.enableDelivery,
+      'enable_dine_in': r.ordering.enableDineIn,
+      'pos_order_types': r.ordering.posOrderTypes,
+      'allowed_order_types': r.ordering.posOrderTypes
+          .map((type) => type == 'takeaway' ? 'pickup' : type)
+          .toList(),
+    },
+    'tips': {'enabled': r.tips.enabled, 'presets': r.tips.presets},
+  };
 
   Map<String, dynamic> _categoryToJson(MenuCategory c) => {
-        'id': c.id,
-        'name': c.name,
-        'image_url': c.imageUrl,
-        'menu_items': c.items.map(_menuItemToJson).toList(),
-      };
+    'id': c.id,
+    'name': c.name,
+    'image_url': c.imageUrl,
+    'menu_items': c.items.map(_menuItemToJson).toList(),
+  };
 
   Map<String, dynamic> _menuItemToJson(MenuItem item) => {
-        'id': item.id,
-        'name': item.name,
-        'price': item.price,
-        'description': item.description,
-        'image_url': item.imageUrl,
-        'item_type': item.itemType,
-        'barcode': item.barcode,
-        if (item.sku != null) 'sku': item.sku,
-        'is_available': item.isAvailable,
-        'is_orderable': item.isOrderable,
-        'order_type_surcharges': item.orderTypeSurcharges,
-        'schedule': {
-          'mode': item.scheduleMode,
-          'is_live_now': item.isLiveNow,
-          'hidden_reason': item.scheduleHiddenReason,
-        },
-        'variants': item.variants.map((v) => {
-          'id': v.id,
-          'name': v.name,
-          'price': v.price,
-          if (v.barcode != null) 'barcode': v.barcode,
-        }).toList(),
-        'modifiers': item.modifiers.map((m) => {
-          'id': m.id,
-          'name': m.name,
-          'is_required': m.isRequired,
-          'min_selections': m.minSelections,
-          'max_selections': m.maxSelections,
-          'options': m.options.map((o) => {
-            'id': o.id,
-            'name': o.name,
-            'price_adjustment': o.priceAdjustment,
-          }).toList(),
-        }).toList(),
-      };
+    'id': item.id,
+    'name': item.name,
+    'price': item.price,
+    'description': item.description,
+    'image_url': item.imageUrl,
+    'item_type': item.itemType,
+    'barcode': item.barcode,
+    if (item.sku != null) 'sku': item.sku,
+    'is_available': item.isAvailable,
+    'is_orderable': item.isOrderable,
+    'order_type_surcharges': item.orderTypeSurcharges,
+    'schedule': {
+      'mode': item.scheduleMode,
+      'is_live_now': item.isLiveNow,
+      'hidden_reason': item.scheduleHiddenReason,
+    },
+    'variants': item.variants
+        .map(
+          (v) => {
+            'id': v.id,
+            'name': v.name,
+            'price': v.price,
+            if (v.barcode != null) 'barcode': v.barcode,
+          },
+        )
+        .toList(),
+    'modifiers': item.modifiers
+        .map(
+          (m) => {
+            'id': m.id,
+            'name': m.name,
+            'is_required': m.isRequired,
+            'min_selections': m.minSelections,
+            'max_selections': m.maxSelections,
+            'options': m.options
+                .map(
+                  (o) => {
+                    'id': o.id,
+                    'name': o.name,
+                    'price_adjustment': o.priceAdjustment,
+                  },
+                )
+                .toList(),
+          },
+        )
+        .toList(),
+  };
 
   Map<String, dynamic> _terminalToJson(PosTerminalInfo t) => {
-        'id': t.id,
-        'code': t.code,
-        'name': t.name,
-        'display_url': t.displayUrl,
-        'sync_token': t.syncToken,
-      };
+    'id': t.id,
+    'code': t.code,
+    'name': t.name,
+    'display_url': t.displayUrl,
+    'sync_token': t.syncToken,
+  };
 
   Map<String, dynamic> _shiftToJson(PosShift s) => {
-        'id': s.id,
-        'opening_float': s.openingFloat,
-        'opened_at': s.openedAt,
-        'opened_by': s.openedByName != null ? {'name': s.openedByName} : null,
-      };
+    'id': s.id,
+    'opening_float': s.openingFloat,
+    'opened_at': s.openedAt,
+    'opened_by': s.openedByName != null ? {'name': s.openedByName} : null,
+  };
 
   void _refreshSelectedTerminalFromBootstrap() {
     final code = selectedTerminalCode;
@@ -3752,8 +3793,11 @@ class PosController extends ChangeNotifier {
     if (cart.isEmpty) {
       CustomerDisplayBroker.instance.showIdleHome();
       if (!syncServer) return;
-      if (terminal == null || branch == null || url == null ||
-          syncToken == null || syncToken.isEmpty) {
+      if (terminal == null ||
+          branch == null ||
+          url == null ||
+          syncToken == null ||
+          syncToken.isEmpty) {
         return;
       }
       await _displaySync.clearCart(
@@ -3769,72 +3813,76 @@ class PosController extends ChangeNotifier {
     final serviceCharge = bootstrap?.restaurant.serviceCharge;
 
     final payload = <String, dynamic>{
-        'items': cart
-            .map(
-              (line) => {
-                'name': line.displayName,
-                'quantity': line.quantity,
-                'price': line.unitPrice,
-                'modifiers': line.selectedModifiers
-                    .map(
-                      (mod) => {
-                        'name': mod.name,
-                        'price_adjustment': mod.priceAdjustment,
-                      },
-                    )
-                    .toList(),
-              },
-            )
-            .toList(),
-        'subtotal': cartSubtotal,
-        'discount': discountAmount > 0
-            ? {
-                'amount': discountAmount,
-                'type': discount?.type,
-                'value': discount?.value,
-                'reason': discount?.reason,
-              }
-            : null,
-        'service_charge': preview.serviceChargeAmount > 0
-            ? {
-                'amount': preview.serviceChargeAmount,
-                'label': serviceCharge?.label ??
-                    PosTranslationStore.instance.text(
-                      'cartServiceCharge',
-                      'Service charge',
-                    ),
-                'taxable': serviceCharge?.taxable == true,
-              }
-            : null,
-        'extra_charges': preview.extraChargeLines
-            .map(
-              (line) => {
-                'label': line.label,
-                'amount': line.amount,
-                'taxable': line.taxable,
-              },
-            )
-            .toList(),
-        'tax': preview.totalTax,
-        'tax_breakdown': [
-          for (final tax in preview.taxComputation.breakdown)
-            {
-              'name': tax.name,
-              'rate': tax.rate,
-              'amount': tax.amount,
-              'included': tax.included,
+      'items': cart
+          .map(
+            (line) => {
+              'name': line.displayName,
+              'quantity': line.quantity,
+              'price': line.unitPrice,
+              'modifiers': line.selectedModifiers
+                  .map(
+                    (mod) => {
+                      'name': mod.name,
+                      'price_adjustment': mod.priceAdjustment,
+                    },
+                  )
+                  .toList(),
             },
-        ],
-        'total': preview.total,
-        'currency': currency,
-      };
+          )
+          .toList(),
+      'subtotal': cartSubtotal,
+      'discount': discountAmount > 0
+          ? {
+              'amount': discountAmount,
+              'type': discount?.type,
+              'value': discount?.value,
+              'reason': discount?.reason,
+            }
+          : null,
+      'service_charge': preview.serviceChargeAmount > 0
+          ? {
+              'amount': preview.serviceChargeAmount,
+              'label':
+                  serviceCharge?.label ??
+                  PosTranslationStore.instance.text(
+                    'cartServiceCharge',
+                    'Service charge',
+                  ),
+              'taxable': serviceCharge?.taxable == true,
+            }
+          : null,
+      'extra_charges': preview.extraChargeLines
+          .map(
+            (line) => {
+              'label': line.label,
+              'amount': line.amount,
+              'taxable': line.taxable,
+            },
+          )
+          .toList(),
+      'tax': preview.totalTax,
+      'tax_breakdown': [
+        for (final tax in preview.taxComputation.breakdown)
+          {
+            'name': tax.name,
+            'rate': tax.rate,
+            'amount': tax.amount,
+            'included': tax.included,
+          },
+      ],
+      'total': preview.total,
+      'currency': currency,
+    };
 
     // Local USB displays work without a server display-sync subscription and
     // must not wait for a network request before showing the current cart.
     CustomerDisplayBroker.instance.showCart(payload);
     if (!syncServer) return;
-    if (terminal == null || branch == null || url == null ||
-        syncToken == null || syncToken.isEmpty) {
+    if (terminal == null ||
+        branch == null ||
+        url == null ||
+        syncToken == null ||
+        syncToken.isEmpty) {
       return;
     }
     await _displaySync.pushCart(
@@ -3854,10 +3902,7 @@ class PosController extends ChangeNotifier {
     );
   }
 
-  void startWaiterTableSession({
-    required int tableId,
-    int guests = 2,
-  }) {
+  void startWaiterTableSession({required int tableId, int guests = 2}) {
     cart.clear();
     waiterSentCart = [];
     parkedOrderId = null;
@@ -3918,14 +3963,16 @@ class PosController extends ChangeNotifier {
     );
     final summary = payload['order'] as Map<String, dynamic>? ?? const {};
     final form = payload['form'] as Map<String, dynamic>? ?? const {};
-    final cartRows = (payload['cart'] as List?)
+    final cartRows =
+        (payload['cart'] as List?)
             ?.whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList() ??
         const <Map<String, dynamic>>[];
 
-    waiterSentCart =
-        cartRows.map(_cartLineFromResumePayload).toList(growable: false);
+    waiterSentCart = cartRows
+        .map(_cartLineFromResumePayload)
+        .toList(growable: false);
     cart.clear();
     _markCartChanged();
 
@@ -3936,8 +3983,9 @@ class PosController extends ChangeNotifier {
       orderType = 'dine_in';
     }
     final name = form['customer_name'] as String?;
-    customerName =
-        (name != null && name.trim().isNotEmpty) ? name.trim() : null;
+    customerName = (name != null && name.trim().isNotEmpty)
+        ? name.trim()
+        : null;
     final rawCustomerId = form['customer_id'];
     customerId = rawCustomerId == null || '$rawCustomerId'.isEmpty
         ? null
@@ -3947,8 +3995,9 @@ class PosController extends ChangeNotifier {
         ? fallbackTableId
         : parseJsonIntOrNull(rawTableId) ?? fallbackTableId;
     final notes = form['notes'] as String?;
-    orderNotes =
-        (notes != null && notes.trim().isNotEmpty) ? notes.trim() : null;
+    orderNotes = (notes != null && notes.trim().isNotEmpty)
+        ? notes.trim()
+        : null;
     // Captain / waiter does not apply discounts — leave billing to register.
     discount = null;
 
@@ -3984,14 +4033,16 @@ class PosController extends ChangeNotifier {
     }
 
     final payload = held.payload;
-    final cartRows = (payload['resume_cart'] as List?)
+    final cartRows =
+        (payload['resume_cart'] as List?)
             ?.whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList() ??
         const <Map<String, dynamic>>[];
 
-    waiterSentCart =
-        cartRows.map(_cartLineFromResumePayload).toList(growable: false);
+    waiterSentCart = cartRows
+        .map(_cartLineFromResumePayload)
+        .toList(growable: false);
     cart.clear();
     _markCartChanged();
 
@@ -4002,13 +4053,15 @@ class PosController extends ChangeNotifier {
       orderType = 'dine_in';
     }
     final name = payload['customer_name'] as String?;
-    customerName =
-        (name != null && name.trim().isNotEmpty) ? name.trim() : null;
+    customerName = (name != null && name.trim().isNotEmpty)
+        ? name.trim()
+        : null;
     customerId = parseJsonIntOrNull(payload['customer_id']);
     tableId = parseJsonIntOrNull(payload['table_id']);
     final notes = payload['notes'] as String?;
-    orderNotes =
-        (notes != null && notes.trim().isNotEmpty) ? notes.trim() : null;
+    orderNotes = (notes != null && notes.trim().isNotEmpty)
+        ? notes.trim()
+        : null;
     // Captain / waiter does not apply discounts — leave billing to register.
     discount = null;
 
@@ -4186,11 +4239,7 @@ class PosController extends ChangeNotifier {
       );
     }
 
-    await _api.updateTableStatus(
-      current,
-      tableId: tableId,
-      status: status,
-    );
+    await _api.updateTableStatus(current, tableId: tableId, status: status);
     if (status == 'available' || status == 'cleaning') {
       await clearBillRequest(tableId);
     }
@@ -4220,7 +4269,9 @@ class PosController extends ChangeNotifier {
       final id = parseJsonIntOrNull(order['table_id']);
       if (id != tableId) continue;
       final status = '${order['status']}';
-      if (status == 'cancelled' || status == 'abandoned' || status == 'delivered') {
+      if (status == 'cancelled' ||
+          status == 'abandoned' ||
+          status == 'delivered') {
         continue;
       }
       final created = order['created_at']?.toString() ?? '';
@@ -4297,7 +4348,8 @@ class PosController extends ChangeNotifier {
         current,
         sinceId: _newOrdersLastSeenId ?? 0,
       );
-      final orders = (payload['orders'] as List?)
+      final orders =
+          (payload['orders'] as List?)
               ?.whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
               .toList() ??
@@ -4331,8 +4383,9 @@ class PosController extends ChangeNotifier {
 
         final number = order['order_number']?.toString() ?? '#$id';
         final source = order['source']?.toString();
-        final orderStatus =
-            (order['status']?.toString() ?? '').toLowerCase().trim();
+        final orderStatus = (order['status']?.toString() ?? '')
+            .toLowerCase()
+            .trim();
         if (orderStatus == 'draft') {
           continue;
         }
@@ -4349,8 +4402,8 @@ class PosController extends ChangeNotifier {
           continue;
         }
 
-        final externalId = order['external_id']?.toString() ??
-            order['externalId']?.toString();
+        final externalId =
+            order['external_id']?.toString() ?? order['externalId']?.toString();
         final marketplace = isMarketplaceOrderSource(source);
         final alert = _buildNewOrderAlert(
           id: id,
@@ -4359,7 +4412,8 @@ class PosController extends ChangeNotifier {
           externalId: externalId,
           orderType: order['type']?.toString(),
           token: order['token']?.toString(),
-          total: parseJsonDoubleOrNull(order['total']) ??
+          total:
+              parseJsonDoubleOrNull(order['total']) ??
               double.tryParse('${order['total'] ?? ''}'),
           createdAt: DateTime.tryParse('${order['created_at'] ?? ''}'),
         );
@@ -4467,7 +4521,9 @@ class PosController extends ChangeNotifier {
   }
 
   Future<void> _settleBackgroundPayment(PaymentSession session) async {
-    final latest = PaymentSessionManager.instance.sessionForOrder(session.orderId);
+    final latest = PaymentSessionManager.instance.sessionForOrder(
+      session.orderId,
+    );
     if (latest == null || latest.status != PaymentSessionStatus.paid) return;
 
     unawaited(
@@ -4497,10 +4553,7 @@ class PosController extends ChangeNotifier {
     );
   }
 
-  void showCashierPlacedNotice({
-    required String orderNumber,
-    int? orderId,
-  }) {
+  void showCashierPlacedNotice({required String orderNumber, int? orderId}) {
     final t = PosTranslationStore.instance;
     cashierPlacedNotice = t.text(
       'orderPlaced',
@@ -4550,14 +4603,14 @@ class PosController extends ChangeNotifier {
     for (final order in drafts) {
       final id = parseJsonIntOrNull(order['id']);
       if (id == null || _selfPlacedOrderIds.contains(id)) continue;
-      final already = waiterAlerts.any(
+      final already =
+          waiterAlerts.any(
             (alert) => alert.orderId == id && alert.type.isNewOrderCue,
           ) ||
           registerBannerAlert?.orderId == id ||
           _newOrderBannerQueue.any((alert) => alert.orderId == id);
       if (already) continue;
-      final payment =
-          '${order['payment_status'] ?? ''}'.toLowerCase().trim();
+      final payment = '${order['payment_status'] ?? ''}'.toLowerCase().trim();
       final failed = payment.contains('fail');
       final number = '${order['order_number'] ?? '#$id'}';
       final alert = WaiterAlert(
@@ -4842,8 +4895,9 @@ class PosController extends ChangeNotifier {
   Future<void>? _waiterFloorRefresh;
 
   Future<void> refreshWaiterFloor({bool silent = false}) {
-    return _waiterFloorRefresh ??= _refreshWaiterFloor(silent: silent)
-        .whenComplete(() => _waiterFloorRefresh = null);
+    return _waiterFloorRefresh ??= _refreshWaiterFloor(
+      silent: silent,
+    ).whenComplete(() => _waiterFloorRefresh = null);
   }
 
   Future<void> _refreshWaiterFloor({bool silent = false}) async {
@@ -4861,52 +4915,54 @@ class PosController extends ChangeNotifier {
         _waiterAlertsHydrated = true;
       }
 
-      billRequestedTableIds = await PosBillRequestStorage.read(current.branchId);
+      billRequestedTableIds = await PosBillRequestStorage.read(
+        current.branchId,
+      );
 
       if (isOnline) {
         Future<void> loadTables() async {
-        try {
-          final data = await _api.fetchTables(current);
-          tablesSnapshot = data;
-          waiterTables = _mapDynamicList(data['tables']);
-          waiterTableAreas = _mapDynamicList(data['table_areas']);
-          final without = _mapDynamicList(data['tables_without_area']);
-          waiterTablesWithoutArea = without.isNotEmpty
-              ? without
-              : waiterTables.where((t) {
-                  final areaId = t['table_area_id'];
-                  return areaId == null || '$areaId'.isEmpty;
-                }).toList();
-          // Show the floor as soon as tables arrive; orders load alongside it.
-          notifyListeners();
-        } catch (_) {
-          // Keep prior snapshot.
-        }
+          try {
+            final data = await _api.fetchTables(current);
+            tablesSnapshot = data;
+            waiterTables = _mapDynamicList(data['tables']);
+            waiterTableAreas = _mapDynamicList(data['table_areas']);
+            final without = _mapDynamicList(data['tables_without_area']);
+            waiterTablesWithoutArea = without.isNotEmpty
+                ? without
+                : waiterTables.where((t) {
+                    final areaId = t['table_area_id'];
+                    return areaId == null || '$areaId'.isEmpty;
+                  }).toList();
+            // Show the floor as soon as tables arrive; orders load alongside it.
+            notifyListeners();
+          } catch (_) {
+            // Keep prior snapshot.
+          }
         }
 
         Future<void> loadHeld() async {
-        try {
-          waiterHeldOrders = await fetchHeldOrders();
-        } catch (_) {}
+          try {
+            waiterHeldOrders = await fetchHeldOrders();
+          } catch (_) {}
         }
 
         Future<void> loadFloorOrders() async {
-        try {
-          final floor = await _api.fetchFloorOrders(current);
-          _detectFloorAlerts(floor);
-          waiterRecentOrders = floor;
-        } catch (_) {
           try {
-            final recent = await _api.fetchRecentOrders(
-              current,
-              filter: 'floor',
-              perPage: 50,
-            );
-            final orders = _mapDynamicList(recent['orders']);
-            _detectFloorAlerts(orders);
-            waiterRecentOrders = orders;
-          } catch (_) {}
-        }
+            final floor = await _api.fetchFloorOrders(current);
+            _detectFloorAlerts(floor);
+            waiterRecentOrders = floor;
+          } catch (_) {
+            try {
+              final recent = await _api.fetchRecentOrders(
+                current,
+                filter: 'floor',
+                perPage: 50,
+              );
+              final orders = _mapDynamicList(recent['orders']);
+              _detectFloorAlerts(orders);
+              waiterRecentOrders = orders;
+            } catch (_) {}
+          }
         }
 
         await Future.wait([loadTables(), loadHeld(), loadFloorOrders()]);
@@ -4973,7 +5029,8 @@ class PosController extends ChangeNotifier {
       final orderId = parseJsonIntOrNull(order['id']);
 
       if ('${order['status']}' == 'ready' && !previousReady.contains(id)) {
-        changed = _pushWaiterAlert(
+        changed =
+            _pushWaiterAlert(
               WaiterAlert(
                 id: 'ready-$id-${DateTime.now().millisecondsSinceEpoch}',
                 type: WaiterAlertType.kitchenReady,
@@ -5003,7 +5060,8 @@ class PosController extends ChangeNotifier {
       }
 
       if (order['bill_requested'] == true && !previousBilled.contains(id)) {
-        changed = _pushWaiterAlert(
+        changed =
+            _pushWaiterAlert(
               WaiterAlert(
                 id: 'bill-$id-${DateTime.now().millisecondsSinceEpoch}',
                 type: WaiterAlertType.billRequested,
