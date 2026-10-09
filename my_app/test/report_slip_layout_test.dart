@@ -2,16 +2,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/services/printing/report_slip_layout.dart';
 
 void main() {
-  test('56mm item reports separate names from quantity and amount', () {
+  test('56mm item reports use compact aligned columns and wrap names', () {
     final commands = wrapLongReportItemNames({}, [
       {'type': 'text', 'text': '81   CHOW CHOW BHATH  10   650.00'},
     ], lineWidth: 32);
-    final lines = commands.whereType<Map>().map((c) => c['text'] as String).toList();
-    expect(lines.first, '81  CHOW CHOW BHATH');
-    expect(lines[1], startsWith('Qty: 10'));
-    expect(lines[1], endsWith('650.00'));
+    final lines = commands
+        .whereType<Map>()
+        .map((c) => c['text'] as String)
+        .toList();
+    expect(lines.first, startsWith('81   CHOW CHOW'));
+    expect(lines.first, endsWith(' 10   650.00'));
+    expect(lines.join('\n'), contains('BHATH'));
     expect(lines.every((line) => line.length <= 32), isTrue);
-    expect(lines.last, '-' * 32);
+    expect(lines.any((line) => line == '-' * 32), isFalse);
+  });
+  test('56mm quantities never come from digits within the amount', () {
+    for (final pair in [
+      ('2', '200.00'),
+      ('1', '121.00'),
+      ('3', '3420.00'),
+      ('4', '440.00'),
+    ]) {
+      final commands = wrapLongReportItemNames({}, [
+        {
+          'type': 'text',
+          'text': '60   ONION UTTAPPA    ${pair.$1}   ${pair.$2}',
+        },
+      ], lineWidth: 32);
+      final line = commands.first['text'] as String;
+      expect(line.substring(20, 23).trim(), pair.$1);
+      expect(line.substring(23).trim(), pair.$2);
+      expect(line.length, 32);
+    }
   });
   test('long report item names wrap instead of a clipped question mark', () {
     const clipped = '81   CHOW CHOW BH?  3   185.70';
@@ -46,7 +68,12 @@ void main() {
     expect(itemLines.single.contains('?'), isFalse);
     expect(itemLines.single.contains('CHOW CHOW'), isTrue);
     expect(lines.join('\n'), contains('SPECIAL'));
-    expect(lines.where((line) => line.contains('SPECIAL') || line.contains('CHOW')).length, greaterThan(1));
+    expect(
+      lines
+          .where((line) => line.contains('SPECIAL') || line.contains('CHOW'))
+          .length,
+      greaterThan(1),
+    );
     expect(lines.join('\n'), isNot(contains('?')));
   });
 

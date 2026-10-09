@@ -17,6 +17,7 @@ class AdminMenuImagePickerSection extends StatelessWidget {
     required this.onPick,
     this.onGenerate,
     this.placeholderIcon = Icons.restaurant_rounded,
+    this.compactPreview = false,
   });
 
   final String label;
@@ -26,6 +27,7 @@ class AdminMenuImagePickerSection extends StatelessWidget {
   final VoidCallback onPick;
   final VoidCallback? onGenerate;
   final IconData placeholderIcon;
+  final bool compactPreview;
 
   static Future<XFile?> pickFromGallery() {
     return ImagePicker().pickImage(
@@ -52,9 +54,20 @@ class AdminMenuImagePickerSection extends StatelessWidget {
         const SizedBox(height: 8),
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: AspectRatio(
-            aspectRatio: 4 / 3,
-            child: _buildPreview(context),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final media = MediaQuery.of(context);
+              final availableHeight =
+                  media.size.height - media.viewInsets.bottom;
+              final height = compactPreview
+                  ? (availableHeight * 0.22).clamp(100.0, 180.0)
+                  : constraints.maxWidth * 3 / 4;
+              return SizedBox(
+                height: height,
+                width: double.infinity,
+                child: _buildPreview(context),
+              );
+            },
           ),
         ),
         const SizedBox(height: 8),
@@ -186,16 +199,10 @@ class AdminMenuThumb extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: imageUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, _) => Icon(
-                icon,
-                size: size * 0.42,
-                color: PosTheme.inkFaint,
-              ),
-              errorWidget: (_, _, _) => Icon(
-                icon,
-                size: size * 0.42,
-                color: PosTheme.inkFaint,
-              ),
+              placeholder: (_, _) =>
+                  Icon(icon, size: size * 0.42, color: PosTheme.inkFaint),
+              errorWidget: (_, _, _) =>
+                  Icon(icon, size: size * 0.42, color: PosTheme.inkFaint),
             )
           : Icon(icon, size: size * 0.42, color: PosTheme.inkFaint),
     );

@@ -192,6 +192,7 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
         children: [
           AdminMenuImagePickerSection(
             label: context.posText('adminCategoryImage', 'Category image'),
+            compactPreview: true,
             imageUrl: widget.category?.imageUrl,
             pickedImage: _pickedImage,
             picking: _pickingImage,
@@ -293,7 +294,8 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
     _priceCtrl = TextEditingController(
       text: item != null ? item.price.toStringAsFixed(2) : '',
     );
-    _categoryId = widget.initialCategoryId ??
+    _categoryId =
+        widget.initialCategoryId ??
         (widget.categories.isNotEmpty ? widget.categories.first.id : null);
     if (item != null) {
       for (final cat in widget.categories) {
@@ -329,9 +331,8 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => PosKeyboardSheetHost(
-        child: _AiImageStyleSheet(itemName: name),
-      ),
+      builder: (sheetContext) =>
+          PosKeyboardSheetHost(child: _AiImageStyleSheet(itemName: name)),
     );
     if (!mounted || choice == null) return;
     final session = context.read<PosController>().session;
@@ -477,9 +478,7 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
             decoration: InputDecoration(
               labelText: context.posText('adminPrice', 'Price'),
             ),
-            keyboardType: const TextInputType.numberWithOptions(
-              decimal: true,
-            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -585,7 +584,11 @@ class _AiImageStyleSheetState extends State<_AiImageStyleSheet> {
   void _use() {
     final keywords = _keywords.text.trim();
     if (_style == 'custom' && keywords.isEmpty) {
-      showPosSnackBar(context, 'Add a few words for a custom image.', error: true);
+      showPosSnackBar(
+        context,
+        'Add a few words for a custom image.',
+        error: true,
+      );
       return;
     }
     Navigator.pop(context, _AiImageChoice(style: _style, keywords: keywords));
@@ -597,7 +600,10 @@ class _AiImageStyleSheetState extends State<_AiImageStyleSheet> {
     return Align(
       alignment: Alignment.bottomCenter,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: posMobileSheetHeight(context), maxWidth: 520),
+        constraints: BoxConstraints(
+          maxHeight: posMobileSheetHeight(context),
+          maxWidth: 520,
+        ),
         child: Material(
           color: PosTheme.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -609,10 +615,16 @@ class _AiImageStyleSheetState extends State<_AiImageStyleSheet> {
               children: [
                 Text(
                   'Generate an image',
-                  style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.inter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 4),
-                Text(widget.itemName, style: TextStyle(color: PosTheme.inkMuted, fontSize: 13)),
+                Text(
+                  widget.itemName,
+                  style: TextStyle(color: PosTheme.inkMuted, fontSize: 13),
+                ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,

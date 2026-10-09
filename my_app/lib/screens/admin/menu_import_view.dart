@@ -20,13 +20,17 @@ class _AiStepRail extends StatefulWidget {
   State<_AiStepRail> createState() => _AiStepRailState();
 }
 
-class _AiStepRailState extends State<_AiStepRail> with SingleTickerProviderStateMixin {
+class _AiStepRailState extends State<_AiStepRail>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _motion;
 
   @override
   void initState() {
     super.initState();
-    _motion = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
+    _motion = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    );
   }
 
   @override
@@ -55,12 +59,7 @@ class _AiStepRailState extends State<_AiStepRail> with SingleTickerProviderState
           height: 48,
           child: Stack(
             children: [
-              Positioned(
-                left: 36,
-                right: 36,
-                top: 10,
-                child: _AiTrace(t: t),
-              ),
+              Positioned(left: 36, right: 36, top: 10, child: _AiTrace(t: t)),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -161,6 +160,7 @@ class _AiTrace extends StatelessWidget {
     );
   }
 }
+
 const _ink = Color(0xFF12253E);
 const _muted = Color(0xFF71839A);
 const _border = Color(0xFFE0E8F1);
@@ -200,8 +200,14 @@ class MenuImportView extends StatefulWidget {
     this.onCamera,
     this.voiceSection,
     this.alternateBody,
+    this.navigationTitle,
     this.onChangeSource,
-    this.stepTitles = const ['Upload', 'AI extract', 'Edit & review', 'Go live'],
+    this.stepTitles = const [
+      'Upload',
+      'AI extract',
+      'Edit & review',
+      'Go live',
+    ],
     this.showSteps = true,
     this.stepSubtitles = const [
       'Photo, PDF, or spreadsheet',
@@ -233,6 +239,7 @@ class MenuImportView extends StatefulWidget {
   final VoidCallback? onCamera;
   final Widget? voiceSection;
   final Widget? alternateBody;
+  final String? navigationTitle;
   final VoidCallback? onChangeSource;
   final List<String> stepTitles;
   final bool showSteps;
@@ -372,9 +379,20 @@ class _MenuImportViewState extends State<MenuImportView> {
                 ),
               ),
               if (widget.onChangeSource != null)
-                _ChangePill(onPressed: widget.busy ? null : widget.onChangeSource),
+                _ChangePill(
+                  onPressed: widget.busy ? null : widget.onChangeSource,
+                ),
             ],
           ),
+          if (widget.onTemplate != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: widget.busy ? null : widget.onTemplate,
+                icon: const Icon(Icons.download_outlined, size: 18),
+                label: const Text('Download demo sample (.xlsx)'),
+              ),
+            ),
           SizedBox(height: compact ? 10 : 16),
           if (widget.voiceSection != null) ...[
             widget.voiceSection!,
@@ -404,13 +422,14 @@ class _MenuImportViewState extends State<MenuImportView> {
             borderRadius: BorderRadius.circular(16),
             child: Container(
               constraints: BoxConstraints(minHeight: compact ? 92 : 168),
-              padding: EdgeInsets.symmetric(horizontal: 18, vertical: compact ? 12 : 22),
+              padding: EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: compact ? 12 : 22,
+              ),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: fileName == null ? _border : _green,
-                ),
+                border: Border.all(color: fileName == null ? _border : _green),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -493,24 +512,24 @@ class _MenuImportViewState extends State<MenuImportView> {
           Material(
             color: Colors.transparent,
             child: CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            activeColor: _green,
-            value: widget.ai,
-            onChanged: widget.busy || caps?['ai_assist_available'] != true
-                ? null
-                : (v) => widget.onAiChanged(v!),
-            title: Text(
-              spreadsheet ? 'Match my column names' : 'Read items and prices',
-              style: const TextStyle(fontSize: 13, color: _ink),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: _green,
+              value: widget.ai,
+              onChanged: widget.busy || caps?['ai_assist_available'] != true
+                  ? null
+                  : (v) => widget.onAiChanged(v!),
+              title: Text(
+                spreadsheet ? 'Match my column names' : 'Read items and prices',
+                style: const TextStyle(fontSize: 13, color: _ink),
+              ),
+              subtitle: Text(
+                caps?['ai_assist_available'] == true
+                    ? 'You confirm every price before it is saved.'
+                    : 'Reading is unavailable: ${caps?['ai_unavailable_reason'] ?? 'Checking availability'}',
+                style: const TextStyle(fontSize: 11, color: _muted),
+              ),
             ),
-            subtitle: Text(
-              caps?['ai_assist_available'] == true
-                  ? 'You confirm every price before it is saved.'
-                  : 'Reading is unavailable: ${caps?['ai_unavailable_reason'] ?? 'Checking availability'}',
-              style: const TextStyle(fontSize: 11, color: _muted),
-            ),
-          ),
           ),
           Row(
             children: [
@@ -933,6 +952,9 @@ class _MenuImportViewState extends State<MenuImportView> {
       backgroundColor: const Color(0xFFF7F9FC),
       appBar: showAppBar
           ? AppBar(
+              title: widget.navigationTitle == null
+                  ? null
+                  : Text(widget.navigationTitle!),
               backgroundColor: Colors.white,
               automaticallyImplyLeading: showBack || !handheld,
               actions: [
@@ -951,7 +973,12 @@ class _MenuImportViewState extends State<MenuImportView> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1000),
           child: ListView(
-            padding: EdgeInsets.fromLTRB(handheld ? 16 : 24, handheld ? 12 : 24, handheld ? 16 : 24, 24),
+            padding: EdgeInsets.fromLTRB(
+              handheld ? 16 : 24,
+              handheld ? 12 : 24,
+              handheld ? 16 : 24,
+              24,
+            ),
             children: [
               if (!handheld &&
                   !widget.review &&
@@ -1129,7 +1156,11 @@ class _ChangePill extends StatelessWidget {
       ),
       child: const Text(
         'Change',
-        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, letterSpacing: 0.1),
+        style: TextStyle(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 0.1,
+        ),
       ),
     );
   }
@@ -1165,7 +1196,11 @@ class _GuideLine extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 12.5, height: 1.35, color: _muted),
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.35,
+                color: _muted,
+              ),
             ),
           ),
         ],

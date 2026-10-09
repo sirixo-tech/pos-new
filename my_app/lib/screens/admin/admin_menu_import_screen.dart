@@ -21,7 +21,18 @@ import '../../services/menu_spreadsheet_export.dart';
 import '../../services/menu_export_download.dart';
 
 class AdminMenuImportScreen extends StatefulWidget {
-  const AdminMenuImportScreen({super.key, this.enableVoice = true, this.openToken = 0});
+  const AdminMenuImportScreen({
+    super.key,
+    this.enableVoice = true,
+    this.openToken = 0,
+    this.initialSource,
+    this.initialAi = true,
+    this.navigationTitle,
+  });
+
+  final MenuImportSource? initialSource;
+  final bool initialAi;
+  final String? navigationTitle;
 
   final bool enableVoice;
 
@@ -89,6 +100,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   @override
   void initState() {
     super.initState();
+    _source = widget.initialSource;
+    _ai = widget.initialAi;
     _appliedOpen = widget.openToken;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
@@ -162,7 +175,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     if (!mounted) return;
     setState(() {
       _caps = Map<String, dynamic>.from(data['capabilities'] as Map? ?? {});
-      _ai = _caps?['ai_assist_available'] == true;
+      _ai = widget.initialAi && _caps?['ai_assist_available'] == true;
     });
     if (data['active_import'] is Map) {
       _accept(Map<String, dynamic>.from(data['active_import'] as Map));
@@ -207,25 +220,53 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     }
   }
 
-  Future<void> _pick({bool camera = false, bool gallery = false}) => _run(() async {
+  Future<void> _pick({
+    bool camera = false,
+    bool gallery = false,
+  }) => _run(() async {
     final XFile? file;
     try {
       file = camera
-          ? await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85)
+          ? await ImagePicker().pickImage(
+              source: ImageSource.camera,
+              imageQuality: 85,
+            )
           : gallery
-          ? await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85)
+          ? await ImagePicker().pickImage(
+              source: ImageSource.gallery,
+              imageQuality: 85,
+            )
           : await openFile(
               acceptedTypeGroups: const [
                 XTypeGroup(
-                  label: 'PDF',
-                  extensions: ['pdf'],
-                  mimeTypes: ['application/pdf'],
+                  label: 'Menu files',
+                  extensions: [
+                    'pdf',
+                    'csv',
+                    'xlsx',
+                    'jpg',
+                    'jpeg',
+                    'png',
+                    'webp',
+                    'gif',
+                  ],
+                  mimeTypes: [
+                    'application/pdf',
+                    'text/csv',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'image/jpeg',
+                    'image/png',
+                    'image/webp',
+                    'image/gif',
+                  ],
                 ),
               ],
             );
     } catch (error) {
       final text = error.toString().toLowerCase();
-      if (text.contains('denied') || text.contains('permission') || text.contains('access')) {
+      if (text.contains('denied') ||
+          text.contains('permission') ||
+          text.contains('access')) {
         throw PosApiException(
           camera
               ? 'Allow camera access to photograph the menu.'
@@ -296,7 +337,9 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
       Navigator.of(context).pop();
     }
     if (_importInProgress) {
-      setState(() => _error = 'Finish or cancel this import before starting another.');
+      setState(
+        () => _error = 'Finish or cancel this import before starting another.',
+      );
       return;
     }
     setState(() => _source = null);
@@ -305,7 +348,9 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   Future<void> _applySource(MenuImportSource source) async {
     _clearVoiceNotice();
     if (_importInProgress) {
-      setState(() => _error = 'Finish or cancel this import before starting another.');
+      setState(
+        () => _error = 'Finish or cancel this import before starting another.',
+      );
       return;
     }
     if (source == MenuImportSource.zomato) {
@@ -322,24 +367,28 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     final choice = await showMenuImportFileSheet(context);
     if (!mounted || choice == null) return;
     setState(() => _source = MenuImportSource.photo);
-    await _pick(camera: choice == MenuFilePick.camera, gallery: choice == MenuFilePick.photo);
+    await _pick(
+      camera: choice == MenuFilePick.camera,
+      gallery: choice == MenuFilePick.photo,
+    );
   }
 
-  Future<void> _submitPrepared(Uint8List bytes, {required String name}) =>
-      _run(() async {
-    final file = XFile.fromData(bytes, name: name, mimeType: 'text/csv');
-    final maxKb = num.tryParse('${_caps?['max_upload_kb']}') ?? 20480;
-    if (bytes.length > maxKb * 1024) {
-      throw PosApiException('Choose a file smaller than ${maxKb / 1024} MB.');
-    }
-    if (!mounted) return;
-    setState(() {
-      _selectedFile = file;
-      _selectedBytes = bytes.length;
-      _ai = _caps?['ai_assist_available'] == true;
-    });
-    await _uploadSelected();
-  });
+  Future<void> _submitPrepared(Uint8List bytes, {required String name}) => _run(
+    () async {
+      final file = XFile.fromData(bytes, name: name, mimeType: 'text/csv');
+      final maxKb = num.tryParse('${_caps?['max_upload_kb']}') ?? 20480;
+      if (bytes.length > maxKb * 1024) {
+        throw PosApiException('Choose a file smaller than ${maxKb / 1024} MB.');
+      }
+      if (!mounted) return;
+      setState(() {
+        _selectedFile = file;
+        _selectedBytes = bytes.length;
+        _ai = _caps?['ai_assist_available'] == true;
+      });
+      await _uploadSelected();
+    },
+  );
 
   Future<void> _submitVoice(Uint8List bytes) =>
       _submitPrepared(bytes, name: 'voice-menu.csv');
@@ -380,20 +429,12 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     if (file == null) return;
     Map<String, dynamic> data;
     try {
-      data = await _api.menuImportUpload(
-        _session,
-        file: file,
-        aiAssist: _ai,
-      );
+      data = await _api.menuImportUpload(_session, file: file, aiAssist: _ai);
     } on PosApiException catch (e) {
       if (e.statusCode != 429) rethrow;
       await Future<void>.delayed(e.retryAfter ?? const Duration(seconds: 5));
       if (!mounted) return;
-      data = await _api.menuImportUpload(
-        _session,
-        file: file,
-        aiAssist: _ai,
-      );
+      data = await _api.menuImportUpload(_session, file: file, aiAssist: _ai);
     }
     final id = int.tryParse('${data['import_id']}');
     if (id == null) {
@@ -545,7 +586,26 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     bool template = false,
   }) => _run(() async {
     final rows = template
-        ? <Map<String, dynamic>>[]
+        ? <Map<String, dynamic>>[
+            {
+              'category_name': 'Beverages',
+              'category_is_active': true,
+              'item_name': 'Tea',
+              'item_description': 'Sample item - replace with your menu',
+              'price': 20,
+              'item_type': 'veg',
+              'is_available': true,
+            },
+            {
+              'category_name': 'Beverages',
+              'category_is_active': true,
+              'item_name': 'Coffee',
+              'item_description': 'Sample item - replace with your menu',
+              'price': 30,
+              'item_type': 'veg',
+              'is_available': true,
+            },
+          ]
         : MenuSpreadsheetExport.rows(
             await _api.fetchMenuExportData(_session),
             options,
@@ -581,6 +641,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
 
   @override
   Widget build(BuildContext context) => MenuImportView(
+    navigationTitle: widget.navigationTitle,
     capabilities: _caps,
     import: _import,
     rows: _rows,
@@ -629,6 +690,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
             onFetch: _fetchZomato,
             onBack: () => setState(() => _source = null),
           )
+        : _source == MenuImportSource.photo
+        ? null
         : MenuImportSourcePage(
             enableVoice: widget.enableVoice,
             onSelect: _applySource,

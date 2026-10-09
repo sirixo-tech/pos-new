@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../config/platform_config.dart';
 import '../config/pos_app_info.dart';
@@ -93,14 +94,12 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
     try {
       final pos = context.read<PosController>();
-      await pos.login(
-            _emailController.text,
-            _passwordController.text,
-          );
+      await pos.login(_emailController.text, _passwordController.text);
       if (!mounted) return;
       final error = pos.errorMessage;
       if (error != null) {
-        final rateLimited = pos.lastLoginStatusCode == 429 ||
+        final rateLimited =
+            pos.lastLoginStatusCode == 429 ||
             error.toLowerCase().contains('too many');
         if (rateLimited) {
           _startLoginCooldown(
@@ -156,11 +155,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         errorText: localError,
                       ),
                       onSubmitted: (val) {
-                        final normalized =
-                            PlatformConfig.normalizeServerUrl(val);
+                        final normalized = PlatformConfig.normalizeServerUrl(
+                          val,
+                        );
                         if (normalized.isEmpty) {
                           setDialogState(
-                            () => localError = 'Please enter a valid server URL.',
+                            () =>
+                                localError = 'Please enter a valid server URL.',
                           );
                         } else {
                           Navigator.of(dialogContext).pop(normalized);
@@ -183,8 +184,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 FilledButton(
                   onPressed: () {
-                    final normalized =
-                        PlatformConfig.normalizeServerUrl(controller.text);
+                    final normalized = PlatformConfig.normalizeServerUrl(
+                      controller.text,
+                    );
                     if (normalized.isEmpty) {
                       setDialogState(
                         () => localError = 'Please enter a valid server URL.',
@@ -210,6 +212,32 @@ class _LoginScreenState extends State<LoginScreen> {
     showPosSnackBar(context, 'Server set to ${pos.serverUrl}');
   }
 
+  Future<void> _createAccount() async {
+    final pos = context.read<PosController>();
+    final base = PlatformConfig.normalizeServerUrl(
+      pos.serverUrl ?? PlatformConfig.platformUrl,
+    );
+    final uri = Uri.parse('$base/register');
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        showPosSnackBar(
+          context,
+          'Could not open account registration. Please try again.',
+          error: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showPosSnackBar(
+          context,
+          'Could not open account registration. Please try again.',
+          error: true,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final pos = context.watch<PosController>();
@@ -223,19 +251,15 @@ class _LoginScreenState extends State<LoginScreen> {
         : PosAppInfo.displayName;
     final serverUrl = pos.serverUrl ?? PlatformConfig.platformUrl;
     final restaurant = pos.bootstrap?.restaurant;
-    final restaurantName =
-        restaurant?.name.trim().isNotEmpty == true
-            ? restaurant!.name.trim()
-            : binding?.restaurantName?.trim();
-    final branchName = binding?.branchName?.trim() ??
-        pos.bootstrap?.branch.name.trim();
+    final restaurantName = restaurant?.name.trim().isNotEmpty == true
+        ? restaurant!.name.trim()
+        : binding?.restaurantName?.trim();
+    final branchName =
+        binding?.branchName?.trim() ?? pos.bootstrap?.branch.name.trim();
     final terminalLabel = binding?.terminalName?.trim().isNotEmpty == true
         ? binding!.terminalName!.trim()
         : binding?.terminalCode;
-    final logoUrl = resolveMediaUrl(
-      restaurant?.logoUrl,
-      serverUrl: serverUrl,
-    );
+    final logoUrl = resolveMediaUrl(restaurant?.logoUrl, serverUrl: serverUrl);
     final location = [
       if (branchName != null && branchName.isNotEmpty) branchName,
       if (terminalLabel != null && terminalLabel.isNotEmpty) terminalLabel,
@@ -252,16 +276,16 @@ class _LoginScreenState extends State<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              l10n.authStaffSignIn,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    letterSpacing: -0.3,
-                  ),
+              'Log in to your account',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(letterSpacing: -0.3),
             ),
             const SizedBox(height: 6),
             Text(
               binding != null
                   ? l10n.authSignInOnce
-                  : l10n.authUseStaffEmail,
+                  : 'Already have an account? Log in to start using POS.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             if (binding != null) ...[
@@ -396,13 +420,43 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: _loginBlocked ? null : _submit,
             ),
             const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    'New to SELFX?',
+                    style: TextStyle(fontSize: 13, color: PosTheme.inkMuted),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _loading ? null : _createAccount,
+                  child: const Text(
+                    'Create account',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('or', style: TextStyle(color: PosTheme.inkMuted)),
+                ),
+                const Expanded(child: Divider()),
+              ],
+            ),
+            const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: _loading ? null : () => pos.startPairing(),
               icon: const Icon(Icons.tablet_mac_outlined),
               label: Text(
                 binding != null
                     ? l10n.authChangePairedRegister
-                    : l10n.authPairDeviceFirst,
+                    : 'Pair this device with a code',
               ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 48),
@@ -417,8 +471,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(PosTheme.radiusSm),
                 onTap: _loading ? null : () => _changeServer(pos),
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 10,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -464,8 +520,9 @@ class _LoginScreenState extends State<LoginScreen> {
       platform: platform,
       serverUrl: serverUrl,
       statusIcon: Icons.point_of_sale_rounded,
-      statusLabel:
-          binding != null ? l10n.authRegisterPaired : l10n.authStaffPos,
+      statusLabel: binding != null
+          ? l10n.authRegisterPaired
+          : l10n.authStaffPos,
       logoUrl: logoUrl,
       headline: headline,
       locationLine: location.isNotEmpty ? location : null,

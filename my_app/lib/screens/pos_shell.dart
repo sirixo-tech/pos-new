@@ -49,6 +49,7 @@ import '../widgets/pos_payment_qr_sheet.dart';
 import '../widgets/pos_cart_panel.dart';
 import '../widgets/pos_category_rail.dart';
 import '../widgets/pos_menu_item_card.dart';
+import '../widgets/pos_empty_menu_setup.dart';
 import '../widgets/pos_network_logo.dart';
 import '../widgets/pos_ops_bar.dart';
 import '../widgets/pos_order_barcode_listener.dart';
@@ -64,6 +65,7 @@ import 'pos_orders_sheet.dart';
 import 'printer_setup_screen.dart';
 import 'pos_register_more_actions.dart';
 import 'admin/admin_menu_import_screen.dart';
+import 'admin/menu_import_source_sheet.dart';
 import 'pos_mobile_reports_page.dart';
 import 'pos_mobile_settings_page.dart';
 import 'shift_open_overlay.dart';
@@ -1810,6 +1812,29 @@ class _MenuScrollBody extends StatelessWidget {
   final Color accent;
   final ValueChanged<MenuItem> onItemTap;
 
+  Future<void> _openSetupImport(
+    BuildContext context, {
+    MenuImportSource? source,
+    bool ai = true,
+  }) async {
+    final pos = context.read<PosController>();
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'ai-menu'),
+        builder: (_) => AdminMenuImportScreen(
+          navigationTitle: source == MenuImportSource.zomato
+              ? 'Import from Zomato'
+              : ai
+              ? 'AI Menu Upload'
+              : 'Import Menu',
+          initialSource: source,
+          initialAi: ai,
+        ),
+      ),
+    );
+    if (context.mounted) await pos.refreshBootstrap();
+  }
+
   @override
   Widget build(BuildContext context) {
     final menuEmpty = context.select((PosController p) => p.menuItemsEmpty);
@@ -1837,6 +1862,28 @@ class _MenuScrollBody extends StatelessWidget {
     final pos = context.read<PosController>();
 
     if (menuEmpty) {
+      final catalogEmpty =
+          pos.bootstrap != null &&
+          pos.categories.every((category) => category.items.isEmpty) &&
+          pos.bootstrap!.popularItems.isEmpty;
+      if (catalogEmpty) {
+        final canManage =
+            pos.bootstrap?.adminCapabilities.canAccessAdmin == true;
+        return PosEmptyMenuSetup(
+          onAdd: canManage ? () => openPosAdminMenuSheet(context) : null,
+          onImport: canManage
+              ? () => _openSetupImport(
+                  context,
+                  source: MenuImportSource.photo,
+                  ai: false,
+                )
+              : null,
+          onAi: canManage ? () => _openSetupImport(context) : null,
+          onZomato: canManage
+              ? () => _openSetupImport(context, source: MenuImportSource.zomato)
+              : null,
+        );
+      }
       return PosEmptyState(
         icon: Icons.search_off_rounded,
         title: context.l10n.menuNoItemsTitle,

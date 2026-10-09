@@ -2,9 +2,9 @@
 /// continue on the next line, instead of a clipped character printing as "?".
 List<dynamic> wrapLongReportItemNames(
   Map<String, dynamic> data,
-  List<dynamic> commands,
-  {int? lineWidth}
-) {
+  List<dynamic> commands, {
+  int? lineWidth,
+}) {
   final namesByCode = _reportNamesByCode(data);
   final namesInOrder = _reportNamesInOrder(data);
   var itemIndex = 0;
@@ -21,10 +21,17 @@ List<dynamic> wrapLongReportItemNames(
       continue;
     }
     final text = command['text']?.toString() ?? '';
-    if (lineWidth != null && lineWidth <= 32 &&
-        RegExp(r'Code\s+Description\s+Qty\s+Amount', caseSensitive: false).hasMatch(text)) {
-      expanded.add({...Map<String, dynamic>.from(command),
-        'text': 'Code  Description\n${'Qty'.padRight(lineWidth - 6)}Amount'});
+    if (lineWidth != null &&
+        lineWidth <= 32 &&
+        RegExp(
+          r'Code\s+Description\s+Qty\s+Amount',
+          caseSensitive: false,
+        ).hasMatch(text)) {
+      expanded.add({
+        ...Map<String, dynamic>.from(command),
+        'text':
+            '${'Code'.padRight(5)}${'Description'.padRight(lineWidth - 17)}${'Qty'.padLeft(3)}${'Amount'.padLeft(9)}',
+      });
       continue;
     }
     final parsed = _parseItemLine(text);
@@ -38,18 +45,36 @@ List<dynamic> wrapLongReportItemNames(
         ? namesInOrder[itemIndex]
         : null;
     itemIndex++;
-    final full = _fullItemName(parsed.name, fromCode ?? _orderName(parsed.name, fromOrder));
+    final full = _fullItemName(
+      parsed.name,
+      fromCode ?? _orderName(parsed.name, fromOrder),
+    );
     if (lineWidth != null && lineWidth <= 32) {
       final width = lineWidth;
-      final nameLines = _wrapWords('${parsed.code}  $full', width);
       final values = parsed.tail.trim().split(RegExp(r'\s+'));
       final qty = values.first;
       final amount = values.last;
-      for (final line in [...nameLines,
-        'Qty: $qty'.padRight((width - amount.length - 1).clamp(0, width)) + ' $amount',
-        '-' * width]) {
-        expanded.add({...Map<String, dynamic>.from(command), 'text': line,
-          'align': 'left', 'style': 'normal'});
+      final codeWidth = parsed.code.length >= 5 ? parsed.code.length + 1 : 5;
+      final qtyWidth = qty.length >= 3 ? qty.length + 1 : 3;
+      final amountWidth = amount.length >= 9 ? amount.length + 1 : 9;
+      final nameWidth = width - codeWidth - qtyWidth - amountWidth;
+      final nameLines = _wrapWords(full, nameWidth > 0 ? nameWidth : 1);
+      final lines = nameWidth > 0
+          ? [
+              '${parsed.code.padRight(codeWidth)}${nameLines.first.padRight(nameWidth)}${qty.padLeft(qtyWidth)}${amount.padLeft(amountWidth)}',
+              for (final extra in nameLines.skip(1)) '${' ' * codeWidth}$extra',
+            ]
+          : [
+              ..._wrapWords('${parsed.code} $full', width),
+              ..._wrapWords('Qty: $qty Amount: $amount', width),
+            ];
+      for (final line in lines) {
+        expanded.add({
+          ...Map<String, dynamic>.from(command),
+          'text': line,
+          'align': 'left',
+          'style': 'normal',
+        });
       }
       continue;
     }
@@ -101,8 +126,11 @@ _ItemLine? _parseItemLine(String text) {
 
   final amountAt = text.lastIndexOf(amount);
   if (amountAt < 0) return null;
-  final qtyAt = text.lastIndexOf(qty, amountAt);
-  if (qtyAt < 0) return null;
+  // Locate the complete trailing quantity/amount pair. Searching for the
+  // quantity alone can match digits inside the amount (e.g. 2 in 200.00).
+  final tailMatch = RegExp(r'(\d+)\s+([\d,]+\.\d{2})\s*$').firstMatch(text);
+  if (tailMatch == null) return null;
+  final qtyAt = tailMatch.start;
   final name = parts.sublist(1, parts.length - 2).join(' ');
   final nameAt = text.indexOf(name);
   if (nameAt < 0 || nameAt >= qtyAt) return null;
@@ -120,24 +148,18 @@ _ItemLine? _parseItemLine(String text) {
 
 String? _orderName(String printed, String? candidate) {
   if (candidate == null || candidate.isEmpty) return null;
-  final cut = printed
-      .replaceAll(RegExp(r'(?:\.{3}|…|\?)+$'), '')
-      .trimRight();
+  final cut = printed.replaceAll(RegExp(r'(?:\.{3}|…|\?)+$'), '').trimRight();
   if (cut.isEmpty || candidate.startsWith(cut)) return candidate;
   return null;
 }
 
 String _fullItemName(String printed, String? source) {
-  final cut = printed
-      .replaceAll(RegExp(r'(?:\.{3}|…|\?)+$'), '')
-      .trimRight();
+  final cut = printed.replaceAll(RegExp(r'(?:\.{3}|…|\?)+$'), '').trimRight();
   final full = source?.trim() ?? '';
   if (full.isEmpty) return printed;
   if (full == printed) return printed;
   final clipped =
-      printed.endsWith('?') ||
-      printed.endsWith('…') ||
-      printed.endsWith('...');
+      printed.endsWith('?') || printed.endsWith('…') || printed.endsWith('...');
   if (clipped && (full.startsWith(cut) || cut.isEmpty)) return full;
   if (cut.isNotEmpty && full.startsWith(cut) && full.length > printed.length) {
     return full;
@@ -148,7 +170,9 @@ String _fullItemName(String printed, String? source) {
 List<String> _layoutItemLines(_ItemLine line, String name) {
   if (name.length <= line.nameWidth) {
     final gap = line.nameWidth - name.length;
-    return ['${line.raw.substring(0, line.nameAt)}$name${' ' * gap}${line.tail}'];
+    return [
+      '${line.raw.substring(0, line.nameAt)}$name${' ' * gap}${line.tail}',
+    ];
   }
   final chunks = _wrapWords(name, line.nameWidth);
   final lines = <String>[

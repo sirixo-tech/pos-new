@@ -12,6 +12,7 @@ import 'admin_chrome.dart';
 import 'admin_menu_browser.dart';
 import 'admin_menu_edit_dialogs.dart';
 import 'admin_menu_reorder_screen.dart';
+import 'admin_menu_setup_guide.dart';
 
 class AdminMenuScreen extends StatefulWidget {
   const AdminMenuScreen({super.key});
@@ -28,6 +29,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
   String _categoryQuery = '';
   String _itemQuery = '';
   int? _selectedCategoryId;
+  bool _setupStarted = false;
 
   @override
   void initState() {
@@ -98,6 +100,27 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
       0,
       (n, c) => n + c.items.length,
     );
+    if (!admin.menuLoading &&
+        admin.error == null &&
+        totalItems == 0 &&
+        !_setupStarted) {
+      return AdminMenuSetupGuide(
+        onGetStarted: canManageCategories || canManageItems
+            ? () {
+                setState(() => _setupStarted = true);
+                if (admin.categories.isEmpty && canManageCategories) {
+                  _editCategory(context, admin);
+                } else if (admin.categories.isNotEmpty && canManageItems) {
+                  _editItem(
+                    context,
+                    admin,
+                    categoryId: admin.categories.first.id,
+                  );
+                }
+              }
+            : null,
+      );
+    }
     final unavailableItems = admin.categories
         .expand((c) => c.items)
         .where((i) => !i.isAvailable)
