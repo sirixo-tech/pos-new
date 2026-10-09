@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 
@@ -342,6 +343,14 @@ class PrintJobCoordinator extends ChangeNotifier {
       throw const PrintSkipped('Printing is not supported on this device.');
     }
     if (!health.blocksPrinting) return;
+
+    // Windows checks the saved queue before each job. Do not block a printer
+    // that has reconnected since the last background status check.
+    if (!kIsWeb &&
+        Platform.isWindows &&
+        health.config?.connection == PosPrinterConnection.usb) {
+      return;
+    }
 
     if (health.issues.contains('paper_out')) {
       throw StateError(

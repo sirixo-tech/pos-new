@@ -111,4 +111,37 @@ void main() {
     expect(find.text('Veg'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('phone upload disables only the item being saved', (tester) async {
+    await pump(tester, AdminMobileMenuBrowser(
+      categories: categories, selectedCategoryId: null, currency: 'INR',
+      canManageItems: true, canEditItems: true, canToggle: true, busy: false,
+      savingItemIds: const {1},
+      onSelectCategory: (_) {}, onToggleItem: (_) {},
+      onEditItem: (_, _) {}, onDeleteItem: (_) {},
+    ), const Size(390, 844));
+    final switches = tester.widgetList<Switch>(find.byType(Switch)).toList();
+    expect(switches[0].onChanged, isNull);
+    expect(switches[1].onChanged, isNotNull);
+  });
+
+  testWidgets('desktop category upload leaves item controls enabled', (tester) async {
+    final categorySearch = TextEditingController();
+    final itemSearch = TextEditingController();
+    addTearDown(categorySearch.dispose);
+    addTearDown(itemSearch.dispose);
+    await pump(tester, AdminDesktopMenuBrowser(
+      categories: categories, selected: categories.first, currency: 'INR',
+      timeSlots: const [], categorySearch: categorySearch, itemSearch: itemSearch,
+      canManageCategories: true, canManageItems: true, canEditItems: true,
+      canToggle: true, busy: false, savingCategoryIds: const {28},
+      onCategoryQuery: (_) {}, onItemQuery: (_) {}, onSelectCategory: (_) {},
+      onToggleCategory: (_) {}, onEditCategory: (_) {}, onDeleteCategory: (_) {},
+      onAddItem: (_) {}, onToggleItem: (_) {}, onEditItem: (_, _) {},
+      onDeleteItem: (_) {},
+    ), const Size(1280, 800));
+    final switches = tester.widgetList<Switch>(find.byType(Switch)).toList();
+    expect(switches[0].onChanged, isNull);
+    expect(switches[1].onChanged, isNotNull);
+  });
 }

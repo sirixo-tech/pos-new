@@ -2,6 +2,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/services/printing/bluetooth_print_transport.dart';
 
 void main() {
+  test(
+    'paper-out stays retryable without becoming a partial write error',
+    () async {
+      final error = StateError('Printer paper out.');
+      await expectLater(
+        sendBluetoothPrint(
+          isConnected: () async => true,
+          connect: () async => true,
+          write: () async => throw error,
+          connectionError: 'disconnected',
+        ),
+        throwsA(same(error)),
+      );
+    },
+  );
   test('idle disconnect reconnects before sending the next ticket', () async {
     final calls = <String>[];
     await sendBluetoothPrint(

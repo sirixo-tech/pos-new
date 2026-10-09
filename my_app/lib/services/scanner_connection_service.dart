@@ -36,12 +36,8 @@ class ScannerConnectionService extends ChangeNotifier
   ScannerConnectionStatus get status => _status;
   DateTime? get lastInputAt => _lastInputAt;
 
-  bool get connected {
-    final last = _lastInputAt;
-    final recent = last != null &&
-        DateTime.now().difference(last) < const Duration(minutes: 10);
-    return _status.connected || recent;
-  }
+  // Scan activity is telemetry, not evidence that a device is still attached.
+  bool get connected => _status.connected;
 
   String get detail {
     if (connected) return 'Scanner connected.';

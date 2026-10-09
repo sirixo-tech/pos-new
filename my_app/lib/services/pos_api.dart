@@ -1419,12 +1419,15 @@ class PosApi {
     XFile? imageFile,
   }) async {
     if (imageFile == null) {
-      return _sendAdminJson(
-        session,
-        method: method,
-        path: path,
-        body: body,
-      );
+      return _sendAdminJson(session, method: method, path: path, body: body);
+    }
+
+    // Multipart has no representation for an empty array. Clear existing
+    // associations through JSON before uploading the image; new records
+    // already start with no associations when these fields are omitted.
+    if (method != 'POST' &&
+        body.values.any((value) => value is List && value.isEmpty)) {
+      await _sendAdminJson(session, method: method, path: path, body: body);
     }
 
     final request = http.MultipartRequest(
@@ -1434,11 +1437,18 @@ class PosApi {
     request.headers.addAll(_adminAuthHeaders(session));
     body.forEach((key, value) {
       if (value == null) return;
+      if (value is List) {
+        for (var index = 0; index < value.length; index++) {
+          request.fields['$key[$index]'] = _multipartFieldValue(value[index]);
+        }
+        return;
+      }
       request.fields[key] = _multipartFieldValue(value);
     });
     final bytes = await imageFile.readAsBytes();
-    final filename =
-        imageFile.name.isNotEmpty ? imageFile.name : 'menu-image.jpg';
+    final filename = imageFile.name.isNotEmpty
+        ? imageFile.name
+        : 'menu-image.jpg';
     request.files.add(
       http.MultipartFile.fromBytes('image', bytes, filename: filename),
     );

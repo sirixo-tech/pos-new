@@ -454,6 +454,7 @@ Future<void> showPosTablePicker(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width),
     builder: (sheetContext) => PosKeyboardSheetHost(
       child: _TablePickerSheet(
         accent: accent,
@@ -815,8 +816,15 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                   usePosDesktopLayout(context) && constraints.maxWidth >= 300;
               final payFlex = onPark == null ? 1 : (narrow ? 1 : 2);
 
-              if (handheld && primaryLabel == null && widget.onPayMethod != null) {
-                Widget action(String label, IconData icon, Color color, String method) {
+              if (handheld &&
+                  primaryLabel == null &&
+                  widget.onPayMethod != null) {
+                Widget action(
+                  String label,
+                  IconData icon,
+                  Color color,
+                  String method,
+                ) {
                   return Expanded(
                     child: FilledButton(
                       onPressed: canPay
@@ -841,7 +849,9 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                               label,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w800),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                         ],
@@ -850,8 +860,11 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                   );
                 }
 
-                final methods = ['card', 'upi', 'cash']
-                    .where(visiblePay.contains).toList();
+                final methods = [
+                  'card',
+                  'upi',
+                  'cash',
+                ].where(visiblePay.contains).toList();
                 return Row(
                   children: [
                     if (onPark != null) ...[
@@ -862,7 +875,9 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                           tooltip: context.l10n.cartHold,
                           onPressed: !cartEmpty && !submitting ? onPark : null,
                           style: IconButton.styleFrom(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                           icon: const Icon(Icons.pause_circle_outline_rounded),
                         ),
@@ -872,11 +887,26 @@ class _CartFooterPaneState extends State<_CartFooterPane> {
                     for (var i = 0; i < methods.length; i++) ...[
                       if (i > 0) const SizedBox(width: 6),
                       if (methods[i] == 'cash')
-                        action('PRINT', Icons.print_rounded, const Color(0xFF2E9644), 'cash'),
+                        action(
+                          'PRINT',
+                          Icons.print_rounded,
+                          const Color(0xFF2E9644),
+                          'cash',
+                        ),
                       if (methods[i] == 'upi')
-                        action('UPI', Icons.qr_code_rounded, const Color(0xFF2563EB), 'upi'),
+                        action(
+                          'UPI',
+                          Icons.qr_code_rounded,
+                          const Color(0xFF2563EB),
+                          'upi',
+                        ),
                       if (methods[i] == 'card')
-                        action('CARD', Icons.credit_card_rounded, const Color(0xFF7C3AED), 'card'),
+                        action(
+                          'CARD',
+                          Icons.credit_card_rounded,
+                          const Color(0xFF7C3AED),
+                          'card',
+                        ),
                     ],
                   ],
                 );
@@ -1305,7 +1335,9 @@ class _TablePickerSheetState extends State<_TablePickerSheet> {
   void _apply(Map<String, dynamic> data) {
     final tables = _PosCartPanelState._mapList(data['tables']);
     final areas = _PosCartPanelState._mapList(data['table_areas']);
-    final withoutArea = _PosCartPanelState._mapList(data['tables_without_area']);
+    final withoutArea = _PosCartPanelState._mapList(
+      data['tables_without_area'],
+    );
     _tableAreas = areas;
     _tablesWithoutArea = withoutArea.isNotEmpty
         ? withoutArea
@@ -1342,7 +1374,8 @@ class _TablePickerSheetState extends State<_TablePickerSheet> {
     final soft = posAccentSoft(accent);
     final size = MediaQuery.sizeOf(context);
     final maxHeight = posMobileSheetHeight(context);
-    final sheetMaxWidth = size.width >= 900 ? 720.0 : size.width;
+    final available = size.width - (size.width >= 1100 ? 48 : 24);
+    final sheetMaxWidth = available > 1280 ? 1280.0 : available;
     final hasAreas = tableAreas.any((a) => _areaTables(a).isNotEmpty);
 
     return Align(
@@ -2376,7 +2409,10 @@ class _CartLineRow extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(10, 2, 4, 4),
           decoration: BoxDecoration(
-            border: Border.all(color: green.withValues(alpha: 0.25), width: 1.3),
+            border: Border.all(
+              color: green.withValues(alpha: 0.25),
+              width: 1.3,
+            ),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
@@ -2401,13 +2437,23 @@ class _CartLineRow extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    decoration: BoxDecoration(color: PosTheme.surface,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: PosTheme.surface,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: PosTheme.border)),
-                    child: Text(formatMoney(line.lineTotal, currency),
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
-                        color: PosTheme.ink)),
+                      border: Border.all(color: PosTheme.border),
+                    ),
+                    child: Text(
+                      formatMoney(line.lineTotal, currency),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: PosTheme.ink,
+                      ),
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Remove item',
@@ -2445,10 +2491,13 @@ class _CartLineRow extends StatelessWidget {
                   SizedBox(
                     width: 126,
                     child: _QtyStepper(
-                      quantity: line.quantity, accent: accent,
-                      onDecrement: onDecrement, onIncrement: onIncrement,
+                      quantity: line.quantity,
+                      accent: accent,
+                      onDecrement: onDecrement,
+                      onIncrement: onIncrement,
                     ),
-                  ),                  IconButton(
+                  ),
+                  IconButton(
                     tooltip: 'Item notes',
                     onPressed: onToggleExpanded,
                     icon: Icon(
@@ -2891,10 +2940,12 @@ class _QtyStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final desktop = !usePosHandheldLayout(context);
     return Container(
+      padding: desktop ? const EdgeInsets.all(4) : EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: PosTheme.surface,
+        color: desktop ? Colors.white : PosTheme.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFBBD8C3)),
       ),
@@ -2912,7 +2963,7 @@ class _QtyStepper extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.w800,
                 fontSize: 12.57,
-                color: PosTheme.ink,
+                color: desktop ? const Color(0xFF172033) : PosTheme.ink,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
@@ -2941,17 +2992,23 @@ class _QtyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final desktop = !usePosHandheldLayout(context);
     final increase = icon == Icons.add_rounded;
     final color = increase ? const Color(0xFF2E9347) : const Color(0xFFFF7900);
     return Material(
-      color: increase ? const Color(0xFFE0F2E6) : const Color(0xFFFFEADC),
+      color: desktop
+          ? (increase ? const Color(0xFF18B65A) : const Color(0xFFFF5145))
+          : (increase ? const Color(0xFFE0F2E6) : const Color(0xFFFFEADC)),
+      shape: desktop ? const CircleBorder() : null,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        customBorder: desktop ? const CircleBorder() : null,
         child: Container(
-          width: 40,
-          height: 40,
+          width: desktop ? 34 : 40,
+          height: desktop ? 34 : 40,
           alignment: Alignment.center,
-          child: Icon(icon, size: 22, color: color),
+          child: Icon(icon, size: 22, color: desktop ? Colors.white : color),
         ),
       ),
     );

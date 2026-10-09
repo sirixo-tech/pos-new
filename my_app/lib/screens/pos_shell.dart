@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import '../widgets/pos_cart_summary_bar.dart';
 import 'dart:async';
 
@@ -48,8 +49,6 @@ import '../widgets/pos_payment_qr_sheet.dart';
 import '../widgets/pos_cart_panel.dart';
 import '../widgets/pos_category_rail.dart';
 import '../widgets/pos_menu_item_card.dart';
-import '../widgets/pos_more_menu.dart';
-import '../widgets/pos_more_menu_sections.dart';
 import '../widgets/pos_network_logo.dart';
 import '../widgets/pos_ops_bar.dart';
 import '../widgets/pos_order_barcode_listener.dart';
@@ -167,8 +166,11 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
 
   void _checkPrinterSetupAfterLogin() {
     final pos = _printerSetupPos;
-    if (!mounted || pos == null || _printerSetupOpened ||
-        pos.phase != PosAppPhase.ready || !pos.isRegisterMode) {
+    if (!mounted ||
+        pos == null ||
+        _printerSetupOpened ||
+        pos.phase != PosAppPhase.ready ||
+        !pos.isRegisterMode) {
       return;
     }
     _printerSetupOpened = true;
@@ -187,7 +189,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   Future<void> _onMobileSettings(String value) {
     final pos = context.read<PosController>();
     return handlePosRegisterMoreAction(
-      context: context, pos: pos, l10n: context.l10n, value: value,
+      context: context,
+      pos: pos,
+      l10n: context.l10n,
+      value: value,
       hasPin: pos.session?.hasPosPin == true,
       onOpenPartnerOrders: _openPartnerOrders,
       onOpenDayEndReports: () => _selectMobileTab(4),
@@ -210,8 +215,11 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         _phoneLayout(accent),
         tab(
           1,
-          PosOrdersSheet(initialTab: 'orders', embedded: true,
-            onResume: () => _selectMobileTab(0)),
+          PosOrdersSheet(
+            initialTab: 'orders',
+            embedded: true,
+            onResume: () => _selectMobileTab(0),
+          ),
         ),
         tab(
           2,
@@ -219,10 +227,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         ),
         // Load the editor while POS is visible, and retain its data between tabs.
         _mobileMenu(),
-        tab(
-          4,
-          PosMobileReportsPage(onPrint: _printThermalReport),
-        ),
+        tab(4, PosMobileReportsPage(onPrint: _printThermalReport)),
         tab(5, PosMobileSettingsPage(onSelected: _onMobileSettings)),
       ],
     );
@@ -234,7 +239,9 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
         final pos = context.read<PosController>();
         final api = context.read<PosApi>();
         if (pos.bootstrap?.adminCapabilities.canAccessAdmin != true) {
-          return const Center(child: Text('Menu access is not available for this account.'));
+          return const Center(
+            child: Text('Menu access is not available for this account.'),
+          );
         }
         return ChangeNotifierProvider(
           create: (_) => PosAdminController(api: api, pos: pos),
@@ -261,9 +268,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       _checkPrinterSetupAfterLogin();
       unawaited(_loadKotDockState());
       unawaited(_bootKitchenIfNeeded());
-      unawaited(
-        PosAdminController.warm(context.read<PosApi>(), pos),
-      );
+      unawaited(PosAdminController.warm(context.read<PosApi>(), pos));
     });
   }
 
@@ -535,8 +540,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
     final slug = method.trim().toLowerCase();
     if (['upi', 'phonepe', 'paytm'].contains(slug)) return true;
     return context.read<PosController>().bootstrap?.paymentGateways.any(
-      (gateway) => gateway.slug.toLowerCase() == slug && gateway.isDynamicQr,
-    ) ?? false;
+          (gateway) =>
+              gateway.slug.toLowerCase() == slug && gateway.isDynamicQr,
+        ) ??
+        false;
   }
 
   Future<void> _payCartDirect(String quickMethod) async {
@@ -865,7 +872,9 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       });
       pos.registerSelfPlacedOrder(placed.id);
 
-      if ((isQrPayment || placed.isQrPayment) && placed.id > 0 && pos.serverUrl != null) {
+      if ((isQrPayment || placed.isQrPayment) &&
+          placed.id > 0 &&
+          pos.serverUrl != null) {
         final qrClose = await PosPaymentQrSheet.show(
           context,
           order: placed,
@@ -1405,9 +1414,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
                 ),
               ],
             ),
-            if (!desktop &&
-                !usePosHandheldLayout(context) &&
-                !_cartOpen)
+            if (!desktop && !usePosHandheldLayout(context) && !_cartOpen)
               Positioned(
                 left: 0,
                 right: 0,
@@ -1844,8 +1851,10 @@ class _MenuScrollBody extends StatelessWidget {
         final handheld = usePosHandheldLayout(context);
         final crossAxisCount = posMenuGridCrossAxisCount(paneWidth);
         final screenSize = MediaQuery.sizeOf(context);
-        final compactRegisterGrid = !handheld &&
-            screenSize.width >= 900 && screenSize.width <= 1100 &&
+        final compactRegisterGrid =
+            !handheld &&
+            screenSize.width >= 900 &&
+            screenSize.width <= 1100 &&
             screenSize.height >= 700;
 
         return CustomScrollView(
@@ -1923,7 +1932,9 @@ class _MenuScrollBody extends StatelessWidget {
                           crossAxisCount: handheld ? 2 : crossAxisCount,
                           mainAxisExtent: handheld
                               ? handheldMenuCardExtent(context, paneWidth)
-                              : compactRegisterGrid ? 130 : null,
+                              : compactRegisterGrid
+                              ? 130
+                              : null,
                           mainAxisSpacing: 14,
                           crossAxisSpacing: 14,
                           childAspectRatio: posMenuGridChildAspectRatio(
@@ -2328,11 +2339,6 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final ordersCount = context.select((PosController p) => p.todayOrderCount);
-    final marketplacePlatforms = context.select(
-      (PosController p) =>
-          p.bootstrap?.marketplacePlatforms ??
-          const <MarketplacePlatformInfo>[],
-    );
     final marketplaceCounts = context.select(
       (PosController p) => p.marketplaceOpenOrderCounts,
     );
@@ -2357,28 +2363,6 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
       (PosController p) => p.bootstrap?.restaurant.logoUrl,
     );
     final serverUrl = context.select((PosController p) => p.session?.serverUrl);
-    final terminalCount = context.select(
-      (PosController p) => p.bootstrap?.posTerminals.length ?? 0,
-    );
-    final pendingOrderCount = context.select(
-      (PosController p) => p.pendingOrderCount,
-    );
-    final checkingForUpdates = context.select(
-      (PosController p) => p.checkingForUpdates,
-    );
-    final canUseCaptain = context.select((PosController p) => p.canUseCaptain);
-    final canChooseWorkMode = context.select(
-      (PosController p) => p.canChooseWorkMode,
-    );
-    final canChangeLocation = context.select(
-      (PosController p) => p.canChangeLocation,
-    );
-    final hasDeviceBinding = context.select(
-      (PosController p) => p.deviceBinding != null,
-    );
-    final showLanguageSwitcher = context.select(
-      (PosLocaleController c) => c.showSwitcher,
-    );
     context.select((PosLocaleController c) => c.catalogGeneration);
     final pos = context.read<PosController>();
     final l10n = context.l10n;
@@ -2401,20 +2385,6 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
           caps?.canManageMenu == true ||
           caps?.canManageMenuItems == true;
     });
-    final canManageStore = context.select(
-      (PosController p) =>
-          p.bootstrap?.adminCapabilities.canManageSettings == true,
-    );
-    final guestOrdering = context.select(
-      (PosController p) =>
-          p.bootstrap?.guestOrdering ?? const PosGuestOrdering(),
-    );
-    final storeAccepting = guestOrdering.acceptOnlineOrders;
-    final storeStatusLabel = guestOrdering.open
-        ? l10n.storeOpen
-        : (guestOrdering.isPaused || !storeAccepting
-              ? l10n.storePaused
-              : l10n.storeClosed);
     final titleText = restaurantName ?? 'POS';
     final titleTooltip = [
       if (restaurantName != null && restaurantName.isNotEmpty) restaurantName,
@@ -2606,52 +2576,56 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
         const SizedBox(width: 6),
         _HeaderSegment(
-            children: [
-              const _HeaderHelpButton(),
-              if (handheld)
-                _HeaderIconButton(
-                  tooltip: 'Settings',
-                  icon: Icons.settings_rounded,
-                  onPressed: onOpenSettings ?? () {},
-                )
-              else PosMoreMenuButton(
-                accent: accent,
-                embedded: true,
-                tooltip: l10n.shellMore,
-                sections: buildPosMoreMenuSections(
+          children: [
+            const _HeaderHelpButton(),
+            if (handheld)
+              _HeaderIconButton(
+                tooltip: 'Settings',
+                icon: Icons.settings_rounded,
+                onPressed: onOpenSettings ?? () {},
+              )
+            else
+              _HeaderIconButton(
+                tooltip: 'Settings',
+                icon: CupertinoIcons.gear_alt,
+                onPressed: () => showPosSidePanel<void>(
                   context: context,
-                  l10n: l10n,
-                  storeAccepting: storeAccepting,
-                  storeStatusLabel: storeStatusLabel,
-                  canManageStore: canManageStore,
-                  canAccessAdmin: canAccessAdmin,
-                  canViewMenu: canViewMenu,
-                  marketplacePlatforms: marketplacePlatforms,
-                  showLanguageSwitcher: showLanguageSwitcher,
-                  terminalCount: terminalCount,
-                  canChangeLocation: canChangeLocation,
-                  hasPin: hasPin,
-                  canUseCaptain: canUseCaptain,
-                  canChooseWorkMode: canChooseWorkMode,
-                  checkingForUpdates: checkingForUpdates,
-                  pendingOrderCount: pendingOrderCount,
-                  hasDeviceBinding: hasDeviceBinding,
-                  includeShortcuts: !compact,
+                  width: 380,
+                  builder: (dialogContext) => PosSidePanelShell(
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: double.infinity,
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: PosMobileSettingsPage(
+                              onClose: () => Navigator.of(dialogContext).pop(),
+                              onSelected: (value) async {
+                                Navigator.of(dialogContext).pop();
+                                if (value == '_notifications') {
+                                  onOpenNotifications();
+                                  return;
+                                }
+                                await _handleMoreMenuAction(
+                                  context: context,
+                                  pos: pos,
+                                  l10n: l10n,
+                                  value: value,
+                                  hasPin: hasPin,
+                                  onOpenPartnerOrders: onOpenPartnerOrders,
+                                  onOpenDayEndReports: onOpenDayEndReports,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                onSelected: (value) async {
-                  await _handleMoreMenuAction(
-                    context: context,
-                    pos: pos,
-                    l10n: l10n,
-                    value: value,
-                    hasPin: hasPin,
-                    onOpenPartnerOrders: onOpenPartnerOrders,
-                    onOpenDayEndReports: onOpenDayEndReports,
-                  );
-                },
               ),
-            ],
-          ),
+          ],
+        ),
         const SizedBox(width: 10),
       ],
     );
@@ -2862,7 +2836,11 @@ class _HeaderHelpButton extends StatelessWidget {
         padding: EdgeInsets.symmetric(
           horizontal: handheld ? 13 : PosTheme.headerPx(10),
         ),
-        child: Icon(Icons.phone_rounded, size: PosTheme.headerPx(18), color: fg),
+        child: Icon(
+          Icons.phone_rounded,
+          size: PosTheme.headerPx(18),
+          color: fg,
+        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import '../models/pos_models.dart';
 import '../theme/pos_theme.dart';
 import '../utils/format.dart';
 import '../utils/media_url.dart';
+import '../utils/pos_layout.dart';
 import 'pos_item_type_badge.dart';
 
 class PosMenuItemCard extends StatefulWidget {
@@ -93,7 +94,6 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     final soft = posAccentSoft(primary);
     final inCart = widget.inTicketQty > 0;
     final showStepper = widget.simpleCartLine != null && inCart;
-    final showQtyBadge = widget.item.hasOptions && inCart;
     final showFromPrice = widget.item.variants.isNotEmpty;
     final imageUrl = resolveMediaUrl(
       widget.item.imageUrl,
@@ -254,11 +254,11 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                           bottom: 0,
                           child: Container(
                             color: widget.item.isManuallyUnavailable
-                                ? const Color(0xCC991B1B)
+                                ? const Color(0xE6B83232)
                                 : const Color(0xCCB45309),
                             padding: EdgeInsets.symmetric(
                               horizontal: widget.compact ? 6 : 8,
-                              vertical: widget.compact ? 4 : 5,
+                              vertical: widget.compact ? 6 : 7,
                             ),
                             child: Text(
                               widget.item.isManuallyUnavailable
@@ -292,58 +292,22 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                             label: context.l10n.menuOptions,
                           ),
                         ),
-                      if (showQtyBadge)
+                      if (showStepper)
                         Positioned(
                           bottom: 8,
-                          left: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: primary,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: Colors.white, width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: primary.withValues(alpha: 0.35),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              '×${widget.inTicketQty}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 11,
-                                height: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (inCart && !widget.item.hasOptions)
-                        Positioned(
-                          bottom: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.95),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              '×${widget.inTicketQty}',
-                              style: TextStyle(
-                                color: soft.fg,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 11,
-                                height: 1,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: IgnorePointer(
+                              ignoring: unavailable || outsideSchedule,
+                              child: _Stepper(
+                                quantity: widget.inTicketQty,
+                                compact: widget.compact,
+                                accent: primary,
+                                onDecrement: () => widget.onDecrementSimple
+                                    ?.call(widget.simpleCartLine!),
+                                onIncrement: () => widget.onIncrementSimple
+                                    ?.call(widget.simpleCartLine!),
                               ),
                             ),
                           ),
@@ -357,7 +321,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                 final footer = _buildFooter(
                   primary: primary,
                   showFromPrice: showFromPrice,
-                  showStepper: showStepper,
+                  showStepper: false,
                   showDescription: showDescription,
                   description: description,
                   itemName: itemName,
@@ -561,6 +525,26 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     );
   }
 
+  Widget _quantityBadge() => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(24),
+    child: InkWell(
+      onTap: _handleTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        child: Text(
+          '\u00D7${widget.inTicketQty}',
+          style: const TextStyle(
+            color: Color(0xFFB54708),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    ),
+  );
+
   Widget _buildPhotoCard(
     String name,
     String? imageUrl,
@@ -569,28 +553,6 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
   ) {
     final unavailable =
         widget.item.isManuallyUnavailable || widget.item.isOutsideSchedule;
-    Widget action(IconData icon, String tooltip, VoidCallback? onPressed) =>
-        Expanded(
-          child: IconButton(
-            tooltip: tooltip,
-            onPressed: unavailable ? null : onPressed,
-            style: IconButton.styleFrom(
-              backgroundColor: icon == Icons.remove_rounded
-                  ? const Color(0xFFFDE7E7)
-                  : const Color(0xFFE5F4E9),
-              foregroundColor: icon == Icons.remove_rounded
-                  ? Colors.red.shade600
-                  : Colors.green.shade600,
-              minimumSize: const Size(0, 44),
-              padding: EdgeInsets.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.zero,
-              ),
-            ),
-            icon: Icon(icon, size: 22),
-          ),
-        );
     return Material(
       color: PosTheme.surface,
       shape: RoundedRectangleBorder(
@@ -605,20 +567,27 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: AspectRatio(
-                  aspectRatio: 2.2,
-                  child: widget.showImage && imageUrl != null && !_imageFailed
-                      ? CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 480,
-                          placeholder: (_, _) => _handheldColorMark(accent),
-                          errorWidget: (_, _, _) => _handheldColorMark(accent),
-                        )
-                      : _handheldColorMark(accent),
-                ),
+              Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 2.2,
+                      child:
+                          widget.showImage && imageUrl != null && !_imageFailed
+                          ? CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 480,
+                              placeholder: (_, _) => _handheldColorMark(accent),
+                              errorWidget: (_, _, _) =>
+                                  _handheldColorMark(accent),
+                            )
+                          : _handheldColorMark(accent),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
               SizedBox(
@@ -664,91 +633,107 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                   style: TextStyle(color: PosTheme.inkMuted, fontSize: 10),
                 ),
               const Spacer(),
-              SizedBox(
-                height: 44,
-                width: double.infinity,
-                child: stepper
-                    ? Container(
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: accent.withValues(alpha: 0.3)),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            action(
-                              Icons.remove_rounded,
-                              'Decrease quantity',
-                              () => widget.onDecrementSimple?.call(
-                                widget.simpleCartLine!,
-                              ),
-                            ),
-                            Expanded(
-                              child: SizedBox(
-                                height: 44,
-                                child: ColoredBox(
-                                  color: Colors.white,
-                                  child: Center(
-                                    child: Text(
-                                      '${widget.inTicketQty}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF1F2937),
-                                        fontWeight: FontWeight.w800,
-                                      ),
+              if (stepper)
+                SizedBox(
+                  height: 44,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: accent.withValues(alpha: .3)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: IconButton(
+                              onPressed: unavailable
+                                  ? null
+                                  : () => widget.onDecrementSimple?.call(
+                                      widget.simpleCartLine!,
                                     ),
-                                  ),
+                              style: IconButton.styleFrom(
+                                backgroundColor: const Color(0xFFFDE7E7),
+                                foregroundColor: const Color(0xFFE53935),
+                                shape: const RoundedRectangleBorder(),
+                                minimumSize: const Size(0, 44),
+                              ),
+                              icon: const Icon(Icons.remove_rounded),
+                            ),
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: Text(
+                                '${widget.inTicketQty}',
+                                style: TextStyle(
+                                  color: PosTheme.ink,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
-                            action(
-                              Icons.add_rounded,
-                              'Increase quantity',
-                              () => widget.onIncrementSimple?.call(
-                                widget.simpleCartLine!,
+                          ),
+                          Expanded(
+                            child: IconButton(
+                              onPressed: unavailable
+                                  ? null
+                                  : () => widget.onIncrementSimple?.call(
+                                      widget.simpleCartLine!,
+                                    ),
+                              style: IconButton.styleFrom(
+                                backgroundColor: const Color(0xFFE5F4E9),
+                                foregroundColor: const Color(0xFF239B4B),
+                                shape: const RoundedRectangleBorder(),
+                                minimumSize: const Size(0, 44),
                               ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Tooltip(
-                        message: widget.item.hasOptions
-                            ? 'Choose options'
-                            : 'Add item',
-                        child: OutlinedButton(
-                          onPressed: unavailable ? null : _handleTap,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: accent,
-                            minimumSize: const Size(0, 44),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.standard,
-                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                            side: BorderSide(color: accent.withValues(alpha: 0.4)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_rounded, size: 18),
-                        SizedBox(width: 3),
-                        Flexible(
-                          child: Text(
-                            'ADD',
-                            maxLines: 1,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
+                              icon: const Icon(Icons.add_rounded),
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SizedBox(
+                  height: 44,
+                  width: double.infinity,
+                  child: Tooltip(
+                    message: widget.item.hasOptions
+                        ? 'Choose options'
+                        : 'Add item',
+                    child: OutlinedButton(
+                      onPressed: unavailable ? null : _handleTap,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: accent,
+                        minimumSize: const Size(0, 44),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.standard,
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        side: BorderSide(color: accent.withValues(alpha: 0.4)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                      ],
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_rounded, size: 18),
+                          SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              'ADD',
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -866,6 +851,24 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                               const SizedBox(height: 8),
                               Center(child: _colorMonogram(itemName, circle)),
                             ],
+                            if (showStepper)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Center(
+                                  child: _Stepper(
+                                    quantity: widget.inTicketQty,
+                                    compact: true,
+                                    soft:
+                                        !widget.handheld &&
+                                        !usePosHandheldLayout(context),
+                                    accent: _colorCardPrice,
+                                    onDecrement: () => widget.onDecrementSimple
+                                        ?.call(widget.simpleCartLine!),
+                                    onIncrement: () => widget.onIncrementSimple
+                                        ?.call(widget.simpleCartLine!),
+                                  ),
+                                ),
+                              ),
                             SizedBox(height: widget.compact ? 8 : 10),
                             Text(
                               itemName,
@@ -917,20 +920,8 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                                     ),
                                   ),
                                 ),
-                                if (showStepper)
-                                  _Stepper(
-                                    quantity: widget.simpleCartLine!.quantity,
-                                    compact: true,
-                                    accent: const Color(0xFF3F2A22),
-                                    onDecrement: () => widget.onDecrementSimple
-                                        ?.call(widget.simpleCartLine!),
-                                    onIncrement: () {
-                                      HapticFeedback.selectionClick();
-                                      widget.onIncrementSimple?.call(
-                                        widget.simpleCartLine!,
-                                      );
-                                    },
-                                  )
+                                if (widget.inTicketQty > 0)
+                                  _quantityBadge()
                                 else
                                   Material(
                                     color: _colorCardPrice,
@@ -961,11 +952,11 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                           bottom: 0,
                           child: Container(
                             color: unavailable
-                                ? const Color(0xCC991B1B)
+                                ? const Color(0xE6B83232)
                                 : const Color(0xCCB45309),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
-                              vertical: 4,
+                              vertical: 6,
                             ),
                             child: Text(
                               unavailable
@@ -1138,6 +1129,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                           ),
                   ),
                 ),
+                if (widget.inTicketQty > 0) _quantityBadge(),
                 if (showStepper)
                   _Stepper(
                     quantity: widget.simpleCartLine!.quantity,
@@ -1280,8 +1272,10 @@ class _Stepper extends StatelessWidget {
     required this.accent,
     required this.onDecrement,
     required this.onIncrement,
+    this.soft = false,
   });
 
+  final bool soft;
   final int quantity;
   final bool compact;
   final Color accent;
@@ -1290,17 +1284,17 @@ class _Stepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = compact ? 28.0 : 32.0;
-    // Always use a dark filled bar so white +/- stay readable in both themes.
-    final barColor = Color.lerp(PosTheme.inkLight, accent, 0.22)!;
+    final size = compact ? 34.0 : 38.0;
+    final barColor = Colors.white.withValues(alpha: soft ? 0.85 : 1);
     return Material(
       color: barColor,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(30),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: accent.withValues(alpha: 0.45)),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
+        padding: const EdgeInsets.all(4),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1308,17 +1302,18 @@ class _Stepper extends StatelessWidget {
               icon: Icons.remove_rounded,
               size: size,
               foreground: Colors.white,
+              opacity: soft ? 0.82 : 1,
               onTap: onDecrement,
             ),
             SizedBox(
-              width: compact ? 22 : 24,
+              width: (compact ? 30.0 : 34.0) + (soft ? 8 : 0),
               child: Text(
                 '$quantity',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: compact ? 11 : 12,
+                  color: const Color(0xFF172033),
+                  fontWeight: FontWeight.w600,
+                  fontSize: compact ? 13 : 14,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
@@ -1327,6 +1322,7 @@ class _Stepper extends StatelessWidget {
               icon: Icons.add_rounded,
               size: size,
               foreground: Colors.white,
+              opacity: soft ? 0.82 : 1,
               onTap: onIncrement,
             ),
           ],
@@ -1342,8 +1338,10 @@ class _StepperButton extends StatelessWidget {
     required this.size,
     required this.foreground,
     required this.onTap,
+    this.opacity = 1,
   });
 
+  final double opacity;
   final IconData icon;
   final double size;
   final Color foreground;
@@ -1353,10 +1351,18 @@ class _StepperButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
+      borderRadius: BorderRadius.circular(30),
+      child: Container(
         width: size,
         height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color:
+              (icon == Icons.remove_rounded
+                      ? const Color(0xFFFF5145)
+                      : const Color(0xFF18B65A))
+                  .withValues(alpha: opacity),
+        ),
         child: Icon(icon, color: foreground, size: size * 0.48),
       ),
     );

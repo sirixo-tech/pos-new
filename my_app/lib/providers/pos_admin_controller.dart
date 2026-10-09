@@ -60,6 +60,34 @@ class PosAdminController extends ChangeNotifier {
   bool tablesLoading = false;
   bool ordersLoading = false;
   bool mutating = false;
+  final Set<String> _menuSaves = {};
+  Set<int> get savingItemIds => {
+    for (final key in _menuSaves)
+      if (key.startsWith('item:')) int.parse(key.substring(5)),
+  };
+  Set<int> get savingCategoryIds => {
+    for (final key in _menuSaves)
+      if (key.startsWith('category:')) int.parse(key.substring(9)),
+  };
+
+  Future<bool> _runMenuSave(String key, Future<void> Function() action) async {
+    if (!_menuSaves.add(key)) return false;
+    clearError();
+    notifyListeners();
+    try {
+      await action();
+      await loadMenu();
+      unawaited(_refreshMenuBootstrap());
+      return true;
+    } catch (e) {
+      _setError(e);
+      return false;
+    } finally {
+      _menuSaves.remove(key);
+      notifyListeners();
+    }
+  }
+
   String? error;
 
   PosSession? get session => _pos.session;
@@ -179,17 +207,16 @@ class PosAdminController extends ChangeNotifier {
     Map<String, dynamic> body, {
     XFile? imageFile,
   }) async {
-    final ok = await _runMutation(() async {
+    return _runMenuSave('new-category', () async {
       await _api.createAdminMenuCategory(
         _requireSession(),
-        body: body,
+        body: {
+          'is_active': true,
+          ...body,
+        },
         imageFile: imageFile,
       );
-      await loadMenu();
-      await _refreshMenuBootstrap();
-      return true;
     });
-    return ok == true;
   }
 
   Future<bool> updateMenuCategory(
@@ -197,21 +224,22 @@ class PosAdminController extends ChangeNotifier {
     Map<String, dynamic> body, {
     XFile? imageFile,
   }) async {
-    final ok = await _runMutation(() async {
+    final currentStatus = categories.where((category) => category.id == id).firstOrNull?.isActive;
+    return _runMenuSave('category:$id', () async {
       await _api.updateAdminMenuCategory(
         _requireSession(),
         id: id,
-        body: body,
+        body: {
+          if (currentStatus != null) 'is_active': currentStatus,
+          ...body,
+        },
         imageFile: imageFile,
       );
-      await loadMenu();
-      await _refreshMenuBootstrap();
-      return true;
     });
-    return ok == true;
   }
 
   Future<bool> toggleMenuCategory(int id) async {
+    if (_menuSaves.contains('category:$id')) return false;
     clearError();
     final index = categories.indexWhere((c) => c.id == id);
     if (index < 0) return false;
@@ -247,6 +275,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteMenuCategory(int id) async {
+    if (_menuSaves.contains('category:$id')) return false;
     final ok = await _runMutation(() async {
       await _api.deleteAdminMenuCategory(_requireSession(), id: id);
       await loadMenu();
@@ -298,17 +327,16 @@ class PosAdminController extends ChangeNotifier {
     Map<String, dynamic> body, {
     XFile? imageFile,
   }) async {
-    final ok = await _runMutation(() async {
+    return _runMenuSave('new-item', () async {
       await _api.createAdminMenuItem(
         _requireSession(),
-        body: body,
+        body: {
+          'is_available': true,
+          ...body,
+        },
         imageFile: imageFile,
       );
-      await loadMenu();
-      await _refreshMenuBootstrap();
-      return true;
     });
-    return ok == true;
   }
 
   Future<bool> updateMenuItem(
@@ -316,21 +344,22 @@ class PosAdminController extends ChangeNotifier {
     Map<String, dynamic> body, {
     XFile? imageFile,
   }) async {
-    final ok = await _runMutation(() async {
+    final currentStatus = categories.expand((category) => category.items).where((item) => item.id == id).firstOrNull?.isAvailable;
+    return _runMenuSave('item:$id', () async {
       await _api.updateAdminMenuItem(
         _requireSession(),
         id: id,
-        body: body,
+        body: {
+          if (currentStatus != null) 'is_available': currentStatus,
+          ...body,
+        },
         imageFile: imageFile,
       );
-      await loadMenu();
-      await _refreshMenuBootstrap();
-      return true;
     });
-    return ok == true;
   }
 
   Future<bool> toggleMenuItem(int id) async {
+    if (_menuSaves.contains('item:$id')) return false;
     clearError();
     var catIndex = -1;
     var itemIndex = -1;
@@ -403,6 +432,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteMenuItem(int id) async {
+    if (_menuSaves.contains('item:$id')) return false;
     final ok = await _runMutation(() async {
       await _api.deleteAdminMenuItem(_requireSession(), id: id);
       await loadMenu();

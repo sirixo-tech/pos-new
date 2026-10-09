@@ -1,3 +1,5 @@
+import 'print_skipped.dart';
+
 /// Reconnect before sending bytes, but never replay a possibly partial ticket.
 Future<void> sendBluetoothPrint({
   required Future<bool> Function() isConnected,
@@ -15,6 +17,7 @@ Future<void> sendBluetoothPrint({
   try {
     await write();
   } catch (error) {
+    if (isPrinterPaperOut(error)) rethrow;
     throw StateError('printer write failed: $error');
   }
 }

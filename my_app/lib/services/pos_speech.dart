@@ -15,6 +15,7 @@ class PosSpeech {
   ValueChanged<String>? _onError;
   static const _menuChannel = MethodChannel('selfx/menu_speech');
   bool _menuListening = false;
+  bool _stopping = false;
   Timer? _menuTimer;
 
   bool get isListening => _menuListening || _speech.isListening;
@@ -29,6 +30,7 @@ class PosSpeech {
           }
         },
         onError: (error) {
+          if (_stopping) return;
           _onError?.call(error.errorMsg);
           _onListening?.call(false);
         },
@@ -53,6 +55,7 @@ class PosSpeech {
     if (isListening) {
       await stop();
     }
+    _stopping = false;
     _onListening = onListening;
     _onError = onError;
     if (!kIsWeb &&
@@ -115,6 +118,7 @@ class PosSpeech {
   }
 
   Future<void> stop() async {
+    _stopping = true;
     _menuTimer?.cancel();
     if (_menuListening) {
       _menuListening = false;

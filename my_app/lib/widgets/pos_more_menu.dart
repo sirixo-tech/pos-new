@@ -50,8 +50,8 @@ Future<String?> showPosMoreMenu({
         sections: sections,
         title: label,
         onSelect: (id) => Navigator.of(ctx).pop(id),
-          onClose: () => Navigator.of(ctx).pop(),
-          showClose: true,
+        onClose: () => Navigator.of(ctx).pop(),
+        showClose: true,
       );
 
       if (side) {
@@ -129,15 +129,14 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
     setState(() {
       _hidden = ids;
       // Phone settings starts collapsed, even if an older layout saved all open.
-      _expanded = usePosHandheldLayout(context) ? <String>{} : expanded;
+      _expanded = usePosHandheldLayout(context)
+          ? <String>{}
+          : (expanded ?? <String>{});
     });
   }
 
   Future<void> _toggleSection(String title, List<String> titles) async {
-    final handheld = usePosHandheldLayout(context);
-    final next = Set<String>.from(
-      _expanded ?? (handheld ? const <String>{} : titles),
-    );
+    final next = Set<String>.from(_expanded ?? const <String>{});
     if (next.contains(title)) {
       next.remove(title);
     } else {
@@ -179,8 +178,7 @@ class _PosMoreMenuPanelState extends State<_PosMoreMenuPanel> {
             sections: widget.sections,
             customizing: _customizing,
             hidden: _hidden,
-            expanded: _customizing ? null :
-                (_expanded ?? (usePosHandheldLayout(context) ? <String>{} : null)),
+            expanded: _customizing ? null : (_expanded ?? <String>{}),
             isShown: _isShown,
             onToggleHidden: _toggleHidden,
             onToggleSection: _toggleSection,
@@ -505,8 +503,10 @@ class _PosMoreMenuTile extends StatelessWidget {
         onTap: customizing ? onToggleHidden : onTap,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12,
-            vertical: MediaQuery.sizeOf(context).width < 600 ? 8 : 11),
+          padding: EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: MediaQuery.sizeOf(context).width < 600 ? 8 : 11,
+          ),
           child: Row(
             children: [
               Container(
@@ -526,7 +526,9 @@ class _PosMoreMenuTile extends StatelessWidget {
                     Text(
                       item.label,
                       style: TextStyle(
-                        fontSize: MediaQuery.sizeOf(context).width < 600 ? 13 : 14,
+                        fontSize: MediaQuery.sizeOf(context).width < 600
+                            ? 13
+                            : 14,
                         fontWeight: FontWeight.w600,
                         color: fg,
                       ),

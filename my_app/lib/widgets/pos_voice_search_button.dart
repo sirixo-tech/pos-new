@@ -30,6 +30,7 @@ class PosVoiceSearchButton extends StatefulWidget {
 
 class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton> {
   var _listening = false;
+  bool _starting = false;
   String _transcript = '';
   PosSpeech get _speech => widget.speech ?? PosSpeech.instance;
 
@@ -48,12 +49,22 @@ class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton> {
   void _showError(String message) {
     if (!mounted) return;
     _setListening(false, _transcript);
-    ScaffoldMessenger.maybeOf(
-      context,
-    )?.showSnackBar(SnackBar(content: Text(message)));
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _toggle() async {
+    if (_starting) return;
+    _starting = true;
+    try {
+      await _toggleSession();
+    } finally {
+      _starting = false;
+    }
+  }
+
+  Future<void> _toggleSession() async {
     if (_listening) {
       await _stop();
       return;
@@ -65,17 +76,14 @@ class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton> {
     }
     final started = await _speech.listen(
       vocabulary: menuVoiceVocabulary(widget.itemNames),
-      mode: ListenMode.search,
+      mode: ListenMode.dictation,
       listenFor: const Duration(seconds: 20),
       pauseFor: const Duration(seconds: 5),
       onListening: (listening) {
         if (!mounted) return;
         _setListening(listening, _transcript);
       },
-      onError: (error) => _showError(
-        'Voice search could not recognize speech. Check microphone permission '
-        'and the device speech language, then try again. ($error)',
-      ),
+      onError: (error) => _showError(voiceSearchErrorMessage(error)),
       onResult: (words, isFinal) {
         if (!mounted) return;
         final text = matchMenuVoice(words, widget.itemNames);
@@ -158,4 +166,22 @@ class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton> {
       ),
     );
   }
+}
+
+/// Keep recognizer failures actionable without exposing platform error codes.
+String voiceSearchErrorMessage(String error) {
+  final code = error.toLowerCase();
+  if (code.contains('permission') || code.contains('insufficient')) {
+    return 'Allow microphone access for SELFX POS in device settings, then try again.';
+  }
+  if (code.contains('network')) {
+    return 'Speech recognition needs an internet connection. Check your connection and try again.';
+  }
+  if (code.contains('no_match') || code.contains('speech_timeout')) {
+    return 'No speech heard. Tap the microphone and say a menu item name.';
+  }
+  if (code.contains('language')) {
+    return 'Choose a supported speech language in your device speech settings.';
+  }
+  return 'Voice recognition could not start. Close other microphone apps and try again. If it continues, check your device speech service.';
 }

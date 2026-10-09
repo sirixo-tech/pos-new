@@ -390,8 +390,8 @@ class MainActivity : FlutterActivity() {
             val externalKeyboard =
                 device.isExternal &&
                     !device.isVirtual &&
-                    (device.sources and InputDevice.SOURCE_KEYBOARD) != 0 &&
-                    device.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC
+                    (device.sources and InputDevice.SOURCE_KEYBOARD) ==
+                        InputDevice.SOURCE_KEYBOARD
             namedScanner || externalKeyboard
         }
         if (inputScannerIds.isNotEmpty()) return inputScannerIds.size

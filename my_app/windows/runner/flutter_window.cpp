@@ -1,6 +1,11 @@
 #include "flutter_window.h"
+#include "scanner_status.h"
 
 #include <optional>
+#include <vector>
+#include <string>
+#include <stdexcept>
+#include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -25,6 +30,22 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  windows_printer_ = std::make_unique<WindowsPrinter>(
+      flutter_controller_->engine()->messenger());
+  scanner_status_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(), "pos_main/scanner_status",
+      &flutter::StandardMethodCodec::GetInstance());
+  scanner_status_->SetMethodCallHandler([](const auto& call, auto result) {
+    if (call.method_name() != "getStatus") {
+      result->NotImplemented();
+      return;
+    }
+    try {
+      result->Success(flutter::EncodableValue(ScannerStatus()));
+    } catch (const std::exception& error) {
+      result->Error("SCANNER_STATUS", error.what());
+    }
+  });
   menu_speech_ = std::make_unique<MenuSpeech>(flutter_controller_->engine()->messenger(), GetHandle());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
@@ -41,6 +62,8 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  windows_printer_.reset();
+  scanner_status_.reset();
   menu_speech_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;

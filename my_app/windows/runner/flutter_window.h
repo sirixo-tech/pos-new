@@ -3,11 +3,14 @@
 
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter/method_channel.h>
+#include <flutter/encodable_value.h>
 
 #include <memory>
 
 #include "win32_window.h"
 #include "menu_speech.h"
+#include "windows_printer.h"
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -30,6 +33,8 @@ class FlutterWindow : public Win32Window {
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<MenuSpeech> menu_speech_;
+  std::unique_ptr<WindowsPrinter> windows_printer_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> scanner_status_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

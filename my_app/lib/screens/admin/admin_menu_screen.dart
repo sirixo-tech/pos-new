@@ -51,17 +51,18 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
     final out = <AdminMenuCategory>[];
     for (final cat in categories) {
-      final catMatch = cat.name.toLowerCase().contains(q) ||
+      final catMatch =
+          cat.name.toLowerCase().contains(q) ||
           (cat.description?.toLowerCase().contains(q) ?? false);
       final items = catMatch
           ? cat.items
           : cat.items
-              .where(
-                (i) =>
-                    i.name.toLowerCase().contains(q) ||
-                    (i.description?.toLowerCase().contains(q) ?? false),
-              )
-              .toList();
+                .where(
+                  (i) =>
+                      i.name.toLowerCase().contains(q) ||
+                      (i.description?.toLowerCase().contains(q) ?? false),
+                )
+                .toList();
       if (catMatch || items.isNotEmpty) {
         out.add(cat.copyWith(items: items));
       }
@@ -80,113 +81,119 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     }
 
     if (admin.error != null && admin.categories.isEmpty) {
-      return AdminErrorPane(
-        message: admin.error!,
-        onRetry: admin.loadMenu,
-      );
+      return AdminErrorPane(message: admin.error!, onRetry: admin.loadMenu);
     }
 
     final canManageCategories =
         admin.canManageMenuCategories || admin.canManageMenu;
     final canManageItems = admin.canManageMenuItems || admin.canManageMenu;
     final canEditItems = admin.canManageMenuItems;
-    final canToggle = admin.canToggleMenuAvailability ||
+    final canToggle =
+        admin.canToggleMenuAvailability ||
         admin.canManageMenuItems ||
         admin.canManageMenu;
 
     final categories = _filtered(admin.categories);
-    final totalItems =
-        admin.categories.fold<int>(0, (n, c) => n + c.items.length);
+    final totalItems = admin.categories.fold<int>(
+      0,
+      (n, c) => n + c.items.length,
+    );
     final unavailableItems = admin.categories
         .expand((c) => c.items)
         .where((i) => !i.isAvailable)
         .length;
-    final inactiveCategories =
-        admin.categories.where((c) => !c.isActive).length;
+    final inactiveCategories = admin.categories
+        .where((c) => !c.isActive)
+        .length;
 
     return Column(
       children: [
         if (handheld)
-        AdminToolbar(
-          singleRowActions: true,
-          leading: handheld
-              ? ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: TextField(
-              controller: _searchCtrl,
-              style: const TextStyle(fontSize: 13),
-              decoration: InputDecoration(
-                hintText: context.posText(
-                  'adminMenuSearch',
-                  'Search categories & items',
-                ),
-                prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: context.l10n.commonClear,
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          setState(() => _query = '');
-                        },
-                        icon: const Icon(Icons.close_rounded, size: 18),
+          AdminToolbar(
+            singleRowActions: true,
+            leading: handheld
+                ? ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: TextField(
+                      controller: _searchCtrl,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: context.posText(
+                          'adminMenuSearch',
+                          'Search categories & items',
+                        ),
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: context.l10n.commonClear,
+                                onPressed: () {
+                                  _searchCtrl.clear();
+                                  setState(() => _query = '');
+                                },
+                                icon: const Icon(Icons.close_rounded, size: 18),
+                              ),
+                        isDense: true,
+                        filled: true,
+                        fillColor: PosTheme.surfaceMuted,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            PosTheme.radiusSm,
+                          ),
+                          borderSide: BorderSide(color: PosTheme.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            PosTheme.radiusSm,
+                          ),
+                          borderSide: BorderSide(color: PosTheme.border),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                        ),
                       ),
-                isDense: true,
-                filled: true,
-                fillColor: PosTheme.surfaceMuted,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(PosTheme.radiusSm),
-                  borderSide: BorderSide(color: PosTheme.border),
+                      onChanged: (v) => setState(() => _query = v),
+                    ),
+                  )
+                : null,
+            children: [
+              IconButton.filledTonal(
+                tooltip: context.l10n.commonRefresh,
+                onPressed: admin.menuLoading ? null : admin.loadMenu,
+                icon: admin.menuLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded, size: 20),
+              ),
+              if (canManageCategories || canManageItems)
+                FilledButton.tonalIcon(
+                  onPressed: admin.mutating || admin.categories.isEmpty
+                      ? null
+                      : () => openAdminMenuReorder(context),
+                  icon: const Icon(Icons.swap_vert_rounded, size: 18),
+                  label: Text(context.posText('adminMenuReorder', 'Reorder')),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(PosTheme.radiusSm),
-                  borderSide: BorderSide(color: PosTheme.border),
+              if (canManageCategories)
+                FilledButton.tonalIcon(
+                  onPressed: admin.mutating
+                      ? null
+                      : () => _editCategory(context, admin),
+                  icon: const Icon(Icons.create_new_folder_outlined, size: 18),
+                  label: Text(context.posText('adminNewCategory', 'Category')),
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              onChanged: (v) => setState(() => _query = v),
-            ),
-          )
-              : null,
-          children: [
-            IconButton.filledTonal(
-              tooltip: context.l10n.commonRefresh,
-              onPressed: admin.menuLoading ? null : admin.loadMenu,
-              icon: admin.menuLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh_rounded, size: 20),
-            ),
-            if (canManageCategories || canManageItems)
-              FilledButton.tonalIcon(
-                onPressed: admin.mutating || admin.categories.isEmpty
-                    ? null
-                    : () => openAdminMenuReorder(context),
-                icon: const Icon(Icons.swap_vert_rounded, size: 18),
-                label: Text(
-                  context.posText('adminMenuReorder', 'Reorder'),
+              if (canManageItems)
+                FilledButton.icon(
+                  onPressed: admin.mutating || admin.categories.isEmpty
+                      ? null
+                      : () => _editItem(context, admin),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: Text(context.posText('adminNewItem', 'Item')),
                 ),
-              ),
-            if (canManageCategories)
-              FilledButton.tonalIcon(
-                onPressed:
-                    admin.mutating ? null : () => _editCategory(context, admin),
-                icon: const Icon(Icons.create_new_folder_outlined, size: 18),
-                label: Text(context.posText('adminNewCategory', 'Category')),
-              ),
-            if (canManageItems)
-              FilledButton.icon(
-                onPressed: admin.mutating || admin.categories.isEmpty
-                    ? null
-                    : () => _editItem(context, admin),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: Text(context.posText('adminNewItem', 'Item')),
-              ),
-          ],
-        ),
+            ],
+          ),
         if (handheld && admin.categories.isNotEmpty)
           _MenuSummaryBar(
             categoryCount: admin.categories.length,
@@ -195,14 +202,13 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
             inactiveCategoryCount: inactiveCategories,
             filtered: _query.trim().isNotEmpty,
             filteredCategoryCount: categories.length,
-            filteredItemCount:
-                categories.fold<int>(0, (n, c) => n + c.items.length),
+            filteredItemCount: categories.fold<int>(
+              0,
+              (n, c) => n + c.items.length,
+            ),
           ),
         if (admin.error != null)
-          AdminInlineError(
-            message: admin.error!,
-            onDismiss: admin.clearError,
-          ),
+          AdminInlineError(message: admin.error!, onDismiss: admin.clearError),
         Expanded(
           child: RefreshIndicator(
             onRefresh: admin.loadMenu,
@@ -230,94 +236,92 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                         : null,
                   )
                 : categories.isEmpty
-                    ? AdminEmptyPane(
-                        icon: Icons.search_off_rounded,
-                        title: context.posText(
-                          'adminMenuNoMatch',
-                          'No matches',
-                        ),
-                        subtitle: context.posText(
-                          'adminMenuNoMatchHint',
-                          'Try a different search term.',
-                        ),
-                      )
-                    : handheld
-                        ? AdminMobileMenuBrowser(
-                            categories: categories,
-                            selectedCategoryId: _selectedCategoryId,
-                            currency: currency,
-                            canManageItems: canManageItems,
-                            canEditItems: canEditItems,
-                            canToggle: canToggle,
-                            busy: admin.mutating,
-                            onSelectCategory: (id) =>
-                                setState(() => _selectedCategoryId = id),
-                            onToggleItem: (id) => admin.toggleMenuItem(id),
-                            onEditItem: (item, categoryId) => _editItem(
-                              context,
-                              admin,
-                              item: item,
-                              categoryId: categoryId,
-                            ),
-                            onDeleteItem: (item) =>
-                                _confirmDeleteItem(context, admin, item),
-                          )
-                        : AdminDesktopMenuBrowser(
-                            categories: _desktopCategories(admin.categories),
-                            selected: _desktopSelection(admin.categories),
-                            currency: currency,
-                            timeSlots: admin.timeSlots,
-                            categorySearch: _categorySearchCtrl,
-                            itemSearch: _itemSearchCtrl,
-                            canManageCategories: canManageCategories,
-                            canManageItems: canManageItems,
-                            canEditItems: canEditItems,
-                            canToggle: canToggle,
-                            busy: admin.mutating,
-                            onCategoryQuery: (value) =>
-                                setState(() => _categoryQuery = value),
-                            onItemQuery: (value) =>
-                                setState(() => _itemQuery = value),
-                            onSelectCategory: (id) =>
-                                setState(() => _selectedCategoryId = id),
-                            onToggleCategory: (id) => admin.toggleMenuCategory(id),
-                            onEditCategory: (category) => _editCategory(
-                              context,
-                              admin,
-                              category: category,
-                            ),
-                            onDeleteCategory: (category) =>
-                                _confirmDeleteCategory(context, admin, category),
-                            onAddItem: (categoryId) => _editItem(
-                              context,
-                              admin,
-                              categoryId: categoryId,
-                            ),
-                            onAddCategory: canManageCategories
-                                ? () => _editCategory(context, admin)
-                                : null,
-                            onReorderCategories: canManageCategories &&
-                                    _categoryQuery.isEmpty &&
-                                    _itemQuery.isEmpty
-                                ? (order) => _reorderCategories(admin, order)
-                                : null,
-                            onToggleItem: (id) => admin.toggleMenuItem(id),
-                            onEditItem: (item, categoryId) => _editItem(
-                              context,
-                              admin,
-                              item: item,
-                              categoryId: categoryId,
-                            ),
-                            onDeleteItem: (item) =>
-                                _confirmDeleteItem(context, admin, item),
-                          ),
+                ? AdminEmptyPane(
+                    icon: Icons.search_off_rounded,
+                    title: context.posText('adminMenuNoMatch', 'No matches'),
+                    subtitle: context.posText(
+                      'adminMenuNoMatchHint',
+                      'Try a different search term.',
+                    ),
+                  )
+                : handheld
+                ? AdminMobileMenuBrowser(
+                    categories: categories,
+                    selectedCategoryId: _selectedCategoryId,
+                    currency: currency,
+                    canManageItems: canManageItems,
+                    canEditItems: canEditItems,
+                    canToggle: canToggle,
+                    busy: admin.mutating,
+                    savingItemIds: admin.savingItemIds,
+                    savingCategoryIds: admin.savingCategoryIds,
+                    onSelectCategory: (id) =>
+                        setState(() => _selectedCategoryId = id),
+                    onToggleCategory: (id) => admin.toggleMenuCategory(id),
+                    onToggleItem: (id) => admin.toggleMenuItem(id),
+                    onEditItem: (item, categoryId) => _editItem(
+                      context,
+                      admin,
+                      item: item,
+                      categoryId: categoryId,
+                    ),
+                    onDeleteItem: (item) =>
+                        _confirmDeleteItem(context, admin, item),
+                  )
+                : AdminDesktopMenuBrowser(
+                    categories: _desktopCategories(admin.categories),
+                    selected: _desktopSelection(admin.categories),
+                    currency: currency,
+                    timeSlots: admin.timeSlots,
+                    categorySearch: _categorySearchCtrl,
+                    itemSearch: _itemSearchCtrl,
+                    canManageCategories: canManageCategories,
+                    canManageItems: canManageItems,
+                    canEditItems: canEditItems,
+                    canToggle: canToggle,
+                    busy: admin.mutating,
+                    savingItemIds: admin.savingItemIds,
+                    savingCategoryIds: admin.savingCategoryIds,
+                    onCategoryQuery: (value) =>
+                        setState(() => _categoryQuery = value),
+                    onItemQuery: (value) => setState(() => _itemQuery = value),
+                    onSelectCategory: (id) =>
+                        setState(() => _selectedCategoryId = id),
+                    onToggleCategory: (id) => admin.toggleMenuCategory(id),
+                    onEditCategory: (category) =>
+                        _editCategory(context, admin, category: category),
+                    onDeleteCategory: (category) =>
+                        _confirmDeleteCategory(context, admin, category),
+                    onAddItem: (categoryId) =>
+                        _editItem(context, admin, categoryId: categoryId),
+                    onAddCategory: canManageCategories
+                        ? () => _editCategory(context, admin)
+                        : null,
+                    onReorderCategories:
+                        canManageCategories &&
+                            _categoryQuery.isEmpty &&
+                            _itemQuery.isEmpty
+                        ? (order) => _reorderCategories(admin, order)
+                        : null,
+                    onToggleItem: (id) => admin.toggleMenuItem(id),
+                    onEditItem: (item, categoryId) => _editItem(
+                      context,
+                      admin,
+                      item: item,
+                      categoryId: categoryId,
+                    ),
+                    onDeleteItem: (item) =>
+                        _confirmDeleteItem(context, admin, item),
+                  ),
           ),
         ),
       ],
     );
   }
 
-  List<AdminMenuCategory> _desktopCategories(List<AdminMenuCategory> categories) {
+  List<AdminMenuCategory> _desktopCategories(
+    List<AdminMenuCategory> categories,
+  ) {
     final categoryQuery = _categoryQuery.trim().toLowerCase();
     final itemQuery = _itemQuery.trim().toLowerCase();
     return [
@@ -331,10 +335,12 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     String categoryQuery,
     String itemQuery,
   ) {
-    final nameHit = categoryQuery.isEmpty ||
+    final nameHit =
+        categoryQuery.isEmpty ||
         category.name.toLowerCase().contains(categoryQuery) ||
         (category.description?.toLowerCase().contains(categoryQuery) ?? false);
-    final itemHit = itemQuery.isEmpty ||
+    final itemHit =
+        itemQuery.isEmpty ||
         category.items.any((item) => _itemVisible(item, itemQuery));
     return nameHit && itemHit;
   }
@@ -396,8 +402,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     PosAdminController admin, {
     AdminMenuCategory? category,
   }) async {
-    final canSlots =
-        admin.canManageMenuTimeSlots || admin.canManageMenu;
+    final canSlots = admin.canManageMenuTimeSlots || admin.canManageMenu;
     final result = await showAdminMenuCategoryEditDialog(
       context,
       category: category,
@@ -408,8 +413,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
     final body = <String, dynamic>{
       'name': result.name,
-      'description':
-          result.description.isEmpty ? null : result.description,
+      'description': result.description.isEmpty ? null : result.description,
       if (canSlots) 'time_slot_ids': result.timeSlotIds,
     };
 
@@ -430,10 +434,8 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     AdminMenuItem? item,
     int? categoryId,
   }) async {
-    final canSlots =
-        admin.canManageMenuTimeSlots || admin.canManageMenu;
-    final canMods =
-        admin.canManageMenuModifiers || admin.canManageMenu;
+    final canSlots = admin.canManageMenuTimeSlots || admin.canManageMenu;
+    final canMods = admin.canManageMenuModifiers || admin.canManageMenu;
     final result = await showAdminMenuItemEditDialog(
       context,
       item: item,
@@ -448,31 +450,22 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
     if (item == null) {
       if (result.categoryId == null) return;
-      await admin.createMenuItem(
-        {
-          'menu_category_id': result.categoryId,
-          'name': result.name,
-          'price': result.price,
-          'description':
-              result.description.isEmpty ? null : result.description,
-          if (canSlots) 'time_slot_ids': result.timeSlotIds,
-          if (canMods) 'modifier_ids': result.modifierIds,
-        },
-        imageFile: result.imageFile,
-      );
+      await admin.createMenuItem({
+        'menu_category_id': result.categoryId,
+        'name': result.name,
+        'price': result.price,
+        'description': result.description.isEmpty ? null : result.description,
+        if (canSlots) 'time_slot_ids': result.timeSlotIds,
+        if (canMods) 'modifier_ids': result.modifierIds,
+      }, imageFile: result.imageFile);
     } else {
-      await admin.updateMenuItem(
-        item.id,
-        {
-          'name': result.name,
-          'price': result.price,
-          'description':
-              result.description.isEmpty ? null : result.description,
-          if (canSlots) 'time_slot_ids': result.timeSlotIds,
-          if (canMods) 'modifier_ids': result.modifierIds,
-        },
-        imageFile: result.imageFile,
-      );
+      await admin.updateMenuItem(item.id, {
+        'name': result.name,
+        'price': result.price,
+        'description': result.description.isEmpty ? null : result.description,
+        if (canSlots) 'time_slot_ids': result.timeSlotIds,
+        if (canMods) 'modifier_ids': result.modifierIds,
+      }, imageFile: result.imageFile);
     }
   }
 }
@@ -504,43 +497,30 @@ class _MenuSummaryBar extends StatelessWidget {
         context.posText(
           'adminMenuShowing',
           'Showing {cats} categories · {items} items',
-          {
-            'cats': '$filteredCategoryCount',
-            'items': '$filteredItemCount',
-          },
+          {'cats': '$filteredCategoryCount', 'items': '$filteredItemCount'},
         ),
       );
     } else {
       parts.add(
-        context.posText(
-          'adminMenuCategoryCount',
-          '{n} categories',
-          {'n': '$categoryCount'},
-        ),
+        context.posText('adminMenuCategoryCount', '{n} categories', {
+          'n': '$categoryCount',
+        }),
       );
       parts.add(
-        context.posText(
-          'adminMenuItemCount',
-          '{n} items',
-          {'n': '$itemCount'},
-        ),
+        context.posText('adminMenuItemCount', '{n} items', {'n': '$itemCount'}),
       );
       if (unavailableItemCount > 0) {
         parts.add(
-          context.posText(
-            'adminMenuUnavailableCount',
-            '{n} unavailable',
-            {'n': '$unavailableItemCount'},
-          ),
+          context.posText('adminMenuUnavailableCount', '{n} unavailable', {
+            'n': '$unavailableItemCount',
+          }),
         );
       }
       if (inactiveCategoryCount > 0) {
         parts.add(
-          context.posText(
-            'adminMenuInactiveCount',
-            '{n} inactive',
-            {'n': '$inactiveCategoryCount'},
-          ),
+          context.posText('adminMenuInactiveCount', '{n} inactive', {
+            'n': '$inactiveCategoryCount',
+          }),
         );
       }
     }
@@ -553,15 +533,15 @@ class _MenuSummaryBar extends StatelessWidget {
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
           child: Text(
-          parts.join('  ·  '),
-          maxLines: 1,
-          style: TextStyle(
-            color: PosTheme.inkMuted,
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.1,
+            parts.join('  ·  '),
+            maxLines: 1,
+            style: TextStyle(
+              color: PosTheme.inkMuted,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+            ),
           ),
-        ),
         ),
       ),
     );

@@ -14,6 +14,7 @@ const _kColGap = 20.0;
 const _kAvailableCol = 76.0;
 const _kScheduleCol = 100.0;
 const _kActionsCol = 72.0;
+
 /// Phone menu manager: category chips on top, items grouped underneath.
 class AdminMobileMenuBrowser extends StatelessWidget {
   const AdminMobileMenuBrowser({
@@ -25,8 +26,11 @@ class AdminMobileMenuBrowser extends StatelessWidget {
     required this.canEditItems,
     required this.canToggle,
     required this.busy,
+    this.savingItemIds = const {},
+    this.savingCategoryIds = const {},
     required this.onSelectCategory,
     required this.onToggleItem,
+    this.onToggleCategory,
     required this.onEditItem,
     required this.onDeleteItem,
   });
@@ -38,7 +42,10 @@ class AdminMobileMenuBrowser extends StatelessWidget {
   final bool canEditItems;
   final bool canToggle;
   final bool busy;
+  final Set<int> savingItemIds;
+  final Set<int> savingCategoryIds;
   final ValueChanged<int?> onSelectCategory;
+  final ValueChanged<int>? onToggleCategory;
   final ValueChanged<int> onToggleItem;
   final void Function(AdminMenuItem item, int categoryId) onEditItem;
   final ValueChanged<AdminMenuItem> onDeleteItem;
@@ -48,7 +55,9 @@ class AdminMobileMenuBrowser extends StatelessWidget {
     final accent = Theme.of(context).colorScheme.primary;
     final visible = selectedCategoryId == null
         ? categories
-        : categories.where((category) => category.id == selectedCategoryId).toList();
+        : categories
+              .where((category) => category.id == selectedCategoryId)
+              .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -82,12 +91,49 @@ class AdminMobileMenuBrowser extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
             children: [
               for (final category in visible) ...[
-                _SectionTitle(title: category.name),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          category.name,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: category.isActive
+                                ? PosTheme.ink
+                                : PosTheme.inkMuted,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        category.isActive ? 'On' : 'Off',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: PosTheme.inkMuted,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      if (canToggle && onToggleCategory != null)
+                        Switch.adaptive(
+                          value: category.isActive,
+                          onChanged:
+                              busy || savingCategoryIds.contains(category.id)
+                              ? null
+                              : (_) => onToggleCategory!(category.id),
+                        ),
+                    ],
+                  ),
+                ),
                 if (category.items.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
-                      context.posText('adminNoItemsInCategory', 'No items yet.'),
+                      context.posText(
+                        'adminNoItemsInCategory',
+                        'No items yet.',
+                      ),
                       style: TextStyle(
                         color: PosTheme.inkMuted,
                         fontWeight: FontWeight.w600,
@@ -102,7 +148,7 @@ class AdminMobileMenuBrowser extends StatelessWidget {
                       canEditItems: canEditItems,
                       canManageItems: canManageItems,
                       canToggle: canToggle,
-                      busy: busy,
+                      busy: busy || savingItemIds.contains(item.id),
                       accent: accent,
                       onToggle: () => onToggleItem(item.id),
                       onEdit: () => onEditItem(item, category.id),
@@ -132,6 +178,8 @@ class AdminDesktopMenuBrowser extends StatelessWidget {
     required this.canEditItems,
     required this.canToggle,
     required this.busy,
+    this.savingItemIds = const {},
+    this.savingCategoryIds = const {},
     required this.onCategoryQuery,
     required this.onItemQuery,
     required this.onSelectCategory,
@@ -157,6 +205,8 @@ class AdminDesktopMenuBrowser extends StatelessWidget {
   final bool canEditItems;
   final bool canToggle;
   final bool busy;
+  final Set<int> savingItemIds;
+  final Set<int> savingCategoryIds;
   final ValueChanged<String> onCategoryQuery;
   final ValueChanged<String> onItemQuery;
   final ValueChanged<int> onSelectCategory;
@@ -181,7 +231,8 @@ class AdminDesktopMenuBrowser extends StatelessWidget {
             for (final item in category.items)
               if (itemQuery.isEmpty ||
                   item.name.toLowerCase().contains(itemQuery) ||
-                  (item.description?.toLowerCase().contains(itemQuery) ?? false))
+                  (item.description?.toLowerCase().contains(itemQuery) ??
+                      false))
                 item,
           ];
 
@@ -312,9 +363,12 @@ class AdminDesktopMenuBrowser extends StatelessWidget {
                             canEditItems: canEditItems,
                             canToggle: canToggle,
                             busy: busy,
+                            savingItemIds: savingItemIds,
+                            savingCategoryIds: savingCategoryIds,
                             accent: accent,
                             onItemQuery: onItemQuery,
-                            onToggleCategory: () => onToggleCategory(category.id),
+                            onToggleCategory: () =>
+                                onToggleCategory(category.id),
                             onEditCategory: () => onEditCategory(category),
                             onDeleteCategory: () => onDeleteCategory(category),
                             onAddItem: () => onAddItem(category.id),
@@ -345,6 +399,8 @@ class _ItemPane extends StatelessWidget {
     required this.canEditItems,
     required this.canToggle,
     required this.busy,
+    this.savingItemIds = const {},
+    this.savingCategoryIds = const {},
     required this.accent,
     required this.onItemQuery,
     required this.onToggleCategory,
@@ -366,6 +422,8 @@ class _ItemPane extends StatelessWidget {
   final bool canEditItems;
   final bool canToggle;
   final bool busy;
+  final Set<int> savingItemIds;
+  final Set<int> savingCategoryIds;
   final Color accent;
   final ValueChanged<String> onItemQuery;
   final VoidCallback onToggleCategory;
@@ -379,64 +437,57 @@ class _ItemPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ItemPaneHeader(
-                      category: category,
-                      itemSearch: itemSearch,
-                      canManageCategories: canManageCategories,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ItemPaneHeader(
+          category: category,
+          itemSearch: itemSearch,
+          canManageCategories: canManageCategories,
+          canManageItems: canManageItems,
+          canToggle: canToggle,
+          busy: busy || savingCategoryIds.contains(category.id),
+          onItemQuery: onItemQuery,
+          onToggleCategory: onToggleCategory,
+          onEditCategory: onEditCategory,
+          onDeleteCategory: onDeleteCategory,
+          onAddItem: onAddItem,
+        ),
+        _ItemTableHeader(),
+        Expanded(
+          child: items.isEmpty
+              ? Center(
+                  child: Text(
+                    context.posText('adminNoItemsInCategory', 'No items yet.'),
+                    style: TextStyle(
+                      color: PosTheme.inkMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 20),
+                  itemCount: items.length,
+                  separatorBuilder: (context, index) =>
+                      Divider(height: 1, color: PosTheme.border),
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return _DesktopItemRow(
+                      item: item,
+                      currency: currency,
+                      schedule: _scheduleLabel(context, item, timeSlots),
                       canManageItems: canManageItems,
+                      canEditItems: canEditItems,
                       canToggle: canToggle,
-                      busy: busy,
-                      onItemQuery: onItemQuery,
-                      onToggleCategory: onToggleCategory,
-                      onEditCategory: onEditCategory,
-                      onDeleteCategory: onDeleteCategory,
-                      onAddItem: onAddItem,
-                    ),
-                    _ItemTableHeader(),
-                    Expanded(
-                      child: items.isEmpty
-                          ? Center(
-                              child: Text(
-                                context.posText(
-                                  'adminNoItemsInCategory',
-                                  'No items yet.',
-                                ),
-                                style: TextStyle(
-                                  color: PosTheme.inkMuted,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(8, 0, 8, 20),
-                              itemCount: items.length,
-                              separatorBuilder: (context, index) =>
-                                  Divider(height: 1, color: PosTheme.border),
-                              itemBuilder: (context, index) {
-                                final item = items[index];
-                                return _DesktopItemRow(
-                                  item: item,
-                                  currency: currency,
-                                  schedule: _scheduleLabel(
-                                    context,
-                                    item,
-                                    timeSlots,
-                                  ),
-                                  canManageItems: canManageItems,
-                                  canEditItems: canEditItems,
-                                  canToggle: canToggle,
-                                  busy: busy,
-                                  accent: accent,
-                                  onToggle: () => onToggleItem(item.id),
-                                  onEdit: () => onEditItem(item, category.id),
-                                  onDelete: () => onDeleteItem(item),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
+                      busy: busy || savingItemIds.contains(item.id),
+                      accent: accent,
+                      onToggle: () => onToggleItem(item.id),
+                      onEdit: () => onEditItem(item, category.id),
+                      onDelete: () => onDeleteItem(item),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
@@ -505,36 +556,6 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
-      child: Row(
-        children: [
-          Flexible(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-                letterSpacing: 0.2,
-                color: PosTheme.ink,
-              ),
-            ),
-          ),
-          Icon(Icons.chevron_right_rounded, size: 18, color: PosTheme.inkMuted),
-        ],
-      ),
-    );
-  }
-}
 
 class _CompactItemRow extends StatelessWidget {
   const _CompactItemRow({
@@ -584,7 +605,9 @@ class _CompactItemRow extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 15,
-                          color: item.isAvailable ? PosTheme.ink : PosTheme.inkMuted,
+                          color: item.isAvailable
+                              ? PosTheme.ink
+                              : PosTheme.inkMuted,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -688,16 +711,16 @@ class _CategoryTile extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
-                        color: category.isActive ? PosTheme.ink : PosTheme.inkMuted,
+                        color: category.isActive
+                            ? PosTheme.ink
+                            : PosTheme.inkMuted,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      context.posText(
-                        'adminMenuItemCount',
-                        '{n} items',
-                        {'n': '${category.items.length}'},
-                      ),
+                      context.posText('adminMenuItemCount', '{n} items', {
+                        'n': '${category.items.length}',
+                      }),
                       style: TextStyle(
                         color: PosTheme.inkMuted,
                         fontSize: 12,
@@ -787,11 +810,9 @@ class _ItemPaneHeader extends StatelessWidget {
                       active: category.isActive,
                     ),
                     Text(
-                      context.posText(
-                        'adminMenuItemCount',
-                        '{n} items',
-                        {'n': '${category.items.length}'},
-                      ),
+                      context.posText('adminMenuItemCount', '{n} items', {
+                        'n': '${category.items.length}',
+                      }),
                       style: TextStyle(
                         color: PosTheme.inkMuted,
                         fontSize: 12,
@@ -799,11 +820,9 @@ class _ItemPaneHeader extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      context.posText(
-                        'adminCategoryId',
-                        'Category ID: {id}',
-                        {'id': '${category.id}'},
-                      ),
+                      context.posText('adminCategoryId', 'Category ID: {id}', {
+                        'id': '${category.id}',
+                      }),
                       style: TextStyle(
                         color: PosTheme.inkFaint,
                         fontSize: 12,
@@ -839,13 +858,14 @@ class _ItemPaneHeader extends StatelessWidget {
           ],
           if (canToggle) ...[
             const SizedBox(width: 4),
-              Switch(
+            Switch(
               value: category.isActive,
               onChanged: busy ? null : (_) => onToggleCategory(),
             ),
           ],
           if (canManageCategories)
             PopupMenuButton<String>(
+              enabled: !busy,
               tooltip: context.posText('adminActions', 'Actions'),
               onSelected: (value) {
                 if (value == 'edit') onEditCategory();
@@ -887,17 +907,55 @@ class _ItemTableHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(width: 52, child: Text(context.posText('adminColImage', 'Image'), style: style)),
-          Expanded(child: Text(context.posText('adminColItem', 'Item name'), style: style)),
-          SizedBox(width: _kTypeCol, child: Text(context.posText('adminColType', 'Type'), style: style)),
+          SizedBox(
+            width: 52,
+            child: Text(
+              context.posText('adminColImage', 'Image'),
+              style: style,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              context.posText('adminColItem', 'Item name'),
+              style: style,
+            ),
+          ),
+          SizedBox(
+            width: _kTypeCol,
+            child: Text(context.posText('adminColType', 'Type'), style: style),
+          ),
           const SizedBox(width: _kTypePriceGap),
-          SizedBox(width: _kPriceCol, child: Text(context.posText('adminColPrice', 'Price'), style: style)),
+          SizedBox(
+            width: _kPriceCol,
+            child: Text(
+              context.posText('adminColPrice', 'Price'),
+              style: style,
+            ),
+          ),
           const SizedBox(width: _kColGap),
-          SizedBox(width: _kAvailableCol, child: Text(context.posText('adminColAvailable', 'Available'), style: style)),
+          SizedBox(
+            width: _kAvailableCol,
+            child: Text(
+              context.posText('adminColAvailable', 'Available'),
+              style: style,
+            ),
+          ),
           const SizedBox(width: _kColGap),
-          SizedBox(width: _kScheduleCol, child: Text(context.posText('adminColSchedule', 'Schedule'), style: style)),
+          SizedBox(
+            width: _kScheduleCol,
+            child: Text(
+              context.posText('adminColSchedule', 'Schedule'),
+              style: style,
+            ),
+          ),
           const SizedBox(width: _kColGap),
-          SizedBox(width: _kActionsCol, child: Text(context.posText('adminColActions', 'Actions'), style: style)),
+          SizedBox(
+            width: _kActionsCol,
+            child: Text(
+              context.posText('adminColActions', 'Actions'),
+              style: style,
+            ),
+          ),
         ],
       ),
     );
@@ -1016,7 +1074,11 @@ class _DesktopItemRow extends StatelessWidget {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           padding: EdgeInsets.zero,
                         ),
-                        icon: Icon(Icons.edit_outlined, color: accent, size: 18),
+                        icon: Icon(
+                          Icons.edit_outlined,
+                          color: accent,
+                          size: 18,
+                        ),
                       ),
                     if (canManageItems)
                       IconButton(

@@ -73,7 +73,7 @@ class PosOrdersSheet extends StatefulWidget {
   State<PosOrdersSheet> createState() => _PosOrdersSheetState();
 }
 
-class _PosOrdersSheetState extends State<PosOrdersSheet> {
+class _PosOrdersSheetState extends State<PosOrdersSheet> with WidgetsBindingObserver {
   late String _tab;
   late String _filter;
   String? _statusFilter;
@@ -81,6 +81,9 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
   bool _onlineOnly = false;
   final _search = TextEditingController();
   Timer? _ordersRetry;
+  Timer? _silentRefresh;
+  int _requestsInFlight = 0;
+  int _loadRevision = 0;
   bool _loading = true;
   String? _error;
   int _page = 1;
@@ -164,37 +167,59 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
     }
     _heldCount = context.read<PosController>().heldOrderCount;
     _load();
+    WidgetsBinding.instance.addObserver(this);
+    _silentRefresh = Timer.periodic(const Duration(seconds: 10), (_) {
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
+        unawaited(_load(silent: true));
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_load(silent: true));
   }
 
   @override
   void dispose() {
     _ordersRetry?.cancel();
+    _silentRefresh?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _search.dispose();
     super.dispose();
   }
 
-  Future<void> _load({int? page}) async {
+  Future<void> _load({int? page, bool silent = false}) async {
+    if (!mounted || (silent && _requestsInFlight > 0)) return;
     final pos = context.read<PosController>();
     final session = pos.session;
     if (session == null) return;
     final nextPage = page ?? _page;
     if (PosApi.isRateLimited) {
-      _scheduleOrdersRetry(nextPage);
+      if (!silent) _scheduleOrdersRetry(nextPage);
       return;
     }
 
-    setState(() {
-      _loading = true;
-      _error = null;
-      _page = nextPage;
-    });
+    final revision = ++_loadRevision;
+    _requestsInFlight++;
+    if (!silent) _ordersRetry?.cancel();
+
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+        _page = nextPage;
+      });
+    }
 
     try {
       if (_isHeldTab) {
         final pos = context.read<PosController>();
         final orders = await pos.fetchHeldOrders();
-        if (!mounted) return;
+        if (!mounted || revision != _loadRevision) return;
         setState(() {
+          _error = null;
           _orders = orders;
           _heldCount = orders.length;
           _meta = const {
@@ -218,7 +243,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
         page: nextPage,
         perPage: _onlineOnly ? 50 : 10,
       );
-      if (!mounted) return;
+      if (!mounted || revision != _loadRevision) return;
       var orders = (data['orders'] as List?)
               ?.whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
@@ -239,6 +264,7 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
         return status != 'cancelled';
       }).toList();
       setState(() {
+        _error = null;
         _orders = orders;
         _meta = Map<String, dynamic>.from(
           data['meta'] as Map? ??
@@ -253,22 +279,25 @@ class _PosOrdersSheetState extends State<PosOrdersSheet> {
         _loading = false;
       });
     } on PosApiException catch (e) {
-      if (!mounted) return;
+      if (!mounted || revision != _loadRevision) return;
       if (e.statusCode == 429) {
         setState(() => _loading = false);
-        _scheduleOrdersRetry(nextPage);
+        if (!silent) _scheduleOrdersRetry(nextPage);
         return;
       }
+      if (silent) return;
       setState(() {
         _error = posUserFacingError(e);
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || revision != _loadRevision || silent) return;
       setState(() {
         _error = posUserFacingError(e);
         _loading = false;
       });
+    } finally {
+      _requestsInFlight--;
     }
   }
 

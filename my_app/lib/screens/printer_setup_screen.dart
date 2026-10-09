@@ -81,6 +81,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   bool _testing = false;
   bool _openingDrawer = false;
   bool _selectingBuiltIn = false;
+  bool _checkingStatus = true;
   // OEM Android terminals can report an unrecognized brand/model. Keep
   // manual built-in setup accessible; detection only decides auto-selection.
   bool _hasBuiltInPrinter =
@@ -107,7 +108,18 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUsb();
+    unawaited(_refreshPrinterStatus());
+    final mobile =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    if (mobile) {
+      _tab = 2;
+      _loadingUsb = false;
+      unawaited(_scanBluetooth());
+    } else {
+      unawaited(_loadUsb(restoreSavedTab: true));
+    }
     _loadDevice();
     _loadScanSettings();
   }
@@ -181,7 +193,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
     _networkNameController.text = saved.name;
   }
 
-  Future<void> _loadUsb() async {
+  Future<void> _loadUsb({bool restoreSavedTab = false}) async {
     setState(() {
       _loadingUsb = true;
       _usbError = null;
@@ -193,11 +205,14 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
       _applySavedNetworkFields(saved);
       setState(() {
         _savedConfig = saved;
-        if (saved?.connection == PosPrinterConnection.network) {
+        if (restoreSavedTab &&
+            saved?.connection == PosPrinterConnection.network) {
           _tab = 1;
-        } else if (saved?.connection == PosPrinterConnection.bluetooth) {
+        } else if (restoreSavedTab &&
+            saved?.connection == PosPrinterConnection.bluetooth) {
           _tab = 2;
-        } else if (saved?.connection == PosPrinterConnection.smartpos) {
+        } else if (restoreSavedTab &&
+            saved?.connection == PosPrinterConnection.smartpos) {
           _tab = 3;
           _hasBuiltInPrinter = true;
         }
@@ -228,6 +243,9 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
 
     try {
       final saved = await UsbPrinterStorage.load();
+      if (!mounted) return;
+      _applySavedNetworkFields(saved);
+      setState(() => _savedConfig = saved);
       final printers = await PosReceiptPrinter.listBluetoothPrinters();
       if (!mounted) return;
       setState(() {
@@ -245,6 +263,8 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   }
 
   Future<void> _refreshCurrent() async {
+    await _refreshPrinterStatus();
+    if (!mounted) return;
     await _loadDevice();
     if (!mounted) return;
     if (_onBluetooth) {
@@ -265,9 +285,22 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
     }
   }
 
+  Future<void> _refreshPrinterStatus() async {
+    if (!mounted) return;
+    setState(() => _checkingStatus = true);
+    try {
+      await context.read<PrinterStatusService>().refresh();
+    } finally {
+      if (mounted) setState(() => _checkingStatus = false);
+    }
+  }
+
   void _switchTab(int index) {
     if (_tab == index) return;
     setState(() => _tab = index);
+    if (index == 0 && !_loadingUsb) {
+      unawaited(_loadUsb());
+    }
     if (index == 2 &&
         !_loadingBluetooth &&
         _bluetoothPrinters.isEmpty &&
@@ -303,13 +336,15 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   }
 
   PrinterHealth? _cardHealth(PrinterStatusService service) {
+    if (_checkingStatus) return null;
     final saved = _savedConfig;
     final local = _health;
     if (saved == null) return local;
     final live = service.health;
     final liveConfig = live.config;
     if (!service.hasProbed || liveConfig == null) return local;
-    if (liveConfig.connection == saved.connection &&
+    if (liveConfig.name == saved.name &&
+        liveConfig.connection == saved.connection &&
         liveConfig.address == saved.address) {
       return live;
     }
@@ -317,10 +352,13 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   }
 
   bool _cardChecking(PrinterStatusService service) {
+    if (_checkingStatus) return true;
     final saved = _savedConfig;
     final live = service.health.config;
     if (!service.probing || saved == null || live == null) return false;
-    return live.connection == saved.connection && live.address == saved.address;
+    return live.name == saved.name &&
+        live.connection == saved.connection &&
+        live.address == saved.address;
   }
 
   Future<void> _showConnected(

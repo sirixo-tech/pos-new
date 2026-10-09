@@ -15,6 +15,7 @@ import '../offline/pending_order.dart';
 import '../pos_api.dart';
 import 'esc_pos_builder.dart';
 import 'bluetooth_print_transport.dart';
+import 'bluetooth_paper_sensor.dart';
 import 'macos_usb_discovery.dart';
 import 'network_printer.dart';
 import 'offline_receipt_builder.dart';
@@ -280,8 +281,21 @@ class PosReceiptPrinter {
 
   /// Soft health check. Paper state comes only from the printer's paper-end
   /// sensor (or the driver's paper-empty bit). Estimated roll length is not used.
-  static Future<PrinterHealth> probe({bool allowBluetoothScan = false}) {
-    return _probeDevice(allowBluetoothScan: allowBluetoothScan);
+  static Future<PrinterHealth> probe({bool allowBluetoothScan = false}) async {
+    try {
+      return await _probeDevice(allowBluetoothScan: allowBluetoothScan);
+    } catch (error) {
+      UsbPrinterConfig? config;
+      try {
+        config = await UsbPrinterStorage.load();
+      } catch (_) {}
+      return PrinterHealth(
+        state: PrinterHealthState.error,
+        config: config,
+        message: 'Could not check printer status. ${error.toString()}',
+        lastCheckedAt: DateTime.now(),
+      );
+    }
   }
 
   static Printer? _lastResolvedPrinter;
@@ -385,6 +399,30 @@ class PosReceiptPrinter {
       }
     }
 
+    // The plugin's shared discovery timer can be cancelled by another poll.
+    // Windows can query the saved spooler queue without any discovery scan.
+    if (Platform.isWindows && config.connection == PosPrinterConnection.usb) {
+      final spooler = await WindowsPrinterQueue.lookup(config.name);
+      final issues = <String>[
+        if (!spooler.present) 'missing',
+        if (spooler.offline) 'offline',
+        if (spooler.paperOut) 'paper_out',
+      ];
+      return PrinterHealth(
+        state: !spooler.present || spooler.offline
+            ? PrinterHealthState.missing
+            : spooler.paperOut
+            ? PrinterHealthState.attention
+            : PrinterHealthState.ready,
+        config: config,
+        issues: issues,
+        message: issues.isEmpty
+            ? 'Ready'
+            : PrinterHealth.messageForIssues(issues),
+        lastCheckedAt: checkedAt,
+      );
+    }
+
     final device = await _findMappedDevice(config);
     if (device == null) {
       return PrinterHealth(
@@ -461,21 +499,6 @@ class PosReceiptPrinter {
         issues: const ['offline', 'missing'],
         lastCheckedAt: checkedAt,
       );
-    }
-
-    if (Platform.isWindows && config.connection == PosPrinterConnection.usb) {
-      final queue = device.name.trim().isNotEmpty ? device.name : config.name;
-      final spooler = await WindowsPrinterQueue.lookup(queue);
-      if (!spooler.present || spooler.offline) {
-        return PrinterHealth(
-          state: PrinterHealthState.missing,
-          config: config,
-          device: device,
-          message: thermalPrinterConnectError(config.name),
-          issues: const ['offline', 'missing'],
-          lastCheckedAt: checkedAt,
-        );
-      }
     }
 
     return PrinterHealth(
@@ -590,13 +613,12 @@ class PosReceiptPrinter {
       if (await PrinterManager.instance
           .isConnected(printer)
           .timeout(const Duration(seconds: 2))) {
-        await _prepareBluetoothServices(printer);
+        final services = await _prepareBluetoothServices(printer);
         _rememberBluetooth(printer);
-        return PrinterHealth(
-          state: PrinterHealthState.ready,
-          config: config,
-          message: 'Ready',
-          lastCheckedAt: checkedAt,
+        return _bluetoothPaperHealth(
+          config,
+          checkedAt,
+          await _bluetoothPaperSensor(services),
         );
       }
     } catch (_) {}
@@ -613,20 +635,73 @@ class PosReceiptPrinter {
       bleLinkIsLive = false;
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
+    late List<BleService> services;
     try {
-      await _prepareBluetoothServices(printer);
+      services = await _prepareBluetoothServices(printer);
     } catch (_) {
       await _dropBluetooth(printer);
       return _disconnectedHealth(config, checkedAt, bluetooth: true);
     }
     _rememberBluetooth(printer);
-    return PrinterHealth(
-      state: PrinterHealthState.ready,
-      config: config,
-      message: 'Ready',
-      lastCheckedAt: checkedAt,
+    return _bluetoothPaperHealth(
+      config,
+      checkedAt,
+      await _bluetoothPaperSensor(services),
     );
   });
+
+  static PrinterHealth _bluetoothPaperHealth(
+    UsbPrinterConfig config,
+    DateTime checkedAt,
+    PrinterPaperSensor paper,
+  ) => PrinterHealth(
+    state: paper == PrinterPaperSensor.empty
+        ? PrinterHealthState.attention
+        : PrinterHealthState.ready,
+    config: config,
+    message: paper == PrinterPaperSensor.empty
+        ? 'Printer paper roll is finished.'
+        : paper == PrinterPaperSensor.present
+        ? 'Ready'
+        : 'Connected ? Paper status unavailable',
+    issues: paper == PrinterPaperSensor.empty ? const ['paper_out'] : const [],
+    lastCheckedAt: checkedAt,
+  );
+
+  static Future<PrinterPaperSensor> _bluetoothPaperSensor(
+    List<BleService> services,
+  ) async {
+    // Match the service used by _writeBluetooth; never query another device
+    // service (battery/device information values are not printer status).
+    for (final service in services) {
+      final writers = service.characteristics.where(
+        (c) => c.properties.any((p) => p.name == 'write'),
+      );
+      if (writers.isEmpty) continue;
+      final receivers = service.characteristics.where(
+        (c) =>
+            c.properties.any((p) => p.name == 'notify' || p.name == 'indicate'),
+      );
+      if (receivers.isEmpty) return PrinterPaperSensor.unknown;
+      final receiver = receivers.first;
+      final notifications = receiver.notifications.isSupported
+          ? receiver.notifications
+          : receiver.indications;
+      // Keep device notifications enabled; cancel only our local listener so
+      // other consumers of this characteristic are not unsubscribed.
+      return queryBluetoothPaperSensor(
+        replies: receiver.onValueReceived,
+        subscribe: () =>
+            notifications.subscribe(timeout: const Duration(milliseconds: 800)),
+        request: () => writers.first.write([
+          0x10,
+          0x04,
+          0x04,
+        ], timeout: const Duration(milliseconds: 800)),
+      );
+    }
+    return PrinterPaperSensor.unknown;
+  }
 
   /// Short ESC/POS slip — no order API required.
   static Future<PrinterHealth> printTestPage({
@@ -915,7 +990,10 @@ class PosReceiptPrinter {
     if (config == null) {
       throw StateError(thermalPrinterMissingMessage());
     }
-    final bytes = OfflineKotBuilder.buildBytes(bootstrap: bootstrap, order: order);
+    final bytes = OfflineKotBuilder.buildBytes(
+      bootstrap: bootstrap,
+      order: order,
+    );
     if (bytes.isEmpty) {
       throw StateError('Offline kitchen ticket has no items to print.');
     }
@@ -1075,6 +1153,10 @@ class PosReceiptPrinter {
     required UsbPrinterConfig config,
     required List<int> bytes,
   }) async {
+    if (Platform.isWindows && config.connection == PosPrinterConnection.usb) {
+      await WindowsPrinterQueue.send(config.name, bytes);
+      return;
+    }
     if (config.connection == PosPrinterConnection.smartpos) {
       await _sendSmartPosBytes(bytes);
       return;
@@ -1099,16 +1181,7 @@ class PosReceiptPrinter {
       return;
     }
 
-    final cached = _lastResolvedPrinter;
-    // Windows sends directly to the spooler queue. Reuse the identified queue
-    // rather than starting another discovery scan for every slip. Probes still
-    // discover devices, and a changed configuration must resolve afresh.
-    final saved =
-        Platform.isWindows &&
-            cached != null &&
-            _matchesSavedPrinter(cached, config)
-        ? cached
-        : await _resolveSavedPrinter();
+    final saved = await _resolveSavedPrinter();
     if (saved == null) {
       throw StateError(
         thermalPrinterConnectError(
@@ -1292,7 +1365,13 @@ class PosReceiptPrinter {
           connect: () => _connectBluetooth(printer),
           write: () async {
             // Recover a stale GATT session before any receipt bytes are sent.
-            var services = await _prepareBluetoothServices(printer);
+            final services = await _prepareBluetoothServices(printer);
+            if (await _bluetoothPaperSensor(services) ==
+                PrinterPaperSensor.empty) {
+              throw StateError(
+                'Printer paper roll is finished. Load paper and retry.',
+              );
+            }
             await _writeBluetooth(printer, bytes, services);
           },
           connectionError: thermalPrinterConnectError(
@@ -1301,8 +1380,8 @@ class PosReceiptPrinter {
           ),
         );
         _rememberBluetooth(printer);
-      } catch (_) {
-        await _dropBluetooth(printer);
+      } catch (error) {
+        if (!isPrinterPaperOut(error)) await _dropBluetooth(printer);
         rethrow;
       }
     });
@@ -1310,16 +1389,23 @@ class PosReceiptPrinter {
 
   // The thermal plugin catches BLE write errors and returns success. Write
   // through its underlying device API so failed/partial tickets stay pending.
-  static Future<List<BleService>> _prepareBluetoothServices(Printer printer) async {
+  static Future<List<BleService>> _prepareBluetoothServices(
+    Printer printer,
+  ) async {
     Future<List<BleService>> discover(Duration timeout) async {
       final services = await printer.discoverServices().timeout(timeout);
-      if (!services.any((service) => service.characteristics.any(
+      if (!services.any(
+        (service) => service.characteristics.any(
           (characteristic) => characteristic.properties.any(
-              (property) => property.name == 'write')))) {
+            (property) => property.name == 'write',
+          ),
+        ),
+      )) {
         throw StateError('Bluetooth printer has no writable characteristic.');
       }
       return services;
     }
+
     try {
       return await discover(const Duration(seconds: 8));
     } catch (_) {
@@ -1331,8 +1417,11 @@ class PosReceiptPrinter {
     }
   }
 
-  static Future<void> _writeBluetooth(Printer printer, List<int> bytes,
-      List<BleService> services) async {
+  static Future<void> _writeBluetooth(
+    Printer printer,
+    List<int> bytes,
+    List<BleService> services,
+  ) async {
     for (final service in services) {
       for (final characteristic in service.characteristics) {
         if (!characteristic.properties.any(
@@ -1503,9 +1592,12 @@ class PosReceiptPrinter {
 
       final executor = PrintObjectExecutor.fromPayload(data);
       final reportWidth = ReceiptTypography(
-        receiptWidth: executor.paper, fontSize: executor.fontSize).lineWidth;
-      return executor.buildBytes(wrapLongReportItemNames(data, commands,
-        lineWidth: reportWidth));
+        receiptWidth: executor.paper,
+        fontSize: executor.fontSize,
+      ).lineWidth;
+      return executor.buildBytes(
+        wrapLongReportItemNames(data, commands, lineWidth: reportWidth),
+      );
     }
 
     throw StateError(failure ?? 'Failed to fetch report');
@@ -1822,7 +1914,18 @@ class PosReceiptPrinter {
           if (!Platform.isAndroid) return PrinterPaperSensor.unknown;
           return _androidUsbPaperSensor(config.address);
         case PosPrinterConnection.bluetooth:
-          return PrinterPaperSensor.unknown;
+          return _withBluetooth(() async {
+            final printer = _bluetoothPrinterFromConfig(config);
+            if (printer == null ||
+                !await PrinterManager.instance
+                    .isConnected(printer)
+                    .timeout(const Duration(seconds: 2))) {
+              return PrinterPaperSensor.unknown;
+            }
+            return _bluetoothPaperSensor(
+              await _prepareBluetoothServices(printer),
+            );
+          });
       }
     } on Object {
       return PrinterPaperSensor.unknown;
@@ -1886,6 +1989,16 @@ class PosReceiptPrinter {
     final config = await UsbPrinterStorage.load();
     if (config == null) {
       return null;
+    }
+
+    if (Platform.isWindows && config.connection == PosPrinterConnection.usb) {
+      final printer = Printer(
+        name: config.name,
+        address: config.name,
+        connectionType: ConnectionType.USB,
+      );
+      _lastResolvedPrinter = printer;
+      return printer;
     }
 
     if (config.connection == PosPrinterConnection.smartpos ||
