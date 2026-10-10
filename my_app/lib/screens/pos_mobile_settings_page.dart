@@ -507,8 +507,8 @@ class PosMobileNavBar extends StatelessWidget {
       (Icons.point_of_sale_outlined, 'POS'),
       (Icons.receipt_long_outlined, 'Orders'),
       (Icons.flare_rounded, 'AI'),
-      (CupertinoIcons.list_bullet_below_rectangle, 'Menu'),
-      (CupertinoIcons.chart_pie, 'Reports'),
+      (Icons.menu_book_rounded, 'Menu'),
+      (Icons.bar_chart_rounded, 'Reports'),
     ];
 
     return ColoredBox(

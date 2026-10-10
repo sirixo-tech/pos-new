@@ -9,6 +9,7 @@ import '../providers/pos_controller.dart';
 import '../services/pos_daily_report.dart';
 import '../theme/pos_theme.dart';
 import '../widgets/pos_mobile_report_charts.dart';
+import '../widgets/pos_sales_insights_card.dart';
 
 enum _ViewKind {
   overview,
@@ -338,6 +339,8 @@ class _PosViewReportsPageState extends State<PosViewReportsPage> {
           PosStatusChartCard(slices: _statuses, loading: _loading),
           const SizedBox(height: 12),
           _mixCard(report),
+          const SizedBox(height: 12),
+          const PosSalesInsightsCard(),
         ];
       case _ViewKind.sales:
         return [

@@ -208,9 +208,7 @@ class _CategoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final handheld = usePosHandheldLayout(context);
-    final soft = handheld && isActive
-        ? accent
-        : accent.withValues(alpha: isActive ? 0.12 : 0.0);
+    final soft = accent.withValues(alpha: isActive ? 0.12 : 0.0);
 
     return Material(
       color: Colors.transparent,
@@ -248,15 +246,7 @@ class _CategoryTile extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: usePosHandheldLayout(context) ? 3 : 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: handheld ? 10.5 : 11.5,
-                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                  height: 1.15,
-                  letterSpacing: -0.1,
-                  color: isActive
-                      ? (handheld ? Colors.white : accent)
-                      : PosTheme.inkMuted,
-                ),
+                style: _categoryNameStyle(handheld ? 12 : 13),
               ),
             ],
           ),
@@ -320,12 +310,7 @@ class _CategoryChip extends StatelessWidget {
                     label,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      height: 1.15,
-                      fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                      color: isActive ? soft.fg : PosTheme.ink,
-                    ),
+                    style: _categoryNameStyle(12),
                   ),
                 ),
               ],
@@ -374,13 +359,7 @@ class _CategoryChip extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                      height: 1.15,
-                      letterSpacing: -0.1,
-                      color: isActive ? soft.fg : PosTheme.inkMuted,
-                    ),
+                    style: _categoryNameStyle(13),
                   ),
                 ),
               ],
@@ -390,6 +369,16 @@ class _CategoryChip extends StatelessWidget {
       ),
     );
   }
+}
+
+TextStyle _categoryNameStyle(double size) {
+  return TextStyle(
+    fontSize: size,
+    fontWeight: FontWeight.w800,
+    height: 1.15,
+    letterSpacing: -0.15,
+    color: PosTheme.ink,
+  );
 }
 
 class _CategoryAvatar extends StatelessWidget {

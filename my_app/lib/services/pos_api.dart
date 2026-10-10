@@ -1610,6 +1610,68 @@ class PosApi {
     return _imageFileFromUrl(origin, imageUrl);
   }
 
+  /// Sales and feedback summary from the web reports route
+  /// `POST /ai/insights/generate`.
+  ///
+  /// Same cookie session as the menu image route: CSRF from
+  /// `/sanctum/csrf-cookie`, then the POS bearer token.
+  Future<Map<String, dynamic>> generateSalesInsights(
+    PosSession session, {
+    required String timeframe,
+  }) async {
+    final origin = _origin(session);
+    final headers = await _webJsonHeaders(session, origin);
+    final response = await _client
+        .post(
+          Uri.parse('$origin/ai/insights/generate'),
+          headers: headers,
+          body: jsonEncode({
+            'restaurant_id': session.restaurantId,
+            'timeframe': timeframe,
+          }),
+        )
+        .timeout(const Duration(seconds: 120));
+    final body = await _decode(response, recordBackoff: false);
+    final report = body['report'] ??
+        (body['data'] is Map ? (body['data'] as Map)['report'] : null);
+    if (report is! Map) {
+      throw PosApiException('The server did not return insights.');
+    }
+    return Map<String, dynamic>.from(report);
+  }
+
+  Future<Map<String, String>> _webJsonHeaders(
+    PosSession session,
+    String origin,
+  ) async {
+    final csrf = await _client
+        .get(
+          Uri.parse('$origin/sanctum/csrf-cookie'),
+          headers: const {'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 20));
+    if (csrf.statusCode < 200 || csrf.statusCode >= 300) {
+      throw PosApiException(
+        'Insights could not start.',
+        statusCode: csrf.statusCode,
+      );
+    }
+    final xsrf = _cookieValue(csrf, 'XSRF-TOKEN');
+    if (xsrf == null || xsrf.isEmpty) {
+      throw PosApiException('Insights could not start.');
+    }
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ${session.token}',
+      'X-XSRF-TOKEN': xsrf,
+      'X-Requested-With': 'XMLHttpRequest',
+      'Origin': origin,
+      'Referer': '$origin/',
+      'Cookie': _cookieHeader(csrf),
+    };
+  }
+
   String _origin(PosSession session) {
     var base = session.serverUrl.trim();
     while (base.endsWith('/')) {
