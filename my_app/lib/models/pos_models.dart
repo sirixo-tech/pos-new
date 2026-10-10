@@ -12,6 +12,36 @@ export 'admin_models.dart' show PosAdminCapabilities;
 export 'opening_hours_models.dart';
 export 'receipt_print_models.dart' show PosReceiptSettings, PosTokenSettings;
 
+/// Honor effective permissions, including an empty list indicating revocation.
+/// If absent, combine the explicit permission keys of every assigned role.
+List<String> _staffPermissionKeys(Map<String, dynamic> json) {
+  final keys = <String>{};
+  void collect(dynamic values) {
+    if (values is! List) return;
+    for (final value in values) {
+      final key = value is String
+          ? value
+          : value is Map
+          ? value['name']
+          : null;
+      if (key is String && key.trim().isNotEmpty) keys.add(key.trim());
+    }
+  }
+
+  final effective = json['permissions'];
+  if (effective is List) {
+    collect(effective);
+  } else {
+    final roles = json['roles'];
+    if (roles is List) {
+      for (final role in roles) {
+        if (role is Map) collect(role['permissions']);
+      }
+    }
+  }
+  return keys.toList();
+}
+
 class StaffBranchOption {
   StaffBranchOption({
     required this.id,
@@ -112,11 +142,11 @@ class StaffProfile {
       restaurants: (json['restaurants'] as List<dynamic>? ?? [])
           .map((e) => StaffRestaurantOption.fromJson(e as Map<String, dynamic>))
           .toList(),
-      currentRestaurantId: restaurant != null ? parseJsonInt(restaurant['id']) : null,
+      currentRestaurantId: restaurant != null
+          ? parseJsonInt(restaurant['id'])
+          : null,
       currentBranchId: branch != null ? parseJsonInt(branch['id']) : null,
-      permissions: (json['permissions'] as List<dynamic>? ?? [])
-          .map((e) => e.toString())
-          .toList(),
+      permissions: _staffPermissionKeys(json),
     );
   }
 
@@ -202,13 +232,13 @@ class PosDeviceBinding {
   }
 
   Map<String, dynamic> toJson() => {
-        'restaurant_id': restaurantId,
-        'branch_id': branchId,
-        'terminal_code': terminalCode,
-        if (restaurantName != null) 'restaurant_name': restaurantName,
-        if (branchName != null) 'branch_name': branchName,
-        if (terminalName != null) 'terminal_name': terminalName,
-      };
+    'restaurant_id': restaurantId,
+    'branch_id': branchId,
+    'terminal_code': terminalCode,
+    if (restaurantName != null) 'restaurant_name': restaurantName,
+    if (branchName != null) 'branch_name': branchName,
+    if (terminalName != null) 'terminal_name': terminalName,
+  };
 }
 
 class PosPairingStartResult {
@@ -286,15 +316,15 @@ class PosSession {
   }
 
   Map<String, dynamic> toJson() => {
-        'server_url': serverUrl,
-        'token': token,
-        'restaurant_id': restaurantId,
-        'branch_id': branchId,
-        if (userId != null) 'user_id': userId,
-        if (userName != null) 'user_name': userName,
-        if (userEmail != null) 'user_email': userEmail,
-        'has_pos_pin': hasPosPin,
-      };
+    'server_url': serverUrl,
+    'token': token,
+    'restaurant_id': restaurantId,
+    'branch_id': branchId,
+    if (userId != null) 'user_id': userId,
+    if (userName != null) 'user_name': userName,
+    if (userEmail != null) 'user_email': userEmail,
+    'has_pos_pin': hasPosPin,
+  };
 
   PosSession copyWith({
     int? restaurantId,
@@ -331,12 +361,8 @@ class MenuCategory {
   final Map<String, Map<String, String>> translations;
   final List<MenuItem> items;
 
-  String localizedName(String languageCode) => MenuLocalization.field(
-        translations,
-        languageCode,
-        'name',
-        name,
-      );
+  String localizedName(String languageCode) =>
+      MenuLocalization.field(translations, languageCode, 'name', name);
 
   factory MenuCategory.fromJson(Map<String, dynamic> json) {
     final rawItems = json['menu_items'] ?? json['items'] ?? json['menuItems'];
@@ -392,10 +418,13 @@ class MenuItem {
   final String? sku;
   final Map<String, dynamic>? orderTypeSurcharges;
   final Map<String, Map<String, String>> translations;
+
   /// Manual availability toggle (false = sold out / turned off in admin).
   final bool isAvailable;
+
   /// Server-computed guest/POS orderability (toggle + schedule).
   final bool isOrderable;
+
   /// False when the item is manually available but outside its time slots.
   final bool isLiveNow;
   final String scheduleMode;
@@ -413,12 +442,8 @@ class MenuItem {
       (scheduleHiddenReason == 'schedule' ||
           (scheduleMode == 'scheduled' && !isLiveNow));
 
-  String localizedName(String languageCode) => MenuLocalization.field(
-        translations,
-        languageCode,
-        'name',
-        name,
-      );
+  String localizedName(String languageCode) =>
+      MenuLocalization.field(translations, languageCode, 'name', name);
 
   String? localizedDescription(String languageCode) {
     final resolved = MenuLocalization.field(
@@ -627,21 +652,17 @@ class CartLine {
   }
 
   Map<String, dynamic> toOrderJson() => {
-        'menu_item_id': menuItem.id,
-        if (variant != null) 'variant_id': variant!.id,
-        'quantity': quantity,
-        if (notes != null && notes!.isNotEmpty) 'notes': notes,
-        if (selectedModifiers.isNotEmpty)
-          'modifiers': selectedModifiers
-              .map((m) => {'modifier_option_id': m.id, 'quantity': 1})
-              .toList(),
-      };
+    'menu_item_id': menuItem.id,
+    if (variant != null) 'variant_id': variant!.id,
+    'quantity': quantity,
+    if (notes != null && notes!.isNotEmpty) 'notes': notes,
+    if (selectedModifiers.isNotEmpty)
+      'modifiers': selectedModifiers
+          .map((m) => {'modifier_option_id': m.id, 'quantity': 1})
+          .toList(),
+  };
 
-  CartLine copyWith({
-    int? quantity,
-    String? notes,
-    bool clearNotes = false,
-  }) =>
+  CartLine copyWith({int? quantity, String? notes, bool clearNotes = false}) =>
       CartLine(
         menuItem: menuItem,
         variant: variant,
@@ -665,12 +686,11 @@ class TipSettings {
     final raw = json['presets'];
     final presets = raw is List
         ? raw
-            .map<double>(
-              (e) =>
-                  (e is num ? e.toDouble() : double.tryParse('$e') ?? 0),
-            )
-            .where((e) => e > 0)
-            .toList()
+              .map<double>(
+                (e) => (e is num ? e.toDouble() : double.tryParse('$e') ?? 0),
+              )
+              .where((e) => e > 0)
+              .toList()
         : const <double>[10, 15, 18, 20];
     return TipSettings(
       enabled: json['enabled'] != false,
@@ -730,7 +750,7 @@ class PosRestaurantInfo {
           (json['order_type_charges'] as Map<String, dynamic>?) ?? const {},
       orderTypeSurchargeSettings:
           (json['order_type_surcharge_settings'] as Map<String, dynamic>?) ??
-              defaultSurchargeSettings(),
+          defaultSurchargeSettings(),
       ordering: PosOrderingSettings.fromJson(
         json['ordering'] as Map<String, dynamic>?,
       ),
@@ -890,10 +910,7 @@ class PosShiftCloseSummary {
 }
 
 class PosShiftPaymentMethodTotal {
-  const PosShiftPaymentMethodTotal({
-    required this.count,
-    required this.total,
-  });
+  const PosShiftPaymentMethodTotal({required this.count, required this.total});
 
   final int count;
   final double total;
@@ -907,10 +924,7 @@ class PosShiftPaymentMethodTotal {
 }
 
 class PosSyncInfo {
-  PosSyncInfo({
-    this.menuRevision,
-    this.bootstrapRevision,
-  });
+  PosSyncInfo({this.menuRevision, this.bootstrapRevision});
 
   final String? menuRevision;
   final String? bootstrapRevision;
@@ -941,9 +955,7 @@ class PosSyncStatus {
     return PosSyncStatus(
       menuRevision: sync?['menu_revision'] as String?,
       bootstrapRevision: sync?['bootstrap_revision'] as String?,
-      appUpdate: PosAppUpdate.fromJson(
-        mergedPosAppUpdateJson(json),
-      ),
+      appUpdate: PosAppUpdate.fromJson(mergedPosAppUpdateJson(json)),
     );
   }
 }
@@ -969,11 +981,7 @@ class PaymentGatewayOption {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'slug': slug,
-        'label': label,
-        'type': type,
-      };
+  Map<String, dynamic> toJson() => {'slug': slug, 'label': label, 'type': type};
 }
 
 class PaymentQrData {
@@ -1022,7 +1030,8 @@ class PosOrderPaymentInfo {
       type: json['type'] as String? ?? 'dynamic_qr',
       gateway: json['gateway'] as String? ?? '',
       timeoutSeconds: parseJsonInt(json['timeout_seconds'], fallback: 300),
-      amount: parseJsonDoubleOrNull(json['amount']) ??
+      amount:
+          parseJsonDoubleOrNull(json['amount']) ??
           parseJsonDoubleOrNull(json['amount_due']),
       qr: qrJson is Map<String, dynamic>
           ? PaymentQrData.fromJson(qrJson)
@@ -1069,15 +1078,15 @@ class PosPlatformBranding {
   }
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        if (tagline != null) 'tagline': tagline,
-        if (adminLogoUrl != null) 'admin_logo_url': adminLogoUrl,
-        'show_name': showName,
-        'logo_width': logoWidth,
-        if (poweredByText != null) 'powered_by_text': poweredByText,
-        if (poweredByLogoUrl != null) 'powered_by_logo_url': poweredByLogoUrl,
-        'powered_by_visible': poweredByVisible,
-      };
+    'name': name,
+    if (tagline != null) 'tagline': tagline,
+    if (adminLogoUrl != null) 'admin_logo_url': adminLogoUrl,
+    'show_name': showName,
+    'logo_width': logoWidth,
+    if (poweredByText != null) 'powered_by_text': poweredByText,
+    if (poweredByLogoUrl != null) 'powered_by_logo_url': poweredByLogoUrl,
+    'powered_by_visible': poweredByVisible,
+  };
 }
 
 class PosLanguageOption {
@@ -1100,10 +1109,10 @@ class PosLanguageOption {
   }
 
   Map<String, dynamic> toJson() => {
-        'code': code,
-        'name': name,
-        'is_rtl': isRtl,
-      };
+    'code': code,
+    'name': name,
+    'is_rtl': isRtl,
+  };
 }
 
 class PosBootstrap {
@@ -1146,6 +1155,7 @@ class PosBootstrap {
   final PosShift? currentShift;
   final PosSyncInfo? sync;
   final PosReceiptSettings? receiptSettings;
+
   /// Unparsed bootstrap `receipt_settings` so POS can honor customer/counter flags.
   final Map<String, dynamic>? receiptSettingsRaw;
   final String? posReceiptPrintMode;
@@ -1211,8 +1221,7 @@ class PosBootstrap {
       permissions: permissions ?? this.permissions,
       guestOrdering: guestOrdering ?? this.guestOrdering,
       openingHours: openingHours ?? this.openingHours,
-      marketplacePlatforms:
-          marketplacePlatforms ?? this.marketplacePlatforms,
+      marketplacePlatforms: marketplacePlatforms ?? this.marketplacePlatforms,
     );
   }
 
@@ -1227,9 +1236,8 @@ class PosBootstrap {
         (languagesPayload['supported'] as List<dynamic>? ?? const [])
             .whereType<Map>()
             .map(
-              (row) => PosLanguageOption.fromJson(
-                Map<String, dynamic>.from(row),
-              ),
+              (row) =>
+                  PosLanguageOption.fromJson(Map<String, dynamic>.from(row)),
             )
             .where((lang) => lang.code.isNotEmpty)
             .toList();
@@ -1264,14 +1272,16 @@ class PosBootstrap {
       popularItems: (json['popular_items'] as List<dynamic>? ?? [])
           .map((e) => MenuItem.fromJson(e as Map<String, dynamic>))
           .toList(),
-      showPopularItems: parseJsonBool(json['show_popular_items'], fallback: true),
+      showPopularItems: parseJsonBool(
+        json['show_popular_items'],
+        fallback: true,
+      ),
       requireShiftForPos: parseJsonBool(json['require_shift_for_pos']),
       posBlocked: parseJsonBool(json['pos_blocked']),
       posTerminals: (json['pos_terminals'] as List<dynamic>? ?? [])
           .map((e) => PosTerminalInfo.fromJson(e as Map<String, dynamic>))
           .toList(),
-      currentShift:
-          shiftJson != null ? PosShift.fromJson(shiftJson) : null,
+      currentShift: shiftJson != null ? PosShift.fromJson(shiftJson) : null,
       sync: PosSyncInfo.fromJson(syncJson),
       receiptSettings: PosReceiptSettings.fromJson(receiptJson),
       receiptSettingsRaw: receiptJson == null
@@ -1281,23 +1291,19 @@ class PosBootstrap {
       paymentGateways: (json['payment_gateways'] as List<dynamic>? ?? [])
           .map((e) => PaymentGatewayOption.fromJson(e as Map<String, dynamic>))
           .toList(),
-      paymentQrTimeoutSeconds:
-          parseJsonInt(json['payment_qr_timeout_seconds'], fallback: 300),
-      platform: PosPlatformBranding.fromJson(platformJson),
-      appUpdate: PosAppUpdate.fromJson(
-        mergedPosAppUpdateJson(json),
+      paymentQrTimeoutSeconds: parseJsonInt(
+        json['payment_qr_timeout_seconds'],
+        fallback: 300,
       ),
-      showLanguageSwitcher:
-          languagesPayload['show_switcher'] as bool? ?? false,
+      platform: PosPlatformBranding.fromJson(platformJson),
+      appUpdate: PosAppUpdate.fromJson(mergedPosAppUpdateJson(json)),
+      showLanguageSwitcher: languagesPayload['show_switcher'] as bool? ?? false,
       supportedLanguages: supportedLanguages,
       languageCatalogs: languageCatalogs,
       adminCapabilities: PosAdminCapabilities.fromJson(
         json['admin_capabilities'] as Map<String, dynamic>?,
       ),
-      permissions: (json['permissions'] as List<dynamic>? ?? [])
-          .map((e) => e.toString())
-          .where((e) => e.isNotEmpty)
-          .toList(),
+      permissions: _staffPermissionKeys(json),
       guestOrdering: PosGuestOrdering.fromJson(
         json['guest_ordering'] as Map<String, dynamic>?,
       ),
@@ -1319,10 +1325,7 @@ class PosBootstrap {
 }
 
 class MarketplacePlatformInfo {
-  const MarketplacePlatformInfo({
-    required this.provider,
-    required this.label,
-  });
+  const MarketplacePlatformInfo({required this.provider, required this.label});
 
   final String provider;
   final String label;
@@ -1377,7 +1380,8 @@ class PlacedPosOrder {
       orderNumber: json['order_number'] as String? ?? '#${json['id']}',
       token: tokenRaw == null ? null : '$tokenRaw',
       total: parseJsonDoubleOrNull(json['total']),
-      amountDue: parseJsonDoubleOrNull(json['amount_due']) ??
+      amountDue:
+          parseJsonDoubleOrNull(json['amount_due']) ??
           parseJsonDoubleOrNull(json['remaining']) ??
           payment?.amount,
       payment: payment,
@@ -1387,11 +1391,7 @@ class PlacedPosOrder {
 
 /// Cart-level discount applied before tax / service charge (matches web POS).
 class CartDiscount {
-  const CartDiscount({
-    required this.type,
-    required this.value,
-    this.reason,
-  });
+  const CartDiscount({required this.type, required this.value, this.reason});
 
   /// `percent` or `amount`
   final String type;
@@ -1404,15 +1404,14 @@ class CartDiscount {
       final pct = value.clamp(0, 100);
       return roundMoney(subtotal * pct / 100);
     }
-      return roundMoney(value.clamp(0.0, subtotal));
+    return roundMoney(value.clamp(0.0, subtotal));
   }
 
   Map<String, dynamic> toApiJson() => {
-        'type': type,
-        'value': value,
-        if (reason != null && reason!.trim().isNotEmpty)
-          'reason': reason!.trim(),
-      };
+    'type': type,
+    'value': value,
+    if (reason != null && reason!.trim().isNotEmpty) 'reason': reason!.trim(),
+  };
 
   static CartDiscount? tryParse(Map<String, dynamic>? json) {
     if (json == null) return null;
@@ -1424,7 +1423,9 @@ class CartDiscount {
     return CartDiscount(
       type: type!,
       value: value,
-      reason: (reason != null && reason.trim().isNotEmpty) ? reason.trim() : null,
+      reason: (reason != null && reason.trim().isNotEmpty)
+          ? reason.trim()
+          : null,
     );
   }
 }

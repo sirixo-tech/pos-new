@@ -12,6 +12,7 @@ import '../providers/pos_controller.dart';
 import '../theme/pos_theme.dart';
 import '../utils/media_url.dart';
 import '../utils/pos_animations.dart';
+import '../utils/pos_registration_return.dart';
 import '../widgets/pos_ui.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -217,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final base = PlatformConfig.normalizeServerUrl(
       pos.serverUrl ?? PlatformConfig.platformUrl,
     );
-    final uri = Uri.parse('$base/register');
+    final uri = posRegistrationUrl(base);
     try {
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened && mounted) {

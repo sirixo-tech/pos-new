@@ -10,7 +10,6 @@ import '../../services/pos_api.dart';
 import '../../services/printing/pos_receipt_printer.dart';
 import '../../theme/pos_theme.dart';
 import '../../widgets/day_end_reports_sheet.dart';
-import '../../utils/pos_layout.dart';
 import '../../widgets/pos_overlay.dart';
 import '../../widgets/pos_ui.dart';
 import '../pos_billing_screen.dart';
@@ -31,7 +30,11 @@ Future<void> openPosAdminShell(
 }) async {
   final pos = context.read<PosController>();
   final api = context.read<PosApi>();
-  if (pos.bootstrap?.adminCapabilities.canAccessAdmin != true) return;
+  if (pos.staffAdminCapabilities.canAccessAdmin != true) return;
+  if (initialSection == AdminShellSection.menu && !pos.canViewStaffMenu) return;
+  if (initialSection == AdminShellSection.orders && !pos.canViewStaffOrders) {
+    return;
+  }
 
   await Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -50,7 +53,7 @@ Future<void> openPosAdminShell(
 Future<void> openPosAdminMenuSheet(BuildContext context) async {
   final pos = context.read<PosController>();
   final api = context.read<PosApi>();
-  if (pos.bootstrap?.adminCapabilities.canAccessAdmin != true) return;
+  if (!pos.canViewStaffMenu) return;
 
   final accent = Theme.of(context).colorScheme.primary;
   final screenWidth = MediaQuery.sizeOf(context).width;
@@ -76,10 +79,7 @@ Future<void> openPosAdminMenuSheet(BuildContext context) async {
 }
 
 class AdminShell extends StatefulWidget {
-  const AdminShell({
-    super.key,
-    this.initialSection = AdminShellSection.hub,
-  });
+  const AdminShell({super.key, this.initialSection = AdminShellSection.hub});
 
   final AdminShellSection initialSection;
 
@@ -100,10 +100,7 @@ class _AdminShellState extends State<AdminShell> {
       return;
     }
 
-    await DayEndReportsSheet.open(
-      context,
-      onPrint: _printThermalReport,
-    );
+    await DayEndReportsSheet.open(context, onPrint: _printThermalReport);
   }
 
   Future<void> _printThermalReport(String type) async {
@@ -147,7 +144,8 @@ class _AdminShellState extends State<AdminShell> {
     // Rebuild when remote catalogs refresh (posText / l10n both depend on this).
     context.watch<PosLocaleController>().catalogGeneration;
     final caps = admin.capabilities;
-    final showMenu = caps.canViewMenu ||
+    final showMenu =
+        caps.canViewMenu ||
         caps.canManageMenu ||
         caps.canManageMenuCategories ||
         caps.canManageMenuItems ||
@@ -157,8 +155,16 @@ class _AdminShellState extends State<AdminShell> {
     final showTables = caps.canViewTables || caps.canManageTables;
     final showOrders = caps.canViewOrders || caps.canManageOrders;
     final showHours = caps.canManageSettings;
-    final showReports = caps.canAccessAdmin;
+    final showReports = context.watch<PosController>().canViewStaffReports;
     final showBilling = caps.canManageBilling;
+    if (!caps.canAccessAdmin) {
+      return const Scaffold(body: Center(child: Text('Access denied')));
+    }
+    if ((_section == AdminShellSection.menu && !showMenu) ||
+        (_section == AdminShellSection.tables && !showTables) ||
+        (_section == AdminShellSection.orders && !showOrders)) {
+      _section = AdminShellSection.hub;
+    }
 
     final l10n = context.l10n;
     final title = switch (_section) {
@@ -187,7 +193,8 @@ class _AdminShellState extends State<AdminShell> {
               ),
           ],
         ),
-        leading: _section == AdminShellSection.hub ||
+        leading:
+            _section == AdminShellSection.hub ||
                 _section == widget.initialSection
             ? null
             : IconButton(
@@ -206,54 +213,50 @@ class _AdminShellState extends State<AdminShell> {
       ),
       body: switch (_section) {
         AdminShellSection.hub => _AdminHub(
-            showMenu: showMenu,
-            showTables: showTables,
-            showOrders: showOrders,
-            showHours: showHours,
-            showReports: showReports,
-            showBilling: showBilling,
-            canImportMenu: caps.canManageMenu || caps.canManageMenuItems,
-            canManageModifiers:
-                caps.canManageMenuModifiers || caps.canManageMenu,
-            canManageTimeSlots:
-                caps.canManageMenuTimeSlots || caps.canManageMenu,
-            onOpen: (section) => setState(() => _section = section),
-            onOpenModifiers: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ChangeNotifierProvider.value(
-                    value: admin,
-                    child: const AdminModifiersScreen(),
-                  ),
+          showMenu: showMenu,
+          showTables: showTables,
+          showOrders: showOrders,
+          showHours: showHours,
+          showReports: showReports,
+          showBilling: showBilling,
+          canImportMenu: caps.canManageMenu || caps.canManageMenuItems,
+          canManageModifiers: caps.canManageMenuModifiers || caps.canManageMenu,
+          canManageTimeSlots: caps.canManageMenuTimeSlots || caps.canManageMenu,
+          onOpen: (section) => setState(() => _section = section),
+          onOpenModifiers: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ChangeNotifierProvider.value(
+                  value: admin,
+                  child: const AdminModifiersScreen(),
                 ),
-              );
-            },
-            onOpenTimeSlots: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ChangeNotifierProvider.value(
-                    value: admin,
-                    child: const AdminTimeSlotsScreen(),
-                  ),
+              ),
+            );
+          },
+          onOpenTimeSlots: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ChangeNotifierProvider.value(
+                  value: admin,
+                  child: const AdminTimeSlotsScreen(),
                 ),
-              );
-            },
-            onOpenHours: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const AdminOpeningHoursScreen(),
-                ),
-              );
-            },
-            onOpenBilling: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const PosBillingScreen(),
-                ),
-              );
-            },
-            onOpenReports: _openReports,
-          ),
+              ),
+            );
+          },
+          onOpenHours: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const AdminOpeningHoursScreen(),
+              ),
+            );
+          },
+          onOpenBilling: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const PosBillingScreen()),
+            );
+          },
+          onOpenReports: _openReports,
+        ),
         AdminShellSection.menu => const AdminMenuScreen(),
         AdminShellSection.tables => const AdminTablesScreen(),
         AdminShellSection.orders => const AdminOrdersScreen(),
@@ -306,11 +309,16 @@ class _AdminHub extends StatelessWidget {
         _HubItem(
           icon: Icons.auto_awesome_rounded,
           title: context.posText('adminAiMenuUpload', 'AI Menu Upload'),
-          subtitle: context.posText('adminAiMenuUploadSubtitle', 'Upload, review, and import your menu'),
-          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-            settings: const RouteSettings(name: 'ai-menu'),
-            builder: (_) => const AdminMenuImportScreen(),
-          )),
+          subtitle: context.posText(
+            'adminAiMenuUploadSubtitle',
+            'Upload, review, and import your menu',
+          ),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              settings: const RouteSettings(name: 'ai-menu'),
+              builder: (_) => const AdminMenuImportScreen(),
+            ),
+          ),
         ),
       if (showHours)
         _HubItem(
@@ -388,7 +396,10 @@ class _AdminHub extends StatelessWidget {
     if (tiles.isEmpty) {
       return AdminEmptyPane(
         icon: Icons.lock_outline_rounded,
-        title: context.posText('adminNoSections', 'No manage sections available.'),
+        title: context.posText(
+          'adminNoSections',
+          'No manage sections available.',
+        ),
         subtitle: context.posText(
           'adminNoSectionsHint',
           'Ask an owner to grant menu, tables, or orders permissions.',
@@ -441,18 +452,15 @@ class _AdminHub extends StatelessWidget {
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
                 ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final item = tiles[index];
-                    return AdminEntityCard(
-                      icon: item.icon,
-                      title: item.title,
-                      subtitle: item.subtitle,
-                      onTap: item.onTap,
-                    );
-                  },
-                  childCount: tiles.length,
-                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final item = tiles[index];
+                  return AdminEntityCard(
+                    icon: item.icon,
+                    title: item.title,
+                    subtitle: item.subtitle,
+                    onTap: item.onTap,
+                  );
+                }, childCount: tiles.length),
               ),
             ),
           ],

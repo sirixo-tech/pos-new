@@ -131,20 +131,65 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _generateImage() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      showPosSnackBar(
+        context,
+        context.posText('adminEnterName', 'Enter a name'),
+        error: true,
+      );
+      return;
+    }
+    final choice = await showModalBottomSheet<_AiImageChoice>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          PosKeyboardSheetHost(child: _AiImageStyleSheet(itemName: name)),
+    );
+    if (!mounted || choice == null) return;
+    final session = context.read<PosController>().session;
+    if (session == null) return;
     setState(() => _pickingImage = true);
     try {
-      final picked = await AdminMenuImagePickerSection.pickFromGallery();
+      final file = await context.read<PosApi>().generateMenuItemImage(
+        session,
+        name: name,
+        description: _descCtrl.text.trim(),
+        categoryName: name,
+        style: choice.style,
+        keywords:
+            'Representative food assortment for the $name menu category. ${choice.keywords}',
+      );
+      if (mounted) setState(() => _pickedImage = file);
+    } catch (error) {
+      if (mounted) {
+        showPosSnackBar(context, posUserFacingError(error), error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
+  }
+
+  Future<void> _pickImage({bool camera = false}) async {
+    setState(() => _pickingImage = true);
+    try {
+      final picked = await (camera
+          ? AdminMenuImagePickerSection.pickFromCamera(context)
+          : AdminMenuImagePickerSection.pickFromGallery());
       if (!mounted || picked == null) return;
       setState(() => _pickedImage = picked);
     } catch (_) {
       if (!mounted) return;
       showPosSnackBar(
         context,
-        context.posText(
-          'adminPhotoPickerUnavailable',
-          'Photo picker needs a full app restart.',
-        ),
+        camera
+            ? 'Could not open the camera. Check camera permissions and try again.'
+            : context.posText(
+                'adminPhotoPickerUnavailable',
+                'Photo picker needs a full app restart.',
+              ),
         error: true,
       );
     } finally {
@@ -197,6 +242,8 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
             pickedImage: _pickedImage,
             picking: _pickingImage,
             onPick: _pickImage,
+            onCamera: () => _pickImage(camera: true),
+            onGenerate: _generateImage,
             placeholderIcon: Icons.category_rounded,
           ),
           const SizedBox(height: 16),
@@ -362,20 +409,24 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
     }
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage({bool camera = false}) async {
     setState(() => _pickingImage = true);
     try {
-      final picked = await AdminMenuImagePickerSection.pickFromGallery();
+      final picked = await (camera
+          ? AdminMenuImagePickerSection.pickFromCamera(context)
+          : AdminMenuImagePickerSection.pickFromGallery());
       if (!mounted || picked == null) return;
       setState(() => _pickedImage = picked);
     } catch (_) {
       if (!mounted) return;
       showPosSnackBar(
         context,
-        context.posText(
-          'adminPhotoPickerUnavailable',
-          'Photo picker needs a full app restart.',
-        ),
+        camera
+            ? 'Could not open the camera. Check camera permissions and try again.'
+            : context.posText(
+                'adminPhotoPickerUnavailable',
+                'Photo picker needs a full app restart.',
+              ),
         error: true,
       );
     } finally {
@@ -448,6 +499,7 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
             picking: _pickingImage,
             onPick: _pickImage,
             onGenerate: _generateImage,
+            onCamera: () => _pickImage(camera: true),
           ),
           const SizedBox(height: 16),
           if (_isCreate) ...[

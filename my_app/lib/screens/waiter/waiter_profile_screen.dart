@@ -96,7 +96,7 @@ class WaiterProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          if (pos.bootstrap?.adminCapabilities.canAccessAdmin == true)
+          if (pos.staffAdminCapabilities.canAccessAdmin == true)
             _ActionTile(
               icon: Icons.admin_panel_settings_rounded,
               title: context.posText('adminManage', 'Manage'),

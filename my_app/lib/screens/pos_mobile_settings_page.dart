@@ -37,11 +37,11 @@ class PosMobileSettingsPage extends StatelessWidget {
         : (guest.isPaused || !storeAccepting
               ? l10n.storePaused
               : l10n.storeClosed);
-    final caps = bootstrap?.adminCapabilities;
+    final caps = pos.staffAdminCapabilities;
     final canViewMenu =
-        caps?.canViewMenu == true ||
-        caps?.canManageMenu == true ||
-        caps?.canManageMenuItems == true;
+        caps.canViewMenu == true ||
+        caps.canManageMenu == true ||
+        caps.canManageMenuItems == true;
     final platforms =
         bootstrap?.marketplacePlatforms ?? const <MarketplacePlatformInfo>[];
     final notificationCount = pos.registerBillUnreadCount;
@@ -51,25 +51,29 @@ class PosMobileSettingsPage extends StatelessWidget {
       PosMoreMenuSection(
         title: 'Quick actions',
         items: [
-          PosMoreMenuItem(
-            id: '_notifications',
-            icon: CupertinoIcons.bell,
-            label: l10n.waiterNavAlerts,
-            badge: notificationCount > 0 ? '$notificationCount' : null,
-          ),
-          if (allowDelivery)
+          if (pos.canOpenStaffAction('_notifications'))
+            PosMoreMenuItem(
+              id: '_notifications',
+              icon: CupertinoIcons.bell,
+              label: l10n.waiterNavAlerts,
+              badge: notificationCount > 0 ? '$notificationCount' : null,
+            ),
+          if (allowDelivery && pos.canOpenStaffAction('_delivery'))
             PosMoreMenuItem(
               id: '_delivery',
               icon: CupertinoIcons.car,
               label: context.posText('shellDeliveryOrders', 'Delivery orders'),
             ),
-          PosMoreMenuItem(
-            id: bootstrap?.currentShift == null ? 'open_shift' : 'close_shift',
-            icon: CupertinoIcons.clock,
-            label: bootstrap?.currentShift == null
-                ? l10n.opsOpenOptional
-                : l10n.opsCloseShift,
-          ),
+          if (pos.canOpenStaffAction('open_shift'))
+            PosMoreMenuItem(
+              id: bootstrap?.currentShift == null
+                  ? 'open_shift'
+                  : 'close_shift',
+              icon: CupertinoIcons.clock,
+              label: bootstrap?.currentShift == null
+                  ? l10n.opsOpenOptional
+                  : l10n.opsCloseShift,
+            ),
         ],
       ),
       ...buildPosMoreMenuSections(
@@ -77,8 +81,8 @@ class PosMobileSettingsPage extends StatelessWidget {
         l10n: l10n,
         storeAccepting: storeAccepting,
         storeStatusLabel: storeStatusLabel,
-        canManageStore: caps?.canManageSettings == true,
-        canAccessAdmin: caps?.canAccessAdmin == true,
+        canManageStore: caps.canManageSettings == true,
+        canAccessAdmin: caps.canAccessAdmin == true,
         canViewMenu: canViewMenu,
         marketplacePlatforms: platforms,
         showLanguageSwitcher: locale.showSwitcher,
@@ -503,6 +507,8 @@ class PosMobileNavBar extends StatelessWidget {
     PosTheme.bind(context);
     final accent = Theme.of(context).colorScheme.primary;
     final soft = posAccentSoft(accent);
+    final pos = context.watch<PosController>();
+    const actions = ['refresh', 'orders', 'ai_menu', 'menu', 'reports'];
     const items = [
       (Icons.point_of_sale_outlined, 'POS'),
       (Icons.receipt_long_outlined, 'Orders'),
@@ -537,17 +543,18 @@ class PosMobileNavBar extends StatelessWidget {
               child: Row(
                 children: [
                   for (var i = 0; i < items.length; i++)
-                    Expanded(
-                      child: _NavItem(
-                        icon: items[i].$1,
-                        label: items[i].$2,
-                        selected: index == i,
-                        accent: accent,
-                        capsule: soft.bg,
-                        badge: i == 1 && ordersCount > 0 ? ordersCount : null,
-                        onTap: () => onSelected(i),
+                    if (pos.canOpenStaffAction(actions[i]))
+                      Expanded(
+                        child: _NavItem(
+                          icon: items[i].$1,
+                          label: items[i].$2,
+                          selected: index == i,
+                          accent: accent,
+                          capsule: soft.bg,
+                          badge: i == 1 && ordersCount > 0 ? ordersCount : null,
+                          onTap: () => onSelected(i),
+                        ),
                       ),
-                    ),
                 ],
               ),
             ),

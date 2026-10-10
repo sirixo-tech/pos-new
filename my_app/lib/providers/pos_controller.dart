@@ -125,6 +125,39 @@ class PosController extends ChangeNotifier {
 
   /// Register (tablet) vs Waiter (phone captain) vs Kitchen KOT board.
   PosWorkMode? workMode;
+  bool _workspaceBeforeLocation = false;
+  bool get choosingWorkspaceBeforeLocation => _workspaceBeforeLocation;
+  bool refreshingWorkspacePermissions = false;
+
+  Future<void> refreshWorkspacePermissions() async {
+    final current = session;
+    if (current == null ||
+        refreshingWorkspacePermissions ||
+        phase != PosAppPhase.modePicker) {
+      return;
+    }
+    refreshingWorkspacePermissions = true;
+    notifyListeners();
+    try {
+      final latest = await _api.fetchMe(current);
+      if (!identical(session, current) || phase != PosAppPhase.modePicker) {
+        return;
+      }
+      profile = latest;
+      // Before selecting a location, /me is the current authority. An old
+      // bootstrap must not mask newly granted workspace permissions.
+      if (_workspaceBeforeLocation) bootstrap = null;
+      if (workMode != null && !_isWorkModeAllowed(workMode!)) workMode = null;
+      errorMessage = null;
+    } catch (e) {
+      if (identical(session, current) && phase == PosAppPhase.modePicker) {
+        errorMessage = posUserFacingError(e);
+      }
+    } finally {
+      refreshingWorkspacePermissions = false;
+      notifyListeners();
+    }
+  }
 
   /// Scoped Sanctum token for `/api/v1/kitchen/*` (minted on demand).
   String? _kitchenApiToken;
@@ -646,10 +679,21 @@ class PosController extends ChangeNotifier {
 
   bool get isKitchenMode => workMode == PosWorkMode.kitchen;
 
+  bool get _hasKitchenOnlyAccess {
+    final permissions = profile?.permissions;
+    return permissions != null &&
+        permissions.contains('access_kitchen') &&
+        !permissions.contains('access_pos') &&
+        !permissions.contains('access_pos_captain');
+  }
+
   /// Register POS (tablet) — permission `access_pos`.
   bool get canUseRegister {
+    if (profile != null && !profile!.permissions.contains('access_pos')) {
+      return false;
+    }
     final fromBootstrap = bootstrap?.permissions;
-    if (fromBootstrap != null && fromBootstrap.isNotEmpty) {
+    if (fromBootstrap != null) {
       return fromBootstrap.contains('access_pos');
     }
     return profile?.permissions.contains('access_pos') ?? false;
@@ -657,8 +701,12 @@ class PosController extends ChangeNotifier {
 
   /// Captain / waiter floor — permission `access_pos_captain`.
   bool get canUseCaptain {
+    if (profile != null &&
+        !profile!.permissions.contains('access_pos_captain')) {
+      return false;
+    }
     final fromBootstrap = bootstrap?.permissions;
-    if (fromBootstrap != null && fromBootstrap.isNotEmpty) {
+    if (fromBootstrap != null) {
       return fromBootstrap.contains('access_pos_captain');
     }
     return profile?.permissions.contains('access_pos_captain') ?? false;
@@ -666,8 +714,11 @@ class PosController extends ChangeNotifier {
 
   /// Kitchen / KOT display — permission `access_kitchen`.
   bool get canUseKitchen {
+    if (profile != null && !profile!.permissions.contains('access_kitchen')) {
+      return false;
+    }
     final fromBootstrap = bootstrap?.permissions;
-    if (fromBootstrap != null && fromBootstrap.isNotEmpty) {
+    if (fromBootstrap != null) {
       return fromBootstrap.contains('access_kitchen');
     }
     return profile?.permissions.contains('access_kitchen') ?? false;
@@ -677,6 +728,165 @@ class PosController extends ChangeNotifier {
       (canUseRegister ? 1 : 0) +
       (canUseCaptain ? 1 : 0) +
       (canUseKitchen ? 1 : 0);
+
+  bool hasStaffPermission(String permission) {
+    if (profile != null && !profile!.permissions.contains(permission)) {
+      return false;
+    }
+    return (bootstrap?.permissions ?? profile?.permissions ?? const <String>[])
+        .contains(permission);
+  }
+
+  /// Server capability flags cannot expand the permissions returned for staff.
+  PosAdminCapabilities get staffAdminCapabilities {
+    final caps = bootstrap?.adminCapabilities ?? const PosAdminCapabilities();
+    if (session == null) return const PosAdminCapabilities();
+    if (profile == null) return caps;
+    bool granted(String key, bool flag) => flag && hasStaffPermission(key);
+    final viewMenu = granted('view_menu', caps.canViewMenu);
+    final manageMenu = granted('manage_menu', caps.canManageMenu);
+    final categories = granted(
+      'manage_menu_categories',
+      caps.canManageMenuCategories,
+    );
+    final items = granted('manage_menu_items', caps.canManageMenuItems);
+    final modifiers = granted(
+      'manage_menu_modifiers',
+      caps.canManageMenuModifiers,
+    );
+    final slots = granted(
+      'manage_menu_time_slots',
+      caps.canManageMenuTimeSlots,
+    );
+    final availability = granted(
+      'toggle_menu_availability',
+      caps.canToggleMenuAvailability,
+    );
+    final viewOrders = granted('view_orders', caps.canViewOrders);
+    final manageOrders = granted('manage_orders', caps.canManageOrders);
+    final viewTables = granted('view_tables', caps.canViewTables);
+    final manageTables = granted('manage_tables', caps.canManageTables);
+    final settings = granted('manage_settings', caps.canManageSettings);
+    final billing = granted('manage_billing', caps.canManageBilling);
+    return PosAdminCapabilities(
+      permissions: profile!.permissions,
+      canViewMenu: viewMenu,
+      canManageMenu: manageMenu,
+      canManageMenuCategories: categories,
+      canManageMenuItems: items,
+      canManageMenuModifiers: modifiers,
+      canManageMenuTimeSlots: slots,
+      canToggleMenuAvailability: availability,
+      canViewOrders: viewOrders,
+      canManageOrders: manageOrders,
+      canViewTables: viewTables,
+      canManageTables: manageTables,
+      canManageSettings: settings,
+      canManageBilling: billing,
+      canAccessAdmin:
+          caps.canAccessAdmin &&
+          (viewMenu ||
+              manageMenu ||
+              categories ||
+              items ||
+              modifiers ||
+              slots ||
+              availability ||
+              viewOrders ||
+              manageOrders ||
+              viewTables ||
+              manageTables ||
+              settings ||
+              billing),
+    );
+  }
+
+  bool get canViewStaffReports => hasStaffPermission('view_reports');
+
+  bool get canViewStaffOrders =>
+      staffAdminCapabilities.canViewOrders == true ||
+      staffAdminCapabilities.canManageOrders == true;
+
+  bool get canViewStaffMenu {
+    final caps = staffAdminCapabilities;
+    return caps.canAccessAdmin == true &&
+        (caps.canViewMenu == true ||
+            caps.canManageMenu == true ||
+            caps.canManageMenuItems == true ||
+            caps.canManageMenuCategories == true ||
+            caps.canManageMenuModifiers == true ||
+            caps.canManageMenuTimeSlots == true ||
+            caps.canToggleMenuAvailability == true);
+  }
+
+  bool get canImportStaffMenu =>
+      staffAdminCapabilities.canAccessAdmin == true &&
+      (staffAdminCapabilities.canManageMenu == true ||
+          staffAdminCapabilities.canManageMenuItems == true);
+
+  /// Used before displaying actions and again immediately before opening them.
+  bool canOpenStaffAction(String action) {
+    final caps = staffAdminCapabilities;
+    if (session == null) return false;
+    switch (action) {
+      case 'kitchen_display':
+        return canUseKitchen;
+      case 'reports':
+        return canViewStaffReports;
+      case 'menu':
+        return canViewStaffMenu;
+      case 'ai_menu':
+        return canImportStaffMenu;
+      case 'orders':
+      case '_delivery':
+        return canViewStaffOrders;
+      case 'manage':
+        return caps.canAccessAdmin == true;
+      case 'store_toggle':
+      case 'printer':
+      case 'customer_display':
+      case 'dqr_images':
+      case 'cart_display':
+      case 'qr_pairing':
+      case 'unpair':
+        return caps.canManageSettings == true;
+      case 'token_display':
+        return canUseKitchen;
+      case 'open_shift':
+      case 'close_shift':
+        return hasStaffPermission('manage_shifts');
+      case 'waiter_mode':
+        return canUseCaptain;
+      case 'change_mode':
+        return canChooseWorkMode;
+      case 'location':
+        return canChangeLocation;
+      case 'terminal':
+        return canUseRegister;
+      case '_notifications':
+      case 'refresh':
+      case 'quick_pay_layout':
+      case 'sync':
+        return canUseRegister;
+      case 'status':
+      case 'shortcuts':
+      case 'lock':
+      case 'pin':
+      case 'sounds':
+      case 'updates':
+      case 'language':
+      case 'appearance':
+      case 'item_images':
+      case 'help':
+      case 'about':
+      case 'auto_lock':
+      case 'fullscreen':
+      case 'logout':
+        return true;
+      default:
+        return action.endsWith('_orders') && canViewStaffOrders;
+    }
+  }
 
   bool get canChooseWorkMode => _allowedWorkModeCount > 1;
 
@@ -694,6 +904,7 @@ class PosController extends ChangeNotifier {
   String? _kitchenTokenSessionKey;
 
   Future<String> ensureKitchenApiToken() async {
+    if (!canUseKitchen) throw StateError('Kitchen access is not permitted.');
     final current = session;
     if (current == null) {
       throw StateError('Not signed in.');
@@ -967,7 +1178,32 @@ class PosController extends ChangeNotifier {
     bool fromResume = false,
   }) async {
     _syncService?.configure(session);
+    if (!fromResume &&
+        staffProfile.permissions.any(
+          (permission) => const [
+            'access_pos',
+            'access_pos_captain',
+            'access_kitchen',
+          ].contains(permission),
+        )) {
+      bootstrap = null;
+      workMode = null;
+      _workspaceBeforeLocation = true;
+      phase = PosAppPhase.modePicker;
+      return;
+    }
+    await _continueAfterWorkspace(staffProfile, fromResume: fromResume);
+  }
+
+  Future<void> _continueAfterWorkspace(
+    StaffProfile staffProfile, {
+    bool fromResume = false,
+  }) async {
     if (staffProfile.needsContextPicker) {
+      if (!fromResume) {
+        phase = PosAppPhase.contextPicker;
+        return;
+      }
       final preferred = await _preferredLocation(
         staffProfile,
         fromResume: fromResume,
@@ -1120,6 +1356,32 @@ class PosController extends ChangeNotifier {
     final current = session;
     if (current == null) return PosAppPhase.login;
 
+    final selected = workMode;
+    if (selected != null) {
+      if (!_isWorkModeAllowed(selected)) {
+        final name = switch (selected) {
+          PosWorkMode.waiter => 'Waiter / Captain',
+          PosWorkMode.kitchen => 'Kitchen Display',
+          PosWorkMode.register => 'Register POS',
+        };
+        errorMessage =
+            '$name access is not available for this location. '
+            'Choose another permitted workspace or ask an owner to check your permissions.';
+        workMode = null;
+        await PosWorkModeStorage.clear(current.branchId);
+        return PosAppPhase.modePicker;
+      }
+      await PosWorkModeStorage.write(current.branchId, selected);
+      return _resolveWorkModePhase(selected);
+    }
+
+    if (!canUseRegister &&
+        !canUseCaptain &&
+        !canUseKitchen &&
+        (staffAdminCapabilities.canAccessAdmin || canViewStaffReports)) {
+      workMode = null;
+      return PosAppPhase.modePicker;
+    }
     if (!canUseRegister && !canUseCaptain && !canUseKitchen) {
       errorMessage =
           'Your account does not have Register, Captain, or Kitchen access.';
@@ -1186,7 +1448,11 @@ class PosController extends ChangeNotifier {
       _stopRegisterAlertPolling();
       _stopNewOrderPolling();
       _stopPaymentSessionMonitoring();
-      _startRevisionPolling();
+      if (_hasKitchenOnlyAccess) {
+        _stopRevisionPolling();
+      } else {
+        _startRevisionPolling();
+      }
       notifyListeners();
       return;
     }
@@ -1225,7 +1491,25 @@ class PosController extends ChangeNotifier {
     if (current == null) return;
     if (!_isWorkModeAllowed(mode)) return;
 
+    errorMessage = null;
     workMode = mode;
+    if (_workspaceBeforeLocation) {
+      _workspaceBeforeLocation = false;
+      errorMessage = null;
+      try {
+        await _continueAfterWorkspace(profile!);
+      } on PosApiException catch (e) {
+        if (e.isSubscriptionBlocked) {
+          _presentSubscriptionBlock(e);
+        } else {
+          errorMessage = posUserFacingError(e);
+          _workspaceBeforeLocation = true;
+          phase = PosAppPhase.modePicker;
+        }
+      }
+      notifyListeners();
+      return;
+    }
     await PosWorkModeStorage.write(current.branchId, mode);
 
     if (mode == PosWorkMode.waiter || mode == PosWorkMode.kitchen) {
@@ -1835,6 +2119,7 @@ class PosController extends ChangeNotifier {
     profile = null;
     bootstrap = null;
     workMode = null;
+    _workspaceBeforeLocation = false;
     _kitchenApiToken = null;
     subscriptionBlocked = false;
     trialExpired = false;
@@ -3489,6 +3774,17 @@ class PosController extends ChangeNotifier {
       throw PosApiException(
         PosTranslationStore.instance.text('authNotSignedIn', 'Not signed in'),
       );
+    }
+
+    // Kitchen-only staff cannot call the register POS bootstrap endpoint.
+    // Validate this location using the scoped kitchen API; KitchenController
+    // owns the board data and its refresh lifecycle.
+    if (_hasKitchenOnlyAccess) {
+      bootstrap = null;
+      final token = await ensureKitchenApiToken();
+      await _api.fetchKitchenBootstrap(session: current, kitchenToken: token);
+      await _notifyBootstrapChanged();
+      return;
     }
 
     try {

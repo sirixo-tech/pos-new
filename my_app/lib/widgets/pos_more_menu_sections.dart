@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/pos_controller.dart';
 
 import '../config/pos_app_info.dart';
 import '../l10n/pos_l10n.dart';
@@ -38,7 +40,9 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
           icon: storeAccepting
               ? Icons.pause_circle_filled_rounded
               : Icons.storefront_rounded,
-          label: storeAccepting ? l10n.storeCloseConfirm : l10n.storeOpenConfirm,
+          label: storeAccepting
+              ? l10n.storeCloseConfirm
+              : l10n.storeOpenConfirm,
           subtitle: storeStatusLabel,
           badge: storeStatusLabel,
           enabled: canManageStore,
@@ -63,6 +67,11 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
           id: 'reports',
           icon: Icons.summarize_rounded,
           label: l10n.shellReports,
+        ),
+        const PosMoreMenuItem(
+          id: 'kitchen_display',
+          icon: Icons.soup_kitchen_outlined,
+          label: 'Kitchen display',
         ),
         if (canAccessAdmin && canViewMenu)
           PosMoreMenuItem(
@@ -234,7 +243,9 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
         PosMoreMenuItem(
           id: 'updates',
           icon: Icons.system_update_alt_rounded,
-          label: checkingForUpdates ? l10n.updateChecking : l10n.shellCheckForUpdates,
+          label: checkingForUpdates
+              ? l10n.updateChecking
+              : l10n.shellCheckForUpdates,
           enabled: !checkingForUpdates,
         ),
         if (pendingOrderCount > 0)
@@ -269,8 +280,16 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
       ],
     ),
   ];
+  final pos = context.read<PosController>();
   return [
     for (final section in sections)
-      if (section.items.isNotEmpty) section,
+      if (section.items.any((item) => pos.canOpenStaffAction(item.id)))
+        PosMoreMenuSection(
+          title: section.title,
+          items: [
+            for (final item in section.items)
+              if (pos.canOpenStaffAction(item.id)) item,
+          ],
+        ),
   ];
 }

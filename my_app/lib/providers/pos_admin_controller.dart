@@ -10,11 +10,9 @@ import '../utils/pos_user_facing_error.dart';
 import 'pos_controller.dart';
 
 class PosAdminController extends ChangeNotifier {
-  PosAdminController({
-    required PosApi api,
-    required PosController pos,
-  })  : _api = api,
-        _pos = pos {
+  PosAdminController({required PosApi api, required PosController pos})
+    : _api = api,
+      _pos = pos {
     _applyMenuCache();
   }
 
@@ -92,8 +90,7 @@ class PosAdminController extends ChangeNotifier {
 
   PosSession? get session => _pos.session;
 
-  PosAdminCapabilities get capabilities =>
-      _pos.bootstrap?.adminCapabilities ?? const PosAdminCapabilities();
+  PosAdminCapabilities get capabilities => _pos.staffAdminCapabilities;
 
   bool get canViewMenu => capabilities.canViewMenu;
   bool get canManageMenu => capabilities.canManageMenu;
@@ -108,6 +105,13 @@ class PosAdminController extends ChangeNotifier {
   bool get canManageOrders => capabilities.canManageOrders;
   bool get canManageSettings => capabilities.canManageSettings;
   bool get canAccessAdmin => capabilities.canAccessAdmin;
+
+  bool _allowed(bool permission) {
+    if (session != null && permission) return true;
+    error = 'You do not have permission for this action.';
+    notifyListeners();
+    return false;
+  }
 
   void clearError() {
     if (error == null) return;
@@ -182,6 +186,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<void> loadMenu() async {
+    if (!_allowed(_pos.canViewStaffMenu)) return;
     if (_disposed) return;
     final showSpinner = categories.isEmpty;
     if (showSpinner) {
@@ -207,13 +212,11 @@ class PosAdminController extends ChangeNotifier {
     Map<String, dynamic> body, {
     XFile? imageFile,
   }) async {
+    if (!_allowed(canManageMenu || canManageMenuCategories)) return false;
     return _runMenuSave('new-category', () async {
       await _api.createAdminMenuCategory(
         _requireSession(),
-        body: {
-          'is_active': true,
-          ...body,
-        },
+        body: {'is_active': true, ...body},
         imageFile: imageFile,
       );
     });
@@ -224,21 +227,23 @@ class PosAdminController extends ChangeNotifier {
     Map<String, dynamic> body, {
     XFile? imageFile,
   }) async {
-    final currentStatus = categories.where((category) => category.id == id).firstOrNull?.isActive;
+    if (!_allowed(canManageMenu || canManageMenuCategories)) return false;
+    final currentStatus = categories
+        .where((category) => category.id == id)
+        .firstOrNull
+        ?.isActive;
     return _runMenuSave('category:$id', () async {
       await _api.updateAdminMenuCategory(
         _requireSession(),
         id: id,
-        body: {
-          if (currentStatus != null) 'is_active': currentStatus,
-          ...body,
-        },
+        body: {if (currentStatus != null) 'is_active': currentStatus, ...body},
         imageFile: imageFile,
       );
     });
   }
 
   Future<bool> toggleMenuCategory(int id) async {
+    if (!_allowed(canToggleMenuAvailability || canManageMenu)) return false;
     if (_menuSaves.contains('category:$id')) return false;
     clearError();
     final index = categories.indexWhere((c) => c.id == id);
@@ -257,8 +262,7 @@ class PosAdminController extends ChangeNotifier {
       final latestIndex = categories.indexWhere((c) => c.id == id);
       if (latestIndex >= 0 && categories[latestIndex].isActive != active) {
         categories = [...categories]
-          ..[latestIndex] =
-              categories[latestIndex].copyWith(isActive: active);
+          ..[latestIndex] = categories[latestIndex].copyWith(isActive: active);
         notifyListeners();
       }
       unawaited(_refreshMenuBootstrap());
@@ -275,6 +279,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteMenuCategory(int id) async {
+    if (!_allowed(canManageMenu || canManageMenuCategories)) return false;
     if (_menuSaves.contains('category:$id')) return false;
     final ok = await _runMutation(() async {
       await _api.deleteAdminMenuCategory(_requireSession(), id: id);
@@ -297,6 +302,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> reorderMenuCategories(List<int> order) async {
+    if (!_allowed(canManageMenu || canManageMenuCategories)) return false;
     final ok = await _runMutation(() async {
       await _api.reorderAdminMenuCategories(_requireSession(), order: order);
       await loadMenu();
@@ -310,6 +316,7 @@ class PosAdminController extends ChangeNotifier {
     required int categoryId,
     required List<int> order,
   }) async {
+    if (!_allowed(canManageMenu || canManageMenuItems)) return false;
     final ok = await _runMutation(() async {
       await _api.reorderAdminMenuItems(
         _requireSession(),
@@ -327,13 +334,11 @@ class PosAdminController extends ChangeNotifier {
     Map<String, dynamic> body, {
     XFile? imageFile,
   }) async {
+    if (!_allowed(canManageMenu || canManageMenuItems)) return false;
     return _runMenuSave('new-item', () async {
       await _api.createAdminMenuItem(
         _requireSession(),
-        body: {
-          'is_available': true,
-          ...body,
-        },
+        body: {'is_available': true, ...body},
         imageFile: imageFile,
       );
     });
@@ -344,7 +349,12 @@ class PosAdminController extends ChangeNotifier {
     Map<String, dynamic> body, {
     XFile? imageFile,
   }) async {
-    final currentStatus = categories.expand((category) => category.items).where((item) => item.id == id).firstOrNull?.isAvailable;
+    if (!_allowed(canManageMenu || canManageMenuItems)) return false;
+    final currentStatus = categories
+        .expand((category) => category.items)
+        .where((item) => item.id == id)
+        .firstOrNull
+        ?.isAvailable;
     return _runMenuSave('item:$id', () async {
       await _api.updateAdminMenuItem(
         _requireSession(),
@@ -359,6 +369,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> toggleMenuItem(int id) async {
+    if (!_allowed(canToggleMenuAvailability || canManageMenu)) return false;
     if (_menuSaves.contains('item:$id')) return false;
     clearError();
     var catIndex = -1;
@@ -375,8 +386,9 @@ class PosAdminController extends ChangeNotifier {
 
     final category = categories[catIndex];
     final previous = category.items[itemIndex];
-    final optimisticItem =
-        previous.copyWith(isAvailable: !previous.isAvailable);
+    final optimisticItem = previous.copyWith(
+      isAvailable: !previous.isAvailable,
+    );
     final optimisticItems = [...category.items]..[itemIndex] = optimisticItem;
     categories = [...categories]
       ..[catIndex] = category.copyWith(items: optimisticItems);
@@ -402,8 +414,7 @@ class PosAdminController extends ChangeNotifier {
           categories[catIndex].items[itemIndex].isAvailable != available) {
         final cat = categories[catIndex];
         final items = [...cat.items]
-          ..[itemIndex] =
-              cat.items[itemIndex].copyWith(isAvailable: available);
+          ..[itemIndex] = cat.items[itemIndex].copyWith(isAvailable: available);
         categories = [...categories]..[catIndex] = cat.copyWith(items: items);
         notifyListeners();
       }
@@ -432,6 +443,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteMenuItem(int id) async {
+    if (!_allowed(canManageMenu || canManageMenuItems)) return false;
     if (_menuSaves.contains('item:$id')) return false;
     final ok = await _runMutation(() async {
       await _api.deleteAdminMenuItem(_requireSession(), id: id);
@@ -443,6 +455,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> createModifier(Map<String, dynamic> body) async {
+    if (!_allowed(canManageMenu || canManageMenuModifiers)) return false;
     final ok = await _runMutation(() async {
       await _api.createAdminModifier(_requireSession(), body: body);
       await loadMenu();
@@ -452,6 +465,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> updateModifier(int id, Map<String, dynamic> body) async {
+    if (!_allowed(canManageMenu || canManageMenuModifiers)) return false;
     final ok = await _runMutation(() async {
       await _api.updateAdminModifier(_requireSession(), id: id, body: body);
       await loadMenu();
@@ -461,6 +475,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteModifier(int id) async {
+    if (!_allowed(canManageMenu || canManageMenuModifiers)) return false;
     final ok = await _runMutation(() async {
       await _api.deleteAdminModifier(_requireSession(), id: id);
       await loadMenu();
@@ -470,6 +485,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> createTimeSlot(Map<String, dynamic> body) async {
+    if (!_allowed(canManageMenu || canManageMenuTimeSlots)) return false;
     final ok = await _runMutation(() async {
       await _api.createAdminTimeSlot(_requireSession(), body: body);
       await loadMenu();
@@ -480,6 +496,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> updateTimeSlot(int id, Map<String, dynamic> body) async {
+    if (!_allowed(canManageMenu || canManageMenuTimeSlots)) return false;
     final ok = await _runMutation(() async {
       await _api.updateAdminTimeSlot(_requireSession(), id: id, body: body);
       await loadMenu();
@@ -490,6 +507,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteTimeSlot(int id) async {
+    if (!_allowed(canManageMenu || canManageMenuTimeSlots)) return false;
     final ok = await _runMutation(() async {
       await _api.deleteAdminTimeSlot(_requireSession(), id: id);
       await loadMenu();
@@ -500,6 +518,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<void> loadTables() async {
+    if (!_allowed(canViewTables || canManageTables)) return;
     clearError();
     tablesLoading = true;
     notifyListeners();
@@ -514,6 +533,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> createTable(Map<String, dynamic> body) async {
+    if (!_allowed(canManageTables)) return false;
     final ok = await _runMutation(() async {
       await _api.createAdminTable(_requireSession(), body: body);
       await loadTables();
@@ -523,6 +543,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> updateTable(int id, Map<String, dynamic> body) async {
+    if (!_allowed(canManageTables)) return false;
     final ok = await _runMutation(() async {
       await _api.updateAdminTable(_requireSession(), id: id, body: body);
       await loadTables();
@@ -532,6 +553,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteTable(int id) async {
+    if (!_allowed(canManageTables)) return false;
     final ok = await _runMutation(() async {
       await _api.deleteAdminTable(_requireSession(), id: id);
       await loadTables();
@@ -541,6 +563,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> updateTableStatus(int id, String status) async {
+    if (!_allowed(canManageTables)) return false;
     final ok = await _runMutation(() async {
       await _api.updateAdminTableStatus(
         _requireSession(),
@@ -554,6 +577,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> createTableArea(Map<String, dynamic> body) async {
+    if (!_allowed(canManageTables)) return false;
     final ok = await _runMutation(() async {
       await _api.createAdminTableArea(_requireSession(), body: body);
       await loadTables();
@@ -563,6 +587,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> updateTableArea(int id, Map<String, dynamic> body) async {
+    if (!_allowed(canManageTables)) return false;
     final ok = await _runMutation(() async {
       await _api.updateAdminTableArea(_requireSession(), id: id, body: body);
       await loadTables();
@@ -572,6 +597,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteTableArea(int id) async {
+    if (!_allowed(canManageTables)) return false;
     final ok = await _runMutation(() async {
       await _api.deleteAdminTableArea(_requireSession(), id: id);
       await loadTables();
@@ -581,6 +607,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> updateFloorPlan(Map<String, dynamic> body) async {
+    if (!_allowed(canManageTables)) return false;
     final ok = await _runMutation(() async {
       await _api.updateAdminFloorPlan(_requireSession(), body: body);
       await loadTables();
@@ -598,6 +625,7 @@ class PosAdminController extends ChangeNotifier {
     int page = 1,
     bool silent = false,
   }) async {
+    if (!_allowed(canViewOrders || canManageOrders)) return;
     if (ordersLoading) return;
     if (PosApi.isRateLimited) return;
     clearError();
@@ -707,6 +735,7 @@ class PosAdminController extends ChangeNotifier {
     String? cancelReason,
     String? cancelNote,
   }) async {
+    if (!_allowed(canManageOrders)) return false;
     final ok = await _runMutation(() async {
       selectedOrder = await _api.updateAdminOrderStatus(
         _requireSession(),
@@ -722,6 +751,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<bool> reopenOrder(String orderKey) async {
+    if (!_allowed(canManageOrders)) return false;
     final ok = await _runMutation(() async {
       selectedOrder = await _api.reopenAdminOrder(
         _requireSession(),
@@ -737,6 +767,7 @@ class PosAdminController extends ChangeNotifier {
     String? method,
     bool complete = false,
   }) async {
+    if (!_allowed(canManageOrders)) return false;
     final ok = await _runMutation(() async {
       selectedOrder = await _api.markAdminOrderPaid(
         _requireSession(),
@@ -754,6 +785,7 @@ class PosAdminController extends ChangeNotifier {
     String paymentStatus, {
     String? paymentMethod,
   }) async {
+    if (!_allowed(canManageOrders)) return false;
     final ok = await _runMutation(() async {
       selectedOrder = await _api.updateAdminOrderPaymentStatus(
         _requireSession(),

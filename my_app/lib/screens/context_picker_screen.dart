@@ -140,6 +140,12 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
       serverUrl: serverUrl,
     );
     final staffName = pos.session?.userName?.trim();
+    final workspaceName = switch (pos.workMode) {
+      PosWorkMode.waiter => 'Waiter / Captain',
+      PosWorkMode.kitchen => 'Kitchen Display',
+      PosWorkMode.register => 'Register POS',
+      null => null,
+    };
     final selectedBranchName = branches
         .where((b) => b.id == _selectedBranchId)
         .map((b) => b.name)
@@ -160,7 +166,9 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Select the restaurant and branch for this register.',
+              workspaceName == null
+                  ? 'Select the restaurant and branch for this device.'
+                  : 'Select the restaurant and branch for $workspaceName.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             if (restaurants.length > 1) ...[
@@ -265,7 +273,9 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
       platform: platform,
       serverUrl: serverUrl,
       statusIcon: Icons.storefront_rounded,
-      statusLabel: l10n.contextChooseLocation,
+      statusLabel: workspaceName == null
+          ? l10n.contextChooseLocation
+          : '$workspaceName · ${l10n.contextChooseLocation}',
       logoUrl: logoUrl,
       headline: restaurantName?.isNotEmpty == true
           ? restaurantName!
@@ -278,7 +288,9 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
           ? staffName.substring(0, 1)
           : null,
       fallbackIcon: Icons.storefront_rounded,
-      footerNote: l10n.contextFooterNote,
+      footerNote: workspaceName == null
+          ? 'Choose where this device will work today.'
+          : 'Choose where you will use $workspaceName today.',
       showClock: false,
       form: form,
     );

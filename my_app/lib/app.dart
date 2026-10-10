@@ -42,6 +42,7 @@ import 'services/scanner_connection_service.dart';
 import 'services/window_close/window_close_guard.dart';
 import 'payments/payment_session_manager.dart';
 import 'theme/pos_theme.dart';
+import 'utils/pos_registration_return.dart';
 import 'widgets/kot_print_failure_host.dart';
 import 'widgets/pos_idle_lock_scope.dart';
 import 'widgets/pos_language_switcher.dart';
@@ -120,8 +121,8 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
       serverUrl: () => _posController.serverUrl,
       printerStatus: _printerStatus,
     );
-    PosChannelPrintPolicy.lookup =
-        () => PosChannelPrintPolicy.fromBootstrap(_posController.bootstrap);
+    PosChannelPrintPolicy.lookup = () =>
+        PosChannelPrintPolicy.fromBootstrap(_posController.bootstrap);
     _printerStatus.addListener(_onPrinterHealth);
 
     _connectivity.initialize();
@@ -184,6 +185,15 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
   }
 
   @override
+  Future<bool> didPushRouteInformation(
+    RouteInformation routeInformation,
+  ) async {
+    // Returning from registration only foregrounds POS; it never trusts a
+    // browser-provided token or changes an existing staff session.
+    return isPosRegistrationReturn(routeInformation.uri);
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
@@ -223,6 +233,8 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
           return MaterialApp(
             title: PosAppInfo.displayName,
             navigatorKey: posRootNavigatorKey,
+            // A cold registration link should boot the normal root screen.
+            initialRoute: '/',
             debugShowCheckedModeBanner: false,
             theme: PosTheme.build(brightness: Brightness.light),
             darkTheme: PosTheme.build(brightness: Brightness.dark),
@@ -362,8 +374,8 @@ class _RootRouterState extends State<_RootRouter> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Consumer<PosController>(
       builder: (context, pos, _) {
-        final signedIn = pos.phase == PosAppPhase.ready ||
-            pos.phase == PosAppPhase.locked;
+        final signedIn =
+            pos.phase == PosAppPhase.ready || pos.phase == PosAppPhase.locked;
         return _KitchenWhileSignedIn(
           signedIn: signedIn,
           child: _signedInShell(context, pos),
@@ -373,158 +385,166 @@ class _RootRouterState extends State<_RootRouter> with WidgetsBindingObserver {
   }
 
   Widget _signedInShell(BuildContext context, PosController pos) {
-        switch (pos.phase) {
-          case PosAppPhase.loading:
-            return const PosBootstrapScreen();
-          case PosAppPhase.setup:
-            return const SetupScreen();
-          case PosAppPhase.pairDevice:
-            return const PairDeviceScreen();
-          case PosAppPhase.login:
-            return const LoginScreen();
-          case PosAppPhase.contextPicker:
-            return const ContextPickerScreen();
-          case PosAppPhase.modePicker:
-            return const ModePickerScreen();
-          case PosAppPhase.terminalPicker:
-            return const TerminalPickerScreen();
-          case PosAppPhase.locked:
-          case PosAppPhase.ready:
-            // Keep the shell mounted while locked (PIN overlay is in
-            // MaterialApp.builder) so Manage routes survive unlock.
-            return pos.workMode == PosWorkMode.waiter
-                ? const WaiterShell()
-                : pos.workMode == PosWorkMode.kitchen
-                    ? const KitchenShell()
-                    : const PosShell();
-          case PosAppPhase.error:
-            final accent = Theme.of(context).colorScheme.primary;
-            final l10n = context.l10n;
-            final subscriptionBlocked = pos.subscriptionBlocked;
-            final title = subscriptionBlocked
-                ? (pos.trialExpired
-                      ? l10n.subscriptionTrialEndedTitle
-                      : l10n.subscriptionEndedTitle)
-                : l10n.commonSomethingWentWrong;
-            final body = subscriptionBlocked && pos.canManageBilling
-                ? (pos.trialExpired
-                      ? l10n.billingUpgradeBody
-                      : l10n.billingRenewBody)
-                : (pos.errorMessage ??
-                      (subscriptionBlocked
-                          ? (pos.trialExpired
-                                ? l10n.subscriptionTrialEndedBody
-                                : l10n.subscriptionEndedBody)
-                          : l10n.connUnableToReach));
-            return PosAuthScaffold(
-              accent: accent,
-              statusIcon: subscriptionBlocked
-                  ? Icons.workspace_premium_outlined
-                  : Icons.error_outline_rounded,
-              statusLabel: subscriptionBlocked
-                  ? l10n.subscriptionEndedTitle
-                  : l10n.connIssueTitle,
-              headline: PosAppInfo.displayName,
-              fallbackIcon: subscriptionBlocked
-                  ? Icons.workspace_premium_outlined
-                  : Icons.wifi_off_rounded,
-              footerNote: subscriptionBlocked
-                  ? (pos.canManageBilling
-                        ? l10n.billingUpgradeFooter
-                        : l10n.subscriptionEndedFooter)
-                  : l10n.connIssueFooter,
-              showClock: false,
-              form: PosSurfaceCard(
-                padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      subscriptionBlocked
-                          ? Icons.workspace_premium_outlined
-                          : Icons.error_outline_rounded,
-                      size: 48,
-                      color: subscriptionBlocked
-                          ? Colors.amber.shade800
-                          : Colors.red.shade600,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      title,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.headlineSmall?.copyWith(letterSpacing: -0.3),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      body,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 22),
-                    if (subscriptionBlocked) ...[
-                      if (pos.canManageBilling) ...[
-                        PosPrimaryButton(
-                          label: l10n.billingUpgradePlan,
-                          icon: Icons.workspace_premium_outlined,
-                          color: accent,
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const PosBillingScreen(
-                                  fromSubscriptionBlock: true,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        TextButton(
-                          onPressed: () => pos.initialize(),
-                          child: Text(l10n.commonRetry),
-                        ),
-                        TextButton(
-                          onPressed: () => pos.logout(),
-                          child: Text(l10n.commonSignOut),
-                        ),
-                      ] else ...[
-                        PosPrimaryButton(
-                          label: l10n.commonSignOut,
-                          icon: Icons.logout_rounded,
-                          color: accent,
-                          onPressed: () => pos.logout(),
-                        ),
-                        TextButton(
-                          onPressed: () => pos.initialize(),
-                          child: Text(l10n.commonRetry),
-                        ),
-                      ],
-                    ] else ...[
-                      PosPrimaryButton(
-                        label: l10n.commonRetry,
-                        icon: Icons.refresh_rounded,
-                        color: accent,
-                        onPressed: () => pos.initialize(),
-                      ),
-                      if (PlatformConfig.allowCustomServerUrl)
-                        TextButton(
-                          onPressed: () => pos.resetServer(),
-                          child: Text(l10n.commonChangeServer),
-                        ),
-                    ],
-                  ],
-                ),
-              ),
-            );
+    switch (pos.phase) {
+      case PosAppPhase.loading:
+        return const PosBootstrapScreen();
+      case PosAppPhase.setup:
+        return const SetupScreen();
+      case PosAppPhase.pairDevice:
+        return const PairDeviceScreen();
+      case PosAppPhase.login:
+        return const LoginScreen();
+      case PosAppPhase.contextPicker:
+        return const ContextPickerScreen();
+      case PosAppPhase.modePicker:
+        return const ModePickerScreen();
+      case PosAppPhase.terminalPicker:
+        return const TerminalPickerScreen();
+      case PosAppPhase.locked:
+      case PosAppPhase.ready:
+        if (!pos.canUseRegister && !pos.canUseCaptain && !pos.canUseKitchen) {
+          return const ModePickerScreen();
         }
+        if (!pos.canUseRegister && !pos.canUseCaptain && pos.canUseKitchen) {
+          return const KitchenShell();
+        }
+        if ((pos.workMode == PosWorkMode.register && !pos.canUseRegister) ||
+            (pos.workMode == PosWorkMode.waiter && !pos.canUseCaptain) ||
+            (pos.workMode == PosWorkMode.kitchen && !pos.canUseKitchen)) {
+          return const ModePickerScreen();
+        }
+        // Keep the shell mounted while locked (PIN overlay is in
+        // MaterialApp.builder) so Manage routes survive unlock.
+        return pos.workMode == PosWorkMode.waiter
+            ? const WaiterShell()
+            : pos.workMode == PosWorkMode.kitchen
+            ? const KitchenShell()
+            : const PosShell();
+      case PosAppPhase.error:
+        final accent = Theme.of(context).colorScheme.primary;
+        final l10n = context.l10n;
+        final subscriptionBlocked = pos.subscriptionBlocked;
+        final title = subscriptionBlocked
+            ? (pos.trialExpired
+                  ? l10n.subscriptionTrialEndedTitle
+                  : l10n.subscriptionEndedTitle)
+            : l10n.commonSomethingWentWrong;
+        final body = subscriptionBlocked && pos.canManageBilling
+            ? (pos.trialExpired
+                  ? l10n.billingUpgradeBody
+                  : l10n.billingRenewBody)
+            : (pos.errorMessage ??
+                  (subscriptionBlocked
+                      ? (pos.trialExpired
+                            ? l10n.subscriptionTrialEndedBody
+                            : l10n.subscriptionEndedBody)
+                      : l10n.connUnableToReach));
+        return PosAuthScaffold(
+          accent: accent,
+          statusIcon: subscriptionBlocked
+              ? Icons.workspace_premium_outlined
+              : Icons.error_outline_rounded,
+          statusLabel: subscriptionBlocked
+              ? l10n.subscriptionEndedTitle
+              : l10n.connIssueTitle,
+          headline: PosAppInfo.displayName,
+          fallbackIcon: subscriptionBlocked
+              ? Icons.workspace_premium_outlined
+              : Icons.wifi_off_rounded,
+          footerNote: subscriptionBlocked
+              ? (pos.canManageBilling
+                    ? l10n.billingUpgradeFooter
+                    : l10n.subscriptionEndedFooter)
+              : l10n.connIssueFooter,
+          showClock: false,
+          form: PosSurfaceCard(
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  subscriptionBlocked
+                      ? Icons.workspace_premium_outlined
+                      : Icons.error_outline_rounded,
+                  size: 48,
+                  color: subscriptionBlocked
+                      ? Colors.amber.shade800
+                      : Colors.red.shade600,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineSmall?.copyWith(letterSpacing: -0.3),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  body,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 22),
+                if (subscriptionBlocked) ...[
+                  if (pos.canManageBilling) ...[
+                    PosPrimaryButton(
+                      label: l10n.billingUpgradePlan,
+                      icon: Icons.workspace_premium_outlined,
+                      color: accent,
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const PosBillingScreen(
+                              fromSubscriptionBlock: true,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    TextButton(
+                      onPressed: () => pos.initialize(),
+                      child: Text(l10n.commonRetry),
+                    ),
+                    TextButton(
+                      onPressed: () => pos.logout(),
+                      child: Text(l10n.commonSignOut),
+                    ),
+                  ] else ...[
+                    PosPrimaryButton(
+                      label: l10n.commonSignOut,
+                      icon: Icons.logout_rounded,
+                      color: accent,
+                      onPressed: () => pos.logout(),
+                    ),
+                    TextButton(
+                      onPressed: () => pos.initialize(),
+                      child: Text(l10n.commonRetry),
+                    ),
+                  ],
+                ] else ...[
+                  PosPrimaryButton(
+                    label: l10n.commonRetry,
+                    icon: Icons.refresh_rounded,
+                    color: accent,
+                    onPressed: () => pos.initialize(),
+                  ),
+                  if (PlatformConfig.allowCustomServerUrl)
+                    TextButton(
+                      onPressed: () => pos.resetServer(),
+                      child: Text(l10n.commonChangeServer),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        );
+    }
   }
 }
 
 class _KitchenWhileSignedIn extends StatefulWidget {
-  const _KitchenWhileSignedIn({
-    required this.signedIn,
-    required this.child,
-  });
+  const _KitchenWhileSignedIn({required this.signedIn, required this.child});
 
   final bool signedIn;
   final Widget child;

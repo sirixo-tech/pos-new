@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:provider/provider.dart';
 
 import '../config/pos_app_info.dart';
+import 'admin/admin_shell.dart';
+import '../widgets/day_end_reports_sheet.dart';
 import '../l10n/pos_l10n.dart';
 import '../models/pos_models.dart';
+import '../services/printing/pos_receipt_printer.dart';
 import '../providers/pos_controller.dart';
 import '../theme/pos_theme.dart';
 import '../utils/media_url.dart';
@@ -24,6 +29,7 @@ class ModePickerScreen extends StatefulWidget {
 
 class _ModePickerScreenState extends State<ModePickerScreen> {
   bool _autoSelecting = false;
+  Timer? _permissionRefreshTimer;
 
   Future<void> _select(PosWorkMode mode) async {
     final pos = context.read<PosController>();
@@ -33,12 +39,33 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoSelect());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final pos = context.read<PosController>();
+      if (pos.choosingWorkspaceBeforeLocation) {
+        await pos.refreshWorkspacePermissions();
+      }
+      if (mounted) await _maybeAutoSelect();
+    });
+    _permissionRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
+      final pos = context.read<PosController>();
+      if (pos.choosingWorkspaceBeforeLocation) {
+        unawaited(pos.refreshWorkspacePermissions());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _permissionRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _maybeAutoSelect() async {
     if (!mounted || _autoSelecting) return;
     final pos = context.read<PosController>();
+    if (pos.choosingWorkspaceBeforeLocation || pos.errorMessage != null) return;
     final allowed = <PosWorkMode>[
       if (pos.canUseRegister) PosWorkMode.register,
       if (pos.canUseCaptain) PosWorkMode.waiter,
@@ -115,10 +142,31 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              "Select how you?ll use this device.",
+              "Select how you'll use this device.",
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 20),
+            if (pos.choosingWorkspaceBeforeLocation) ...[
+              TextButton.icon(
+                onPressed: pos.refreshingWorkspacePermissions
+                    ? null
+                    : pos.refreshWorkspacePermissions,
+                icon: const Icon(Icons.refresh),
+                label: Text(
+                  pos.refreshingWorkspacePermissions
+                      ? 'Refreshing access…'
+                      : 'Refresh access',
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (pos.errorMessage != null) ...[
+              Text(
+                pos.errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 8),
+            ],
             if (showRegister)
               modeTile(
                 title: 'Register POS',
@@ -146,6 +194,40 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
                 icon: CupertinoIcons.person_2,
                 onTap: () => _select(PosWorkMode.waiter),
               ),
+            if (pos.staffAdminCapabilities.canAccessAdmin) ...[
+              const SizedBox(height: 8),
+              modeTile(
+                title: 'Manage',
+                subtitle: 'Your permitted management tools',
+                icon: Icons.settings_rounded,
+                onTap: () => openPosAdminShell(context),
+              ),
+            ],
+            if (pos.canViewStaffReports) ...[
+              const SizedBox(height: 8),
+              modeTile(
+                title: 'Reports',
+                subtitle: 'View reports',
+                icon: Icons.bar_chart_rounded,
+                onTap: () => DayEndReportsSheet.open(
+                  context,
+                  onPrint: (type) async {
+                    final session = pos.session;
+                    if (session == null) return;
+                    final now = DateTime.now();
+                    final today =
+                        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+                    await PosReceiptPrinter.printThermalReport(
+                      session: session,
+                      serverUrl: session.serverUrl,
+                      type: type,
+                      dateFrom: today,
+                      dateTo: today,
+                    );
+                  },
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             TextButton(
               onPressed: () => pos.logout(),

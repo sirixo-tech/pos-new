@@ -156,6 +156,19 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   }
 
   void _selectMobileTab(int index) {
+    const actions = [
+      'refresh',
+      'orders',
+      'ai_menu',
+      'menu',
+      'reports',
+      'about',
+    ];
+    if (index < 0 ||
+        index >= actions.length ||
+        !context.read<PosController>().canOpenStaffAction(actions[index])) {
+      return;
+    }
     setState(() {
       _mobileTab = index;
       _seenMobileTabs.add(index);
@@ -207,12 +220,35 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
 
   Widget _handheldTabs(Color accent) {
     Widget tab(int index, Widget child) {
+      const actions = [
+        'refresh',
+        'orders',
+        'ai_menu',
+        'menu',
+        'reports',
+        'about',
+      ];
+      if (!context.watch<PosController>().canOpenStaffAction(actions[index])) {
+        return const SizedBox.shrink();
+      }
       if (!_seenMobileTabs.contains(index)) return const SizedBox.shrink();
       return child;
     }
 
     return IndexedStack(
-      index: _mobileTab,
+      index:
+          context.watch<PosController>().canOpenStaffAction(
+            const [
+              'refresh',
+              'orders',
+              'ai_menu',
+              'menu',
+              'reports',
+              'about',
+            ][_mobileTab],
+          )
+          ? _mobileTab
+          : 0,
       children: [
         _phoneLayout(accent),
         tab(
@@ -228,8 +264,12 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
           AdminMenuImportScreen(enableVoice: true, openToken: _aiMenuOpens),
         ),
         // Load the editor while POS is visible, and retain its data between tabs.
-        _mobileMenu(),
-        tab(4, PosMobileReportsPage(onPrint: _printThermalReport)),
+        context.watch<PosController>().canViewStaffMenu
+            ? _mobileMenu()
+            : const SizedBox.shrink(),
+        context.watch<PosController>().canViewStaffReports
+            ? tab(4, PosMobileReportsPage(onPrint: _printThermalReport))
+            : const SizedBox.shrink(),
         tab(5, PosMobileSettingsPage(onSelected: _onMobileSettings)),
       ],
     );
@@ -240,7 +280,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       builder: (context) {
         final pos = context.read<PosController>();
         final api = context.read<PosApi>();
-        if (pos.bootstrap?.adminCapabilities.canAccessAdmin != true) {
+        if (pos.staffAdminCapabilities.canAccessAdmin != true) {
           return const Center(
             child: Text('Menu access is not available for this account.'),
           );
@@ -305,6 +345,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
 
   Future<void> _toggleKotDock() async {
     final pos = context.read<PosController>();
+    if (!pos.canUseKitchen) return;
     final desktop = usePosDesktopLayout(context);
     if (!desktop) {
       await _openKotSheet();
@@ -328,6 +369,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openKotOverlay() async {
+    if (!context.read<PosController>().canUseKitchen) return;
     if (_kotSheetOpen) return;
     setState(() => _kotSheetOpen = true);
     await _bootKitchenIfNeeded();
@@ -348,6 +390,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openKotSheet() async {
+    if (!context.read<PosController>().canUseKitchen) return;
     if (_kotSheetOpen) return;
     setState(() => _kotSheetOpen = true);
     await _bootKitchenIfNeeded();
@@ -459,6 +502,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openOrders() async {
+    if (!context.read<PosController>().canViewStaffOrders) return;
     await PosOrdersSheet.open(context, initialTab: 'orders');
     if (mounted) {
       context.read<PosController>().refreshHeldOrderCount();
@@ -473,6 +517,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openDeliveryOrders() async {
+    if (!context.read<PosController>().canViewStaffOrders) return;
     await PosOrdersSheet.open(
       context,
       initialTab: 'orders',
@@ -484,6 +529,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openPartnerOrders(String provider) async {
+    if (!context.read<PosController>().canViewStaffOrders) return;
     await PosOrdersSheet.open(
       context,
       initialTab: 'orders',
@@ -1270,6 +1316,7 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openDayEndReports() async {
+    if (!context.read<PosController>().canViewStaffReports) return;
     if (!PosReceiptPrinter.isSupported) {
       showPosSnackBar(
         context,
@@ -1867,8 +1914,7 @@ class _MenuScrollBody extends StatelessWidget {
           pos.categories.every((category) => category.items.isEmpty) &&
           pos.bootstrap!.popularItems.isEmpty;
       if (catalogEmpty) {
-        final canManage =
-            pos.bootstrap?.adminCapabilities.canAccessAdmin == true;
+        final canManage = pos.staffAdminCapabilities.canAccessAdmin == true;
         return PosEmptyMenuSetup(
           onAdd: canManage ? () => openPosAdminMenuSheet(context) : null,
           onImport: canManage
@@ -2423,14 +2469,13 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
     final showActionLabels = width >= 1280;
     final logoUrl = resolveMediaUrl(logoRawUrl, serverUrl: serverUrl);
     final canAccessAdmin = context.select(
-      (PosController p) =>
-          p.bootstrap?.adminCapabilities.canAccessAdmin == true,
+      (PosController p) => p.staffAdminCapabilities.canAccessAdmin == true,
     );
     final canViewMenu = context.select((PosController p) {
-      final caps = p.bootstrap?.adminCapabilities;
-      return caps?.canViewMenu == true ||
-          caps?.canManageMenu == true ||
-          caps?.canManageMenuItems == true;
+      final caps = p.staffAdminCapabilities;
+      return caps.canViewMenu == true ||
+          caps.canManageMenu == true ||
+          caps.canManageMenuItems == true;
     });
     final titleText = restaurantName ?? 'POS';
     final titleTooltip = [
@@ -2517,7 +2562,8 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                const PosShiftControl(),
+                if (pos.canOpenStaffAction('open_shift'))
+                  const PosShiftControl(),
               ],
             ),
       actions: [
@@ -2575,7 +2621,7 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
               iconColor: hasTable ? accent : null,
               onPressed: onOpenTable,
             ),
-            if (!handheld && allowDelivery)
+            if (!handheld && allowDelivery && pos.canViewStaffOrders)
               _HeaderIconButton(
                 tooltip: context.posText(
                   'shellDeliveryOrders',
@@ -2591,7 +2637,7 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
                 badgeColor: const Color(0xFFEA580C),
                 onPressed: onOpenDelivery,
               ),
-            if (!handheld)
+            if (!handheld && pos.canViewStaffOrders)
               _HeaderIconButton(
                 tooltip: l10n.shellOrders,
                 label: showActionLabels ? l10n.shellOrders : null,

@@ -31,8 +31,8 @@ Future<void> togglePosGuestStore(BuildContext context) async {
   );
   if (!ok || !context.mounted) return;
   final success = await context.read<PosController>().setGuestOrderingOpen(
-        !currentlyAccepting,
-      );
+    !currentlyAccepting,
+  );
   if (!context.mounted) return;
   if (!success) {
     final error = context.read<PosController>().errorMessage;
@@ -49,55 +49,58 @@ class PosStoreControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final guest = context.select(
-      (PosController p) => p.bootstrap?.guestOrdering ?? const PosGuestOrdering(),
+      (PosController p) =>
+          p.bootstrap?.guestOrdering ?? const PosGuestOrdering(),
     );
     final canManage = context.select(
-      (PosController p) =>
-          p.bootstrap?.adminCapabilities.canManageSettings ?? false,
+      (PosController p) => p.staffAdminCapabilities.canManageSettings,
     );
     final l10n = context.l10n;
     final (tone, icon, label) = _statusPresentation(guest, l10n);
     final dark = PosTheme.isDark;
     final colors = switch (tone) {
-      _ShiftTone.open => dark
-          ? (
-              bg: const Color(0xFF052E16),
-              border: const Color(0xFF166534),
-              fg: const Color(0xFF6EE7B7),
-            )
-          : (
-              bg: const Color(0xFFECFDF5),
-              border: const Color(0xFFA7F3D0),
-              fg: const Color(0xFF047857),
-            ),
-      _ShiftTone.required => dark
-          ? (
-              bg: const Color(0xFF4C0519),
-              border: const Color(0xFF9F1239),
-              fg: const Color(0xFFFAA2B0),
-            )
-          : (
-              bg: const Color(0xFFFEF2F2),
-              border: const Color(0xFFFECACA),
-              fg: const Color(0xFFB91C1C),
-            ),
-      _ShiftTone.idle => dark
-          ? (
-              bg: const Color(0xFF422006),
-              border: const Color(0xFFB45309),
-              fg: const Color(0xFFFDE68A),
-            )
-          : (
-              bg: const Color(0xFFFFFBEB),
-              border: const Color(0xFFFDE68A),
-              fg: const Color(0xFFB45309),
-            ),
+      _ShiftTone.open =>
+        dark
+            ? (
+                bg: const Color(0xFF052E16),
+                border: const Color(0xFF166534),
+                fg: const Color(0xFF6EE7B7),
+              )
+            : (
+                bg: const Color(0xFFECFDF5),
+                border: const Color(0xFFA7F3D0),
+                fg: const Color(0xFF047857),
+              ),
+      _ShiftTone.required =>
+        dark
+            ? (
+                bg: const Color(0xFF4C0519),
+                border: const Color(0xFF9F1239),
+                fg: const Color(0xFFFAA2B0),
+              )
+            : (
+                bg: const Color(0xFFFEF2F2),
+                border: const Color(0xFFFECACA),
+                fg: const Color(0xFFB91C1C),
+              ),
+      _ShiftTone.idle =>
+        dark
+            ? (
+                bg: const Color(0xFF422006),
+                border: const Color(0xFFB45309),
+                fg: const Color(0xFFFDE68A),
+              )
+            : (
+                bg: const Color(0xFFFFFBEB),
+                border: const Color(0xFFFDE68A),
+                fg: const Color(0xFFB45309),
+              ),
     };
 
     final tooltip = canManage
         ? (guest.acceptOnlineOrders
-            ? l10n.storeCloseTitle
-            : l10n.storeOpenTitle)
+              ? l10n.storeCloseTitle
+              : l10n.storeOpenTitle)
         : label;
 
     return Tooltip(
@@ -159,7 +162,6 @@ class PosStoreControl extends StatelessWidget {
       l10n.storeClosed,
     );
   }
-
 }
 
 /// Clock + terminal identity for the app bar title area.
@@ -201,7 +203,9 @@ class PosShiftControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shift = context.select((PosController p) => p.bootstrap?.currentShift);
+    final shift = context.select(
+      (PosController p) => p.bootstrap?.currentShift,
+    );
     final requireShift = context.select(
       (PosController p) => p.bootstrap?.requireShiftForPos ?? false,
     );
@@ -210,8 +214,9 @@ class PosShiftControl extends StatelessWidget {
 
     if (shift != null) {
       final openedClock = _formatOpenedClock(shift.openedAt);
-      final sinceLabel =
-          openedClock == null ? null : l10n.opsSince(openedClock);
+      final sinceLabel = openedClock == null
+          ? null
+          : l10n.opsSince(openedClock);
       final tooltip = [
         l10n.opsShiftOpen,
         if (sinceLabel != null) sinceLabel,
@@ -334,9 +339,9 @@ class PosShiftControl extends StatelessWidget {
         child: InkWell(
           onTap: () => PosOpenShiftDialog.show(context),
           borderRadius: BorderRadius.circular(8),
-            child: Container(
-              height: PosTheme.headerPx(32),
-              padding: EdgeInsets.symmetric(horizontal: PosTheme.headerPx(12)),
+          child: Container(
+            height: PosTheme.headerPx(32),
+            padding: EdgeInsets.symmetric(horizontal: PosTheme.headerPx(12)),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: border),
@@ -345,9 +350,7 @@ class PosShiftControl extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  required
-                      ? Icons.lock_open_rounded
-                      : Icons.play_arrow_rounded,
+                  required ? Icons.lock_open_rounded : Icons.play_arrow_rounded,
                   size: PosTheme.headerPx(15),
                   color: fg,
                 ),

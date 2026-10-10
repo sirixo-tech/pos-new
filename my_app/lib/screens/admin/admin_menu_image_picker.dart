@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/pos_l10n.dart';
 import '../../theme/pos_theme.dart';
+import 'admin_photo_camera.dart';
 
 class AdminMenuImagePickerSection extends StatelessWidget {
   const AdminMenuImagePickerSection({
@@ -15,6 +16,7 @@ class AdminMenuImagePickerSection extends StatelessWidget {
     required this.pickedImage,
     required this.picking,
     required this.onPick,
+    this.onCamera,
     this.onGenerate,
     this.placeholderIcon = Icons.restaurant_rounded,
     this.compactPreview = false,
@@ -25,6 +27,7 @@ class AdminMenuImagePickerSection extends StatelessWidget {
   final XFile? pickedImage;
   final bool picking;
   final VoidCallback onPick;
+  final VoidCallback? onCamera;
   final VoidCallback? onGenerate;
   final IconData placeholderIcon;
   final bool compactPreview;
@@ -37,6 +40,9 @@ class AdminMenuImagePickerSection extends StatelessWidget {
       imageQuality: 85,
     );
   }
+
+  static Future<XFile?> pickFromCamera(BuildContext context) =>
+      showAdminPhotoCamera(context);
 
   @override
   Widget build(BuildContext context) {
@@ -71,10 +77,10 @@ class AdminMenuImagePickerSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final actions = <Widget>[
+              OutlinedButton.icon(
                 onPressed: picking ? null : onPick,
                 icon: picking && onGenerate == null
                     ? const SizedBox(
@@ -91,11 +97,14 @@ class AdminMenuImagePickerSection extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
-            if (onGenerate != null) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.tonalIcon(
+              if (onCamera != null)
+                OutlinedButton.icon(
+                  onPressed: picking ? null : onCamera,
+                  icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                  label: const Text('Take photo'),
+                ),
+              if (onGenerate != null)
+                FilledButton.tonalIcon(
                   onPressed: picking ? null : onGenerate,
                   icon: picking
                       ? const SizedBox(
@@ -110,9 +119,28 @@ class AdminMenuImagePickerSection extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ),
-            ],
-          ],
+            ];
+            if (constraints.maxWidth < 560 ||
+                MediaQuery.textScalerOf(context).scale(14) > 18) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < actions.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    actions[i],
+                  ],
+                ],
+              );
+            }
+            return Row(
+              children: [
+                for (var i = 0; i < actions.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Expanded(child: actions[i]),
+                ],
+              ],
+            );
+          },
         ),
       ],
     );

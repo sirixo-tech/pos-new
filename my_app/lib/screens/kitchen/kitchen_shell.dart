@@ -45,7 +45,7 @@ class _KitchenShellState extends State<KitchenShell> {
     final pos = context.read<PosController>();
     final kitchen = _kitchenController ?? context.read<KitchenController>();
     final session = pos.session;
-    if (session == null) return;
+    if (session == null || !pos.canUseKitchen) return;
     await kitchen.ensureRunning(
       session: session,
       ensureKitchenToken: pos.ensureKitchenApiToken,
