@@ -745,12 +745,9 @@ class PosController extends ChangeNotifier {
         session = savedSession;
       }
       if (session == null) {
-        if (deviceBinding == null) {
-          await startPairing();
-        } else {
-          phase = PosAppPhase.login;
-          notifyListeners();
-        }
+        // Pairing is optional and starts from the login page's pairing button.
+        phase = PosAppPhase.login;
+        notifyListeners();
         return;
       }
 
@@ -841,12 +838,7 @@ class PosController extends ChangeNotifier {
       await PosDeviceBindingStorage.clear();
       deviceBinding = null;
     }
-    if (session == null && deviceBinding == null) {
-      await startPairing();
-      return;
-    }
-    phase = PosAppPhase.login;
-    notifyListeners();
+    skipPairingToLogin();
   }
 
   static bool _sameServerUrl(String a, String b) {

@@ -243,6 +243,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final pos = context.watch<PosController>();
     final l10n = context.l10n;
     final accent = Theme.of(context).colorScheme.primary;
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final soft = posAccentSoft(accent);
     final binding = pos.deviceBinding;
     final platform = pos.bootstrap?.platform ?? const PosPlatformBranding();
@@ -270,7 +271,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final form = PosSlideFade(
       child: PosSurfaceCard(
-        padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
+        padding: compact
+            ? const EdgeInsets.fromLTRB(20, 20, 20, 16)
+            : const EdgeInsets.fromLTRB(28, 28, 28, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -457,6 +460,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 binding != null
                     ? l10n.authChangePairedRegister
                     : 'Pair this device with a code',
+                textAlign: TextAlign.center,
               ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 48),
@@ -518,7 +522,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return PosAuthScaffold(
       showHeroPanel: false,
       maxFormWidth: 500,
-      platformLogoHeight: 100,
+      platformLogoHeight: compact ? 160 : 200,
       accent: accent,
       platform: platform,
       serverUrl: serverUrl,

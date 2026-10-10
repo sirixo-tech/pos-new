@@ -575,40 +575,59 @@ class PosAuthScaffold extends StatelessWidget {
             builder: (context, constraints) {
               final padding = PosTheme.isCompact(context) ? 16.0 : 24.0;
               return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: EdgeInsets.all(padding),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: showHeroPanel
-                          ? maxFormWidth.clamp(400, 460)
-                          : maxFormWidth,
-                      minHeight: footerAtBottom || !showHeroPanel
-                          ? (constraints.maxHeight - padding * 2).clamp(
-                              0.0,
-                              double.infinity,
-                            )
-                          : 0,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: footerAtBottom
-                          ? MainAxisAlignment.spaceBetween
-                          : MainAxisAlignment.center,
-                      children: [
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [header, const SizedBox(height: 20), form],
-                        ),
-                        if (hasRestaurantLogo)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 28, bottom: 8),
-                            child: PosPoweredBy(
-                              platform: platform,
-                              serverUrl: serverUrl,
-                              compact: !footerAtBottom,
-                            ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: footerAtBottom || !showHeroPanel
+                        ? (constraints.maxHeight - padding * 2).clamp(
+                            0.0,
+                            double.infinity,
+                          )
+                        : 0,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: showHeroPanel
+                            ? maxFormWidth.clamp(400, 460)
+                            : maxFormWidth,
+                        minHeight: footerAtBottom
+                            ? (constraints.maxHeight - padding * 2).clamp(
+                                0.0,
+                                double.infinity,
+                              )
+                            : 0,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: footerAtBottom
+                            ? MainAxisAlignment.spaceBetween
+                            : MainAxisAlignment.center,
+                        children: [
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              header,
+                              const SizedBox(height: 20),
+                              form,
+                            ],
                           ),
-                      ],
+                          if (hasRestaurantLogo)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: 28,
+                                bottom: 8,
+                              ),
+                              child: PosPoweredBy(
+                                platform: platform,
+                                serverUrl: serverUrl,
+                                compact: !footerAtBottom,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

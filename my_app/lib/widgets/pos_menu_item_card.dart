@@ -1151,6 +1151,29 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                   ),
                 ),
                 if (widget.inTicketQty > 0) _quantityBadge(),
+                if (widget.inTicketQty == 0)
+                  Tooltip(
+                    message: widget.item.hasOptions
+                        ? context.l10n.menuOptions
+                        : 'Add item',
+                    child: Material(
+                      color: primary,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _handleTap,
+                        child: const SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Icon(
+                            Icons.add_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (showStepper)
                   _Stepper(
                     quantity: widget.simpleCartLine!.quantity,
@@ -1307,47 +1330,58 @@ class _Stepper extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = compact ? 34.0 : 38.0;
     final barColor = Colors.white.withValues(alpha: soft ? 0.85 : 1);
-    return Material(
-      color: barColor,
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: Container(
-        decoration: BoxDecoration(
+    final preferredWidth = (compact ? 122.0 : 134.0) + (soft ? 8 : 0);
+    return LayoutBuilder(
+      builder: (context, constraints) => SizedBox(
+        width: constraints.maxWidth.isFinite
+            ? preferredWidth.clamp(0.0, constraints.maxWidth)
+            : preferredWidth,
+        child: Material(
+          color: barColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        padding: EdgeInsets.zero,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _StepperButton(
-              icon: Icons.remove_rounded,
-              size: size,
-              foreground: const Color(0xFF239B4B),
-              opacity: soft ? 0.82 : 1,
-              onTap: onDecrement,
+          clipBehavior: Clip.antiAlias,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            SizedBox(
-              width: (compact ? 30.0 : 34.0) + (soft ? 8 : 0),
-              child: Text(
-                '$quantity',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: const Color(0xFF172033),
-                  fontWeight: FontWeight.w600,
-                  fontSize: compact ? 13 : 14,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+            padding: EdgeInsets.zero,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Expanded(
+                  child: _StepperButton(
+                    icon: Icons.remove_rounded,
+                    size: size,
+                    foreground: const Color(0xFF239B4B),
+                    opacity: soft ? 0.82 : 1,
+                    onTap: onDecrement,
+                  ),
                 ),
-              ),
+                Expanded(
+                  child: Text(
+                    '$quantity',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: const Color(0xFF172033),
+                      fontWeight: FontWeight.w600,
+                      fontSize: compact ? 13 : 14,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: _StepperButton(
+                    icon: Icons.add_rounded,
+                    size: size,
+                    foreground: const Color(0xFFE53935),
+                    opacity: soft ? 0.82 : 1,
+                    onTap: onIncrement,
+                  ),
+                ),
+              ],
             ),
-            _StepperButton(
-              icon: Icons.add_rounded,
-              size: size,
-              foreground: const Color(0xFFE53935),
-              opacity: soft ? 0.82 : 1,
-              onTap: onIncrement,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1376,7 +1410,7 @@ class _StepperButton extends StatelessWidget {
       borderRadius: BorderRadius.zero,
       child: Container(
         width: size + 6,
-        height: size,
+        height: size + 14,
         decoration: BoxDecoration(
           color:
               (icon == Icons.remove_rounded
