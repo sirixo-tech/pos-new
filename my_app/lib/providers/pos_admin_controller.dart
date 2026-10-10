@@ -113,6 +113,38 @@ class PosAdminController extends ChangeNotifier {
     return false;
   }
 
+  /// Re-reads the role when a screen is visible but the last snapshot denies
+  /// it, which happens after a permission is turned off and back on.
+  Future<bool> _allowFresh(bool Function() permitted) async {
+    if (session != null && permitted()) return true;
+    try {
+      await _pos.refreshBootstrap();
+    } catch (_) {}
+    if (session != null && permitted()) {
+      error = null;
+      return true;
+    }
+    error = 'You do not have permission for this action.';
+    notifyListeners();
+    return false;
+  }
+
+  Future<T> _retryDenied<T>(
+    Future<T> Function() action,
+    bool Function() permitted,
+  ) async {
+    try {
+      return await action();
+    } on PosApiException catch (e) {
+      if (e.statusCode != 403) rethrow;
+      try {
+        await _pos.refreshBootstrap();
+      } catch (_) {}
+      if (!(session != null && permitted())) rethrow;
+      return await action();
+    }
+  }
+
   void clearError() {
     if (error == null) return;
     error = null;
@@ -186,7 +218,7 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<void> loadMenu() async {
-    if (!_allowed(_pos.canViewStaffMenu)) return;
+    if (!await _allowFresh(() => _pos.canViewStaffMenu)) return;
     if (_disposed) return;
     final showSpinner = categories.isEmpty;
     if (showSpinner) {
@@ -195,7 +227,10 @@ class PosAdminController extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      final payload = await _sharedMenu(_requireSession());
+      final payload = await _retryDenied(
+        () => _sharedMenu(_requireSession()),
+        () => _pos.canViewStaffMenu,
+      );
       categories = payload.categories;
       modifiers = payload.modifiers;
       timeSlots = payload.timeSlots;
@@ -518,12 +553,15 @@ class PosAdminController extends ChangeNotifier {
   }
 
   Future<void> loadTables() async {
-    if (!_allowed(canViewTables || canManageTables)) return;
+    if (!await _allowFresh(() => canViewTables || canManageTables)) return;
     clearError();
     tablesLoading = true;
     notifyListeners();
     try {
-      tablesPayload = await _api.fetchAdminTables(_requireSession());
+      tablesPayload = await _retryDenied(
+        () => _api.fetchAdminTables(_requireSession()),
+        () => canViewTables || canManageTables,
+      );
     } catch (e) {
       _setError(e);
     } finally {
@@ -625,7 +663,7 @@ class PosAdminController extends ChangeNotifier {
     int page = 1,
     bool silent = false,
   }) async {
-    if (!_allowed(canViewOrders || canManageOrders)) return;
+    if (!await _allowFresh(() => canViewOrders || canManageOrders)) return;
     if (ordersLoading) return;
     if (PosApi.isRateLimited) return;
     clearError();
@@ -635,14 +673,17 @@ class PosAdminController extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      final pageResult = await _api.fetchAdminOrders(
-        _requireSession(),
-        q: q,
-        status: status,
-        source: source,
-        period: period,
-        payment: payment,
-        page: page,
+      final pageResult = await _retryDenied(
+        () => _api.fetchAdminOrders(
+          _requireSession(),
+          q: q,
+          status: status,
+          source: source,
+          period: period,
+          payment: payment,
+          page: page,
+        ),
+        () => canViewOrders || canManageOrders,
       );
       if ((status == null || status.isEmpty) && page == 1) {
         ordersPage = await _withTodayDrafts(

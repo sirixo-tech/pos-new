@@ -30,6 +30,12 @@ Future<void> openPosAdminShell(
 }) async {
   final pos = context.read<PosController>();
   final api = context.read<PosApi>();
+  try {
+    await pos.refreshBootstrap();
+  } on PosApiException catch (e) {
+    if (e.isSubscriptionBlocked) rethrow;
+  } catch (_) {}
+  if (!context.mounted) return;
   if (pos.staffAdminCapabilities.canAccessAdmin != true) return;
   if (initialSection == AdminShellSection.menu && !pos.canViewStaffMenu) return;
   if (initialSection == AdminShellSection.orders && !pos.canViewStaffOrders) {

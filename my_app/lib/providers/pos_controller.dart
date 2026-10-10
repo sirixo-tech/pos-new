@@ -737,37 +737,49 @@ class PosController extends ChangeNotifier {
         .contains(permission);
   }
 
-  /// Server capability flags cannot expand the permissions returned for staff.
+  /// Permission keys returned by the API are the authority.
+  /// Capability booleans cannot grant a key the role does not list.
   PosAdminCapabilities get staffAdminCapabilities {
     final caps = bootstrap?.adminCapabilities ?? const PosAdminCapabilities();
     if (session == null) return const PosAdminCapabilities();
     if (profile == null) return caps;
-    bool granted(String key, bool flag) => flag && hasStaffPermission(key);
-    final viewMenu = granted('view_menu', caps.canViewMenu);
-    final manageMenu = granted('manage_menu', caps.canManageMenu);
-    final categories = granted(
-      'manage_menu_categories',
-      caps.canManageMenuCategories,
-    );
-    final items = granted('manage_menu_items', caps.canManageMenuItems);
-    final modifiers = granted(
-      'manage_menu_modifiers',
-      caps.canManageMenuModifiers,
-    );
-    final slots = granted(
-      'manage_menu_time_slots',
-      caps.canManageMenuTimeSlots,
-    );
-    final availability = granted(
-      'toggle_menu_availability',
-      caps.canToggleMenuAvailability,
-    );
-    final viewOrders = granted('view_orders', caps.canViewOrders);
-    final manageOrders = granted('manage_orders', caps.canManageOrders);
-    final viewTables = granted('view_tables', caps.canViewTables);
-    final manageTables = granted('manage_tables', caps.canManageTables);
-    final settings = granted('manage_settings', caps.canManageSettings);
-    final billing = granted('manage_billing', caps.canManageBilling);
+    bool held(String key) => hasStaffPermission(key);
+    final viewMenu = held('view_menu');
+    final manageMenu = held('manage_menu');
+    final categories = held('manage_menu_categories');
+    final items = held('manage_menu_items');
+    final modifiers = held('manage_menu_modifiers');
+    final slots = held('manage_menu_time_slots');
+    final availability = held('toggle_menu_availability');
+    final viewOrders = held('view_orders');
+    final manageOrders = held('manage_orders');
+    final viewTables = held('view_tables');
+    final manageTables = held('manage_tables');
+    final settings = held('manage_settings') || held('manage_receipt_settings');
+    final billing = held('manage_billing');
+    final importMenu = held('manage_menu_import');
+    final otherAdmin = [
+      'manage_staff',
+      'manage_theme',
+      'manage_branches',
+      'view_customers',
+      'manage_customers',
+      'manage_qr',
+      'manage_integrations',
+      'manage_payment_gateways',
+      'view_reservations',
+      'manage_reservations',
+      'view_kiosks',
+      'manage_kiosks',
+      'view_menu_display',
+      'manage_menu_display',
+      'view_pos_terminals',
+      'manage_pos_terminals',
+      'view_printers',
+      'manage_printers',
+      'manage_menu_upselling',
+      'use_ai_assistant',
+    ].any(held);
     return PosAdminCapabilities(
       permissions: profile!.permissions,
       canViewMenu: viewMenu,
@@ -784,20 +796,21 @@ class PosController extends ChangeNotifier {
       canManageSettings: settings,
       canManageBilling: billing,
       canAccessAdmin:
-          caps.canAccessAdmin &&
-          (viewMenu ||
-              manageMenu ||
-              categories ||
-              items ||
-              modifiers ||
-              slots ||
-              availability ||
-              viewOrders ||
-              manageOrders ||
-              viewTables ||
-              manageTables ||
-              settings ||
-              billing),
+          viewMenu ||
+          manageMenu ||
+          categories ||
+          items ||
+          modifiers ||
+          slots ||
+          availability ||
+          viewOrders ||
+          manageOrders ||
+          viewTables ||
+          manageTables ||
+          settings ||
+          billing ||
+          importMenu ||
+          otherAdmin,
     );
   }
 
@@ -822,7 +835,8 @@ class PosController extends ChangeNotifier {
   bool get canImportStaffMenu =>
       staffAdminCapabilities.canAccessAdmin == true &&
       (staffAdminCapabilities.canManageMenu == true ||
-          staffAdminCapabilities.canManageMenuItems == true);
+          staffAdminCapabilities.canManageMenuItems == true ||
+          hasStaffPermission('manage_menu_import'));
 
   /// Used before displaying actions and again immediately before opening them.
   bool canOpenStaffAction(String action) {
@@ -842,8 +856,11 @@ class PosController extends ChangeNotifier {
         return canViewStaffOrders;
       case 'manage':
         return caps.canAccessAdmin == true;
-      case 'store_toggle':
       case 'printer':
+        return caps.canManageSettings == true ||
+            hasStaffPermission('manage_printers') ||
+            hasStaffPermission('view_printers');
+      case 'store_toggle':
       case 'customer_display':
       case 'dqr_images':
       case 'cart_display':
@@ -1289,54 +1306,66 @@ class PosController extends ChangeNotifier {
     required int branchId,
     bool fromResume = false,
   }) async {
+    await _confirmAssignedLocation(
+      restaurantId: restaurantId,
+      branchId: branchId,
+      fromResume: fromResume,
+    );
+  }
+
+  /// Selects a restaurant and branch the staff member is already assigned to.
+  ///
+  /// The role is read from `/me` for that location. A 403 from the switch
+  /// endpoints does not block an assigned location: later API calls still
+  /// enforce the role. Register bootstrap is called only when the role
+  /// includes Register or Captain access.
+  Future<void> _confirmAssignedLocation({
+    required int restaurantId,
+    required int branchId,
+    bool fromResume = false,
+  }) async {
     final current = session;
-    if (current == null) return;
+    final known = profile;
+    if (current == null || known == null) return;
+    if (!known.canAccessLocation(restaurantId, branchId)) {
+      errorMessage =
+          'This account is not assigned to that restaurant or branch.';
+      phase = PosAppPhase.contextPicker;
+      notifyListeners();
+      return;
+    }
 
     errorMessage = null;
     subscriptionBlocked = false;
     trialExpired = false;
     canManageBilling = false;
     billingSelfServe = false;
+    notifyListeners();
 
     try {
-      var activeSession = current;
-      var activeProfile = profile;
-
-      if (activeProfile?.currentRestaurantId != restaurantId) {
-        activeProfile = await _api.switchRestaurant(
-          activeSession,
-          restaurantId,
-        );
-        activeSession = activeSession.copyWith(
-          restaurantId: activeProfile.currentRestaurantId ?? restaurantId,
-          branchId: activeProfile.currentBranchId ?? activeSession.branchId,
-          userId: activeProfile.user.id,
-          userName: activeProfile.user.name,
-          hasPosPin: activeProfile.user.hasPosPin,
-        );
-        session = activeSession;
-        profile = activeProfile;
-        await _storage.saveSession(activeSession);
-      }
-
-      if (activeProfile?.currentBranchId != branchId) {
-        activeProfile = await _api.switchBranch(activeSession, branchId);
-        activeSession = activeSession.copyWith(
-          restaurantId:
-              activeProfile.currentRestaurantId ?? activeSession.restaurantId,
-          branchId: activeProfile.currentBranchId ?? branchId,
-          userId: activeProfile.user.id,
-          userName: activeProfile.user.name,
-          hasPosPin: activeProfile.user.hasPosPin,
-        );
-        session = activeSession;
-        profile = activeProfile;
-        await _storage.saveSession(activeSession);
-      }
-
+      await _persistAssignedLocation(
+        restaurantId: restaurantId,
+        branchId: branchId,
+      );
+      // Drop the previous location's permission snapshot before reading
+      // the role for the location just selected.
+      bootstrap = null;
+      _kitchenApiToken = null;
+      profile = await _api.fetchMe(session!);
+      session = session!.copyWith(
+        restaurantId: restaurantId,
+        branchId: branchId,
+        userId: profile!.user.id,
+        userName: profile!.user.name,
+        hasPosPin: profile!.user.hasPosPin,
+      );
+      await _storage.saveSession(session!);
       await _rememberCurrentLocation();
       _syncService?.configure(session);
-      await _loadBootstrap();
+
+      if (canUseRegister || canUseCaptain || _hasKitchenOnlyAccess) {
+        await _loadBootstrap();
+      }
       final next = await _resolvePostBootstrapPhase();
       phase = next;
       if (next == PosAppPhase.ready) {
@@ -1349,6 +1378,64 @@ class PosController extends ChangeNotifier {
         errorMessage = posUserFacingError(e);
         phase = PosAppPhase.contextPicker;
       }
+    } catch (e) {
+      errorMessage = posUserFacingError(e);
+      phase = PosAppPhase.contextPicker;
+    }
+    notifyListeners();
+  }
+
+  /// Points the session at an assigned location. Switch endpoints update the
+  /// server's current location; a permission denial keeps the local choice.
+  Future<void> _persistAssignedLocation({
+    required int restaurantId,
+    required int branchId,
+  }) async {
+    var active = session!;
+    final known = profile!;
+
+    if (known.currentRestaurantId != restaurantId ||
+        active.restaurantId != restaurantId) {
+      active = active.copyWith(restaurantId: restaurantId);
+      session = active;
+      try {
+        final switched = await _api.switchRestaurant(active, restaurantId);
+        profile = switched;
+        active = active.copyWith(
+          restaurantId: switched.currentRestaurantId ?? restaurantId,
+          branchId: switched.currentBranchId ?? active.branchId,
+          userId: switched.user.id,
+          userName: switched.user.name,
+          hasPosPin: switched.user.hasPosPin,
+        );
+        session = active;
+      } on PosApiException catch (e) {
+        if (e.statusCode != 403) rethrow;
+        session = active;
+      }
+      await _storage.saveSession(session!);
+    }
+
+    active = session!;
+    if ((profile?.currentBranchId != branchId) || active.branchId != branchId) {
+      active = active.copyWith(restaurantId: restaurantId, branchId: branchId);
+      session = active;
+      try {
+        final switched = await _api.switchBranch(active, branchId);
+        profile = switched;
+        active = active.copyWith(
+          restaurantId: switched.currentRestaurantId ?? restaurantId,
+          branchId: switched.currentBranchId ?? branchId,
+          userId: switched.user.id,
+          userName: switched.user.name,
+          hasPosPin: switched.user.hasPosPin,
+        );
+        session = active;
+      } on PosApiException catch (e) {
+        if (e.statusCode != 403) rethrow;
+        session = active;
+      }
+      await _storage.saveSession(session!);
     }
   }
 
@@ -1680,103 +1767,70 @@ class PosController extends ChangeNotifier {
   }
 
   Future<void> selectRestaurant(int restaurantId) async {
-    final current = session;
-    if (current == null) return;
+    final known = profile;
+    final option = known?.restaurantOption(restaurantId);
+    if (session == null || known == null || option == null) return;
 
-    errorMessage = null;
-    subscriptionBlocked = false;
-    trialExpired = false;
-    canManageBilling = false;
-    billingSelfServe = false;
-    notifyListeners();
-
-    try {
-      profile = await _api.switchRestaurant(current, restaurantId);
-      session = current.copyWith(
-        restaurantId: profile!.currentRestaurantId ?? restaurantId,
-        branchId: profile!.currentBranchId ?? current.branchId,
-        userName: profile!.user.name,
-        hasPosPin: profile!.user.hasPosPin,
-      );
-      await _storage.saveSession(session!);
-
-      final selected = profile!.restaurantOption(restaurantId);
-      final branchCount = selected?.branches.length ?? 0;
-
-      if (branchCount > 1) {
-        phase = PosAppPhase.contextPicker;
-        notifyListeners();
-        return;
-      }
-
-      if (branchCount == 1) {
-        final onlyBranchId = selected!.branches.first.id;
-        if (profile!.currentBranchId != onlyBranchId) {
-          await selectBranch(onlyBranchId);
-          return;
+    if (option.branches.length != 1) {
+      errorMessage = null;
+      notifyListeners();
+      try {
+        if (known.currentRestaurantId != restaurantId) {
+          session = session!.copyWith(restaurantId: restaurantId);
+          try {
+            final switched = await _api.switchRestaurant(
+              session!,
+              restaurantId,
+            );
+            profile = switched;
+            session = session!.copyWith(
+              restaurantId: switched.currentRestaurantId ?? restaurantId,
+              branchId: switched.currentBranchId ?? session!.branchId,
+              userId: switched.user.id,
+              userName: switched.user.name,
+              hasPosPin: switched.user.hasPosPin,
+            );
+          } on PosApiException catch (e) {
+            if (e.statusCode != 403) rethrow;
+          }
+          await _storage.saveSession(session!);
+          bootstrap = null;
+          profile = await _api.fetchMe(session!);
+          session = session!.copyWith(
+            restaurantId: restaurantId,
+            userId: profile!.user.id,
+            userName: profile!.user.name,
+            hasPosPin: profile!.user.hasPosPin,
+          );
+          await _storage.saveSession(session!);
         }
-      }
-
-      if (profile!.currentBranchId != null) {
-        await _rememberCurrentLocation();
-        await _loadBootstrap();
-        phase = await _resolvePostBootstrapPhase();
-        if (phase == PosAppPhase.ready) {
-          await _onEnteredReady();
-        }
-      } else {
         phase = PosAppPhase.contextPicker;
-      }
-    } on PosApiException catch (e) {
-      if (e.isSubscriptionBlocked) {
-        _presentSubscriptionBlock(e);
-      } else {
+      } on PosApiException catch (e) {
+        if (e.isSubscriptionBlocked) {
+          _presentSubscriptionBlock(e);
+        } else {
+          errorMessage = posUserFacingError(e);
+        }
+      } catch (e) {
         errorMessage = posUserFacingError(e);
       }
-    } catch (e) {
-      errorMessage = posUserFacingError(e);
+      notifyListeners();
+      return;
     }
 
-    notifyListeners();
+    await _confirmAssignedLocation(
+      restaurantId: restaurantId,
+      branchId: option.branches.first.id,
+    );
   }
 
   Future<void> selectBranch(int branchId) async {
-    final current = session;
-    if (current == null) return;
-
-    errorMessage = null;
-    subscriptionBlocked = false;
-    trialExpired = false;
-    canManageBilling = false;
-    billingSelfServe = false;
-    notifyListeners();
-
-    try {
-      profile = await _api.switchBranch(current, branchId);
-      session = current.copyWith(
-        restaurantId: profile!.currentRestaurantId ?? current.restaurantId,
-        branchId: profile!.currentBranchId ?? branchId,
-        userName: profile!.user.name,
-        hasPosPin: profile!.user.hasPosPin,
-      );
-      await _storage.saveSession(session!);
-      await _rememberCurrentLocation();
-      await _loadBootstrap();
-      phase = await _resolvePostBootstrapPhase();
-      if (phase == PosAppPhase.ready) {
-        await _onEnteredReady();
-      }
-    } on PosApiException catch (e) {
-      if (e.isSubscriptionBlocked) {
-        _presentSubscriptionBlock(e);
-      } else {
-        errorMessage = posUserFacingError(e);
-      }
-    } catch (e) {
-      errorMessage = posUserFacingError(e);
-    }
-
-    notifyListeners();
+    final restaurantId = session?.restaurantId ?? profile?.currentRestaurantId;
+    if (restaurantId == null) return;
+    await _confirmAssignedLocation(
+      restaurantId: restaurantId,
+      branchId: branchId,
+    );
   }
 
   Future<void> selectTerminal(PosTerminalInfo terminal) async {
@@ -2158,7 +2212,33 @@ class PosController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reloads the signed-in role and the location bootstrap together.
+  ///
+  /// Permission checks use both. Refreshing only one of them leaves a grant
+  /// that was just turned back on visible in the menu and rejected on open.
   Future<void> refreshBootstrap() async {
+    final current = session;
+    if (current == null) {
+      await _loadBootstrap();
+      _rememberSyncRevisions();
+      notifyListeners();
+      return;
+    }
+    try {
+      final latest = await _api.fetchMe(current);
+      if (!identical(session, current)) return;
+      profile = latest;
+      session = current.copyWith(
+        userId: latest.user.id,
+        userName: latest.user.name,
+        hasPosPin: latest.user.hasPosPin,
+      );
+    } on PosApiException catch (e) {
+      if (e.isSubscriptionBlocked) rethrow;
+    } catch (_) {
+      // Keep the last profile. Bootstrap still has to reload.
+    }
+    if (session == null) return;
     await _loadBootstrap();
     _rememberSyncRevisions();
     notifyListeners();
@@ -2272,9 +2352,7 @@ class PosController extends ChangeNotifier {
         return;
       }
 
-      await _loadBootstrap();
-      _rememberSyncRevisions();
-      notifyListeners();
+      await refreshBootstrap();
     } catch (_) {
       // Keep current bootstrap; next poll will retry.
     } finally {
@@ -3799,8 +3877,11 @@ class PosController extends ChangeNotifier {
         debugPrint('PosController _cacheBootstrap skipped: $e');
       }
     } on PosApiException catch (e) {
-      // Billing blocks must not fall back to a stale offline snapshot.
-      if (e.isSubscriptionBlocked) {
+      // Billing blocks and permission denials must not fall back to a
+      // snapshot that belongs to a different role.
+      if (e.isSubscriptionBlocked ||
+          e.statusCode == 401 ||
+          e.statusCode == 403) {
         rethrow;
       }
       try {

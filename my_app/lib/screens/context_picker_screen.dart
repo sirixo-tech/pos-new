@@ -94,6 +94,10 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
         await pos.selectRestaurant(restaurantId);
       }
       if (!mounted) return;
+      if (pos.phase == PosAppPhase.contextPicker && pos.errorMessage != null) {
+        showPosSnackBar(context, pos.errorMessage!, error: true);
+        return;
+      }
       if (pos.phase != PosAppPhase.contextPicker) {
         final error = pos.errorMessage;
         if (error != null) {

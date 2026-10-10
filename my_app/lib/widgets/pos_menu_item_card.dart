@@ -183,7 +183,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                           fit: BoxFit.cover,
                           memCacheWidth: imageCacheW,
                           memCacheHeight: imageCacheH,
-                          fadeInDuration: const Duration(milliseconds: 180),
+                          fadeInDuration: Duration.zero,
                           errorWidget: (context, url, error) {
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               if (mounted) setState(() => _imageFailed = true);

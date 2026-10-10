@@ -208,7 +208,7 @@ class _CategoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final handheld = usePosHandheldLayout(context);
-    final soft = accent.withValues(alpha: isActive ? 0.12 : 0.0);
+    final soft = isActive ? accent : Colors.transparent;
 
     return Material(
       color: Colors.transparent,
@@ -217,9 +217,7 @@ class _CategoryTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         splashColor: accent.withValues(alpha: 0.12),
         highlightColor: accent.withValues(alpha: 0.06),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
+        child: Container(
           padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
           decoration: BoxDecoration(
             color: soft,
@@ -246,7 +244,10 @@ class _CategoryTile extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: usePosHandheldLayout(context) ? 3 : 2,
                 overflow: TextOverflow.ellipsis,
-                style: _categoryNameStyle(handheld ? 12 : 13),
+                style: _categoryNameStyle(
+                  handheld ? 12 : 13,
+                  color: isActive ? Colors.white : null,
+                ),
               ),
             ],
           ),
@@ -327,13 +328,13 @@ class _CategoryChip extends StatelessWidget {
         child: SizedBox(
           width: 112,
           height: 112,
-          child: AnimatedContainer(
+            child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
             decoration: BoxDecoration(
               color: isActive
-                  ? soft.bg
+                  ? accent
                   : PosTheme.surfaceMuted.withValues(alpha: 0.65),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -359,7 +360,10 @@ class _CategoryChip extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: _categoryNameStyle(13),
+                    style: _categoryNameStyle(
+                      13,
+                      color: isActive ? Colors.white : null,
+                    ),
                   ),
                 ),
               ],
@@ -371,13 +375,13 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-TextStyle _categoryNameStyle(double size) {
+TextStyle _categoryNameStyle(double size, {Color? color}) {
   return TextStyle(
     fontSize: size,
     fontWeight: FontWeight.w800,
     height: 1.15,
     letterSpacing: -0.15,
-    color: PosTheme.ink,
+    color: color ?? PosTheme.ink,
   );
 }
 
@@ -439,7 +443,7 @@ class _CategoryAvatar extends StatelessWidget {
                   memCacheWidth: cachePx,
                   memCacheHeight: cachePx,
                   fit: BoxFit.cover,
-                  fadeInDuration: const Duration(milliseconds: 160),
+                  fadeInDuration: Duration.zero,
                   placeholder: (_, _) => _glyph(size, accent, isActive),
                   errorWidget: (_, _, _) => _glyph(size, accent, isActive),
                 )

@@ -14,22 +14,39 @@ export 'receipt_print_models.dart' show PosReceiptSettings, PosTokenSettings;
 
 /// Honor effective permissions, including an empty list indicating revocation.
 /// If absent, combine the explicit permission keys of every assigned role.
+///
+/// The API sends either a flat list or a group map, and each entry is a slug
+/// or an object whose `key` (web) or `name` (Spatie) is the slug.
 List<String> _staffPermissionKeys(Map<String, dynamic> json) {
   final keys = <String>{};
+  void addKey(dynamic value) {
+    if (value is String) {
+      final key = value.trim();
+      if (key.isNotEmpty) keys.add(key);
+      return;
+    }
+    if (value is! Map) return;
+    final raw = value['key'] ?? value['slug'] ?? value['name'];
+    if (raw is String && raw.trim().isNotEmpty) keys.add(raw.trim());
+  }
+
   void collect(dynamic values) {
-    if (values is! List) return;
-    for (final value in values) {
-      final key = value is String
-          ? value
-          : value is Map
-          ? value['name']
-          : null;
-      if (key is String && key.trim().isNotEmpty) keys.add(key.trim());
+    if (values is List) {
+      for (final value in values) {
+        addKey(value);
+      }
+      return;
+    }
+    if (values is Map) {
+      for (final value in values.values) {
+        collect(value);
+      }
     }
   }
 
-  final effective = json['permissions'];
-  if (effective is List) {
+  final effective = json['permissions'] ??
+      (json['user'] is Map ? (json['user'] as Map)['permissions'] : null);
+  if (effective != null) {
     collect(effective);
   } else {
     final roles = json['roles'];
