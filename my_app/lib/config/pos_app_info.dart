@@ -7,7 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 class PosAppInfo {
   PosAppInfo._();
 
-  static const displayName = 'SELFX POS';
+  static const displayName = 'selfx-pos';
 
   /// Square mark. Replace `assets/images/app_emblem.png` to rebrand.
   static const emblemAsset = 'assets/images/app_emblem.png';
@@ -28,10 +28,10 @@ class PosAppInfo {
   static const primaryColorArgb = 0xFFFF6200;
 
   /// Marketing / semver version from `pubspec.yaml` (`version:` before `+`).
-  static String version = '4.7.0';
+  static String version = '4.8.0';
 
   /// Build number from `pubspec.yaml` (`version:` after `+`).
-  static String buildNumber = '4040';
+  static String buildNumber = '4041';
 
   /// e.g. `1.0.0 (1)`
   static String get versionLabel => '$version ($buildNumber)';

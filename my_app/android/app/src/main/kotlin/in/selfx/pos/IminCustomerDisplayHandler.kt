@@ -1,4 +1,4 @@
-package com.example.my_app
+package in.selfx.pos
 
 import android.app.Presentation
 import android.graphics.*
@@ -476,7 +476,7 @@ class IminCustomerDisplayHandler(private val activity: FlutterActivity,
             typeface = Typeface.DEFAULT_BOLD
             textSize = 21f
         }
-        val name = restaurantName?.takeIf { it.isNotBlank() } ?: "SELFX POS"
+        val name = restaurantName?.takeIf { it.isNotBlank() } ?: "selfx-pos"
         canvas.drawText(name.take(26), width / 2f, 236f, textPaint)
         textPaint.typeface = Typeface.DEFAULT
         textPaint.textSize = 14f

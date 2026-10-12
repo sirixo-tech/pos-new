@@ -1,4 +1,4 @@
-package com.example.my_app
+package in.selfx.pos
 
 import android.Manifest
 import android.bluetooth.BluetoothManager

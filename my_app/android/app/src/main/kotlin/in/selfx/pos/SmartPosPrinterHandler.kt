@@ -1,4 +1,4 @@
-package com.example.my_app
+package in.selfx.pos
 
 import android.os.Handler
 import android.os.SystemClock

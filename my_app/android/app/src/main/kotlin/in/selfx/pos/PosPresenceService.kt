@@ -1,4 +1,4 @@
-package com.example.my_app
+package in.selfx.pos
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -70,7 +70,7 @@ class PosPresenceService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("SELFX POS")
+            .setContentTitle("selfx-pos")
             .setContentText("Register stays connected")
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setOngoing(true)
@@ -81,7 +81,7 @@ class PosPresenceService : Service() {
     }
 
     companion object {
-        const val ACTION_STOP = "com.example.my_app.presence.STOP"
+        const val ACTION_STOP = "in.selfx.pos.presence.STOP"
         private const val CHANNEL_ID = "pos_presence"
         private const val NOTIFICATION_ID = 4102
     }
