@@ -11,6 +11,7 @@ import '../l10n/pos_l10n.dart';
 import '../models/pos_app_update.dart';
 import '../utils/platform_info.dart';
 import 'window_close/window_close_guard.dart';
+import 'play_store_update.dart';
 
 enum PosUpdateInstallPhase {
   preparing,
@@ -46,7 +47,7 @@ class PosUpdateInstallProgress {
       phase == PosUpdateInstallPhase.cancelled;
 }
 
-/// Downloads the published installer in-app, then opens the OS installer UI.
+/// Uses Google Play on Android; downloads OS installers on desktop.
 class PosUpdateInstaller {
   PosUpdateInstaller({http.Client? client}) : _client = client ?? http.Client();
 
@@ -77,6 +78,18 @@ class PosUpdateInstaller {
 
     void emit(PosUpdateInstallProgress progress) {
       onProgress?.call(progress);
+    }
+
+    if (usesPlayStoreUpdates) {
+      final opened = await openSelfxPlayStore();
+      final result = PosUpdateInstallProgress(
+        phase: opened ? PosUpdateInstallPhase.done : PosUpdateInstallPhase.failed,
+        message: opened
+            ? 'Continue in Google Play to update SelfX POS.'
+            : 'Unable to open Google Play. Open the Play Store to update SelfX POS.',
+      );
+      emit(result);
+      return result;
     }
 
     final url = update.downloadUrl?.trim() ?? '';

@@ -178,6 +178,7 @@ class PosController extends ChangeNotifier {
   bool _waiterAlertsHydrated = false;
   bool _registerFloorPrimed = false;
   bool _newOrdersSynced = false;
+  bool _refreshingNewOrders = false;
   int? _newOrdersLastSeenId;
   final List<WaiterAlert> _newOrderBannerQueue = [];
   final Set<int> _selfPlacedOrderIds = <int>{};
@@ -4701,11 +4702,13 @@ class PosController extends ChangeNotifier {
     if (current == null || (!isRegisterMode && !isWaiterMode) || !isOnline) {
       return;
     }
-    if (PosApi.isRateLimited) return;
+    if (PosApi.isRateLimited || _refreshingNewOrders) return;
+    _refreshingNewOrders = true;
 
     try {
       if (!_newOrdersSynced) {
         final baseline = await _api.fetchNewOrders(current, baseline: true);
+        if (!identical(session, current)) return;
         final lastId = parseJsonIntOrNull(baseline['last_order_id']);
         if (lastId != null) {
           _newOrdersLastSeenId = lastId;
@@ -4717,6 +4720,7 @@ class PosController extends ChangeNotifier {
         current,
         sinceId: _newOrdersLastSeenId ?? 0,
       );
+      if (!identical(session, current)) return;
       final orders =
           (payload['orders'] as List?)
               ?.whereType<Map>()
@@ -4824,6 +4828,7 @@ class PosController extends ChangeNotifier {
     } catch (_) {
       // Keep prior cursor; next poll retries.
     } finally {
+      _refreshingNewOrders = false;
       if (!silent) notifyListeners();
     }
   }

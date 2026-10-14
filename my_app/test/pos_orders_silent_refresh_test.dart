@@ -14,6 +14,9 @@ class _Orders extends PosController {
   final pending = Completer<List<Map<String, dynamic>>>();
 
   @override
+  Future<List<Map<String, dynamic>>> fetchLocalHeldOrders() async => [];
+
+  @override
   Future<List<Map<String, dynamic>>> fetchHeldOrders() {
     calls++;
     return calls == 1 ? Future.value([]) : pending.future;

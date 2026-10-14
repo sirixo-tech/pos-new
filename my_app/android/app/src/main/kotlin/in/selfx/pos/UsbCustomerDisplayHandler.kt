@@ -1,4 +1,4 @@
-package in.selfx.pos
+package `in`.selfx.pos
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver

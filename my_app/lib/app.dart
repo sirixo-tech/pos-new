@@ -34,7 +34,6 @@ import 'services/pos_api.dart';
 import 'services/customer_display/customer_voice_service.dart';
 import 'services/pos_cart_sound.dart';
 import 'services/pos_display_mode.dart';
-import 'services/pos_presence_service.dart';
 import 'services/printing/pos_channel_print_policy.dart';
 import 'services/printing/print_job_coordinator.dart';
 import 'services/printing/printer_status_service.dart';
@@ -126,7 +125,6 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
     _printerStatus.addListener(_onPrinterHealth);
 
     _connectivity.initialize();
-    unawaited(PosPresenceService.start());
     _posController.initialize();
     _printerStatus.start();
     _scannerStatus.start();
@@ -143,7 +141,6 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(PosPresenceService.stop());
     _connectivity.dispose();
     _syncService.dispose();
     _printerStatus.removeListener(_onPrinterHealth);
@@ -199,6 +196,8 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
       case AppLifecycleState.resumed:
         _connectivity.noteAppBackgrounded(false);
         unawaited(_connectivity.checkConnectivity());
+        unawaited(_syncService.syncPendingOrders(includeFailed: true));
+        unawaited(_kitchenController.refresh());
         PosDisplayMode.apply();
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
 import 'app.dart';
 import 'config/pos_app_info.dart';
@@ -9,6 +11,10 @@ import 'services/pos_startup.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final imagePicker = ImagePickerPlatform.instance;
+  if (imagePicker is ImagePickerAndroid) {
+    imagePicker.useAndroidPhotoPicker = true;
+  }
   // Decode the original brand asset before showing the Flutter startup UI.
   // Keep it pinned until the first frame so the boot screen uses this image.
   final logoStream = const AssetImage(PosAppInfo.logoAsset)

@@ -96,7 +96,7 @@ class PosOptionalUpdateBanner extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             FilledButton.icon(
-              onPressed: update.hasDownload
+              onPressed: canOpenPosAppUpdate(update)
                   ? () => startPosUpdateInstall(context, update)
                   : null,
               icon: const Icon(Icons.download_rounded, size: 18),

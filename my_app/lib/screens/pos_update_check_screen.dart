@@ -160,7 +160,7 @@ class _PosUpdateCheckScreenState extends State<PosUpdateCheckScreen> {
           ],
           if (!checking &&
               update.installsNewerBuild &&
-              !update.hasDownload) ...[
+              !canOpenPosAppUpdate(update)) ...[
             const SizedBox(height: 12),
             Text(
               l10n.updateNoLink,
@@ -186,13 +186,13 @@ class _PosUpdateCheckScreenState extends State<PosUpdateCheckScreen> {
               ),
             )
           : _UpdateCheckFooter(
-              showDownload: update.installsNewerBuild && update.hasDownload,
+              showDownload: canOpenPosAppUpdate(update),
               onBack: _close,
               onDownload: () => startPosUpdateInstall(context, update),
               onCheckAgain: pos.checkingForUpdates
                   ? null
                   : () => pos.checkForUpdates(),
-              onOpenBrowser: update.installsNewerBuild && update.hasDownload
+              onOpenBrowser: canOpenPosAppUpdate(update)
                   ? () => openPosAppUpdateUrl(update)
                   : null,
             ),

@@ -38,6 +38,7 @@ class KitchenController extends ChangeNotifier {
   Timer? _startupRetryTimer;
   Future<void>? _startupFlight;
   int _startupGeneration = 0;
+  bool _boardRefreshInProgress = false;
   String? _kitchenToken;
   PosSession? _session;
   TimeOfDay kotResetTime = KotResetTimeSettings.defaultTime;
@@ -170,7 +171,9 @@ class KitchenController extends ChangeNotifier {
     final session = _session;
     final token = _kitchenToken;
     if (session == null || token == null) return;
-    if (PosApi.isRateLimited) return;
+    if (PosApi.isRateLimited || _boardRefreshInProgress) return;
+    _boardRefreshInProgress = true;
+    final generation = _startupGeneration;
 
     if (!silent) {
       refreshing = true;
@@ -183,6 +186,7 @@ class KitchenController extends ChangeNotifier {
         kitchenToken: token,
         kitchenId: selectedKitchenId,
       );
+      if (generation != _startupGeneration) return;
       board = _applyKotReset(result.board);
       _trackReadyOrderTimes(board);
       _checkAndPlayNewOrderSound(board);
@@ -191,14 +195,15 @@ class KitchenController extends ChangeNotifier {
       errorMessage = null;
       unawaited(_checkAutoDeliverReadyOrders());
     } catch (e) {
-      if (!silent) {
+      if (!silent && generation == _startupGeneration) {
         errorMessage = e.toString();
       }
     } finally {
+      _boardRefreshInProgress = false;
       if (!silent) {
         refreshing = false;
       }
-      notifyListeners();
+      if (generation == _startupGeneration) notifyListeners();
     }
   }
 

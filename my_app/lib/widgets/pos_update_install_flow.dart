@@ -5,10 +5,15 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/pos_l10n.dart';
 import '../models/pos_app_update.dart';
 import '../services/pos_update_installer.dart';
+import '../services/play_store_update.dart';
 import '../theme/pos_theme.dart';
 import 'pos_ui.dart';
 
 Future<void> openPosAppUpdateUrl(PosAppUpdate update) async {
+  if (usesPlayStoreUpdates) {
+    await openSelfxPlayStore();
+    return;
+  }
   final raw = update.downloadUrl;
   if (raw == null || raw.isEmpty) return;
   final uri = Uri.tryParse(raw);
@@ -16,12 +21,20 @@ Future<void> openPosAppUpdateUrl(PosAppUpdate update) async {
   await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
-/// Starts in-app download + OS installer for Android/desktop; browser for web/iOS.
+bool canOpenPosAppUpdate(PosAppUpdate update) =>
+    update.installsNewerBuild && (usesPlayStoreUpdates || update.hasDownload);
+
+/// Opens Google Play on Android, OS installers on desktop, URLs on web/iOS.
 Future<void> startPosUpdateInstall(
   BuildContext context,
   PosAppUpdate update,
 ) async {
-  if (!update.installsNewerBuild || !update.hasDownload) return;
+  if (!canOpenPosAppUpdate(update)) return;
+
+  if (usesPlayStoreUpdates) {
+    await openSelfxPlayStore();
+    return;
+  }
 
   if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) {
     await openPosAppUpdateUrl(update);
