@@ -310,10 +310,64 @@ class _AdminHub extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     context.watch<PosLocaleController>().catalogGeneration;
-    final tiles = <_HubItem>[
+    
+    final restaurantItems = <_HubItem>[
+      if (showHours)
+        _HubItem(
+          icon: Icons.storefront_rounded,
+          color: Colors.blue,
+          title: l10n.adminHours,
+          subtitle: l10n.adminHoursSubtitle,
+          onTap: onOpenHours,
+        ),
+      if (showBilling)
+        _HubItem(
+          icon: Icons.workspace_premium_rounded,
+          color: Colors.green,
+          title: l10n.billingTitle,
+          subtitle: l10n.billingManageSubtitle,
+          onTap: onOpenBilling,
+        ),
+    ];
+
+    final menuItems = <_HubItem>[
+      if (showMenu)
+        _HubItem(
+          icon: Icons.restaurant_menu_rounded,
+          color: Colors.orange,
+          title: l10n.adminMenu,
+          subtitle: context.posText(
+            'adminMenuSubtitle',
+            'Categories, items, and availability',
+          ),
+          onTap: () => onOpen(AdminShellSection.menu),
+        ),
+      if (canManageModifiers)
+        _HubItem(
+          icon: Icons.tune_rounded,
+          color: Colors.deepOrange,
+          title: l10n.adminModifiers,
+          subtitle: context.posText(
+            'adminModifiersSubtitle',
+            'Option groups for menu items',
+          ),
+          onTap: onOpenModifiers,
+        ),
+      if (canManageTimeSlots)
+        _HubItem(
+          icon: Icons.schedule_rounded,
+          color: Colors.purple,
+          title: l10n.adminTimeSlots,
+          subtitle: context.posText(
+            'adminTimeSlotsSubtitle',
+            'Breakfast, lunch, dinner windows',
+          ),
+          onTap: onOpenTimeSlots,
+        ),
       if (canImportMenu)
         _HubItem(
-          icon: Icons.auto_awesome_rounded,
+          icon: Icons.document_scanner_rounded,
+          color: Colors.indigo,
           title: context.posText('adminAiMenuUpload', 'AI Menu Upload'),
           subtitle: context.posText(
             'adminAiMenuUploadSubtitle',
@@ -326,53 +380,13 @@ class _AdminHub extends StatelessWidget {
             ),
           ),
         ),
-      if (showHours)
-        _HubItem(
-          icon: Icons.storefront_rounded,
-          title: l10n.adminHours,
-          subtitle: l10n.adminHoursSubtitle,
-          onTap: onOpenHours,
-        ),
-      if (showBilling)
-        _HubItem(
-          icon: Icons.workspace_premium_outlined,
-          title: l10n.billingTitle,
-          subtitle: l10n.billingManageSubtitle,
-          onTap: onOpenBilling,
-        ),
-      if (showMenu)
-        _HubItem(
-          icon: Icons.restaurant_menu_rounded,
-          title: l10n.adminMenu,
-          subtitle: context.posText(
-            'adminMenuSubtitle',
-            'Categories, items, and availability',
-          ),
-          onTap: () => onOpen(AdminShellSection.menu),
-        ),
-      if (canManageModifiers)
-        _HubItem(
-          icon: Icons.tune_rounded,
-          title: l10n.adminModifiers,
-          subtitle: context.posText(
-            'adminModifiersSubtitle',
-            'Option groups for menu items',
-          ),
-          onTap: onOpenModifiers,
-        ),
-      if (canManageTimeSlots)
-        _HubItem(
-          icon: Icons.schedule_rounded,
-          title: l10n.adminTimeSlots,
-          subtitle: context.posText(
-            'adminTimeSlotsSubtitle',
-            'Breakfast, lunch, dinner windows',
-          ),
-          onTap: onOpenTimeSlots,
-        ),
+    ];
+
+    final opsItems = <_HubItem>[
       if (showTables)
         _HubItem(
           icon: Icons.table_restaurant_rounded,
+          color: Colors.teal,
           title: l10n.adminTables,
           subtitle: context.posText(
             'adminTablesSubtitle',
@@ -383,6 +397,7 @@ class _AdminHub extends StatelessWidget {
       if (showOrders)
         _HubItem(
           icon: Icons.receipt_long_rounded,
+          color: Colors.cyan,
           title: l10n.adminOrders,
           subtitle: context.posText(
             'adminOrdersSubtitle',
@@ -393,13 +408,14 @@ class _AdminHub extends StatelessWidget {
       if (showReports)
         _HubItem(
           icon: Icons.summarize_rounded,
+          color: Colors.blueGrey,
           title: l10n.shellReports,
           subtitle: l10n.reportsSubtitle,
           onTap: onOpenReports,
         ),
     ];
 
-    if (tiles.isEmpty) {
+    if (restaurantItems.isEmpty && menuItems.isEmpty && opsItems.isEmpty) {
       return AdminEmptyPane(
         icon: Icons.lock_outline_rounded,
         title: context.posText(
@@ -415,58 +431,67 @@ class _AdminHub extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 720;
-        final crossAxisCount = wide ? 2 : 1;
+        final wide = constraints.maxWidth >= 768;
 
         return CustomScrollView(
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: EdgeInsets.symmetric(horizontal: wide ? 32 : 16, vertical: 24),
               sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.adminManage,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 22,
+                child: wide
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              children: [
+                                if (restaurantItems.isNotEmpty)
+                                  _SettingsSection(
+                                    title: context.posText('adminSectionRestaurant', 'Restaurant'),
+                                    items: restaurantItems,
+                                  ),
+                                if (opsItems.isNotEmpty)
+                                  _SettingsSection(
+                                    title: context.posText('adminSectionOperations', 'Operations'),
+                                    items: opsItems,
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 32),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                if (menuItems.isNotEmpty)
+                                  _SettingsSection(
+                                    title: context.posText('adminSectionMenu', 'Menu'),
+                                    items: menuItems,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          if (restaurantItems.isNotEmpty)
+                            _SettingsSection(
+                              title: context.posText('adminSectionRestaurant', 'Restaurant'),
+                              items: restaurantItems,
+                            ),
+                          if (menuItems.isNotEmpty)
+                            _SettingsSection(
+                              title: context.posText('adminSectionMenu', 'Menu'),
+                              items: menuItems,
+                            ),
+                          if (opsItems.isNotEmpty)
+                            _SettingsSection(
+                              title: context.posText('adminSectionOperations', 'Operations'),
+                              items: opsItems,
+                            ),
+                          const SizedBox(height: 32),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      context.posText(
-                        'adminHubHint',
-                        'Manage restaurant settings available to your role.',
-                      ),
-                      style: TextStyle(
-                        color: PosTheme.inkMuted,
-                        fontWeight: FontWeight.w500,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  mainAxisExtent: 108,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final item = tiles[index];
-                  return AdminEntityCard(
-                    icon: item.icon,
-                    title: item.title,
-                    subtitle: item.subtitle,
-                    onTap: item.onTap,
-                  );
-                }, childCount: tiles.length),
               ),
             ),
           ],
@@ -476,15 +501,116 @@ class _AdminHub extends StatelessWidget {
   }
 }
 
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({required this.title, required this.items});
+
+  final String title;
+  final List<_HubItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 8),
+            child: Text(
+              title.toUpperCase(),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: PosTheme.inkMuted,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: PosTheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: PosTheme.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: items.asMap().entries.map((e) {
+                final isLast = e.key == items.length - 1;
+                final item = e.value;
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: item.onTap,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: item.color,
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: Icon(item.icon, size: 18, color: Colors.white),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.title,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                        color: PosTheme.ink,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      item.subtitle,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: PosTheme.inkMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Icon(Icons.chevron_right_rounded, color: PosTheme.inkFaint),
+                            ],
+                          ),
+                        ),
+                        if (!isLast)
+                          Divider(height: 1, indent: 64, color: PosTheme.border),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HubItem {
   const _HubItem({
     required this.icon,
+    required this.color,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
 
   final IconData icon;
+  final Color color;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
