@@ -23,6 +23,7 @@ class AdminMenuSetupGuide extends StatelessWidget {
                 (columns - 1) * 20) /
             columns;
         final desktop = columns == 4;
+        final isMobile = columns == 1;
         final content = Padding(
           padding: EdgeInsets.all(desktop ? 16 : 20),
           child: Column(
@@ -54,11 +55,14 @@ class AdminMenuSetupGuide extends StatelessWidget {
                       key: ValueKey('menu-setup-step-$i'),
                       width: width,
                       height:
-                          (desktop && width >= 300 ? 450 : 510) *
+                          ((desktop && width >= 300) || isMobile
+                              ? 450
+                              : 510) *
                           MediaQuery.textScalerOf(context).scale(1),
                       child: _StepCard(
                         step: i,
-                        compact: desktop && width >= 300,
+                        compact: (desktop && width >= 300) || isMobile,
+                        isMobile: isMobile,
                       ),
                     ),
                 ],
@@ -106,9 +110,15 @@ class AdminMenuSetupGuide extends StatelessWidget {
 }
 
 class _StepCard extends StatelessWidget {
-  const _StepCard({required this.step, this.compact = false});
+  const _StepCard({
+    required this.step,
+    this.compact = false,
+    this.isMobile = false,
+  });
+
   final int step;
   final bool compact;
+  final bool isMobile;
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +146,146 @@ class _StepCard extends StatelessWidget {
       'Add sizes, flavors or other options.',
       'Control when items are visible.',
     ];
+
+    final header = SizedBox(
+      height:
+          (compact ? 120 : 160) *
+          MediaQuery.textScalerOf(context).scale(1),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: badges[step],
+            radius: 20,
+            child: Text(
+              '${step + 1}',
+              style: const TextStyle(
+                color: Color(0xFF172033),
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titles[step],
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: PosTheme.ink,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  descriptions[step],
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.45,
+                    color: PosTheme.inkMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final previewBox = Container(
+      key: ValueKey('menu-setup-preview-$step'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  [
+                    'Categories',
+                    'Beverages',
+                    'Item variations',
+                    'Coffee',
+                  ][step],
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF172033),
+                  ),
+                ),
+              ),
+              if (step < 2 && !isMobile)
+                const Icon(
+                  Icons.add_circle,
+                  color: Color(0xFFFF6900),
+                  size: 26,
+                ),
+              if (step == 2)
+                const Icon(
+                  Icons.close,
+                  size: 16,
+                  color: Color(0xFF65758B),
+                ),
+              if (step == 3)
+                const Icon(
+                  Icons.toggle_on,
+                  size: 32,
+                  color: Color(0xFFFF6900),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (var i = 0; i < (step == 0 ? 4 : 3); i++)
+            _PreviewRow(step: step, index: i),
+          if (step == 2)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (!isMobile) ...[
+                    const Icon(
+                      Icons.add_circle_outline,
+                      size: 16,
+                      color: Color(0xFFFF6900),
+                    ),
+                    const SizedBox(width: 5),
+                  ],
+                  const Flexible(
+                    child: Text(
+                      'Add variation',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFFFF6900),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -145,144 +295,9 @@ class _StepCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            height:
-                (compact ? 100 : 160) *
-                MediaQuery.textScalerOf(context).scale(1),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  backgroundColor: badges[step],
-                  radius: 20,
-                  child: Text(
-                    '${step + 1}',
-                    style: const TextStyle(
-                      color: Color(0xFF172033),
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        titles[step],
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: PosTheme.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        descriptions[step],
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.6,
-                          color: PosTheme.inkMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: Container(
-              key: ValueKey('menu-setup-preview-$step'),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x08000000),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          [
-                            'Categories',
-                            'Beverages',
-                            'Item variations',
-                            'Coffee',
-                          ][step],
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF172033),
-                          ),
-                        ),
-                      ),
-                      if (step < 2)
-                        const Icon(
-                          Icons.add_circle,
-                          color: Color(0xFFFF6900),
-                          size: 26,
-                        ),
-                      if (step == 2)
-                        const Icon(
-                          Icons.close,
-                          size: 16,
-                          color: Color(0xFF65758B),
-                        ),
-                      if (step == 3)
-                        const Icon(
-                          Icons.toggle_on,
-                          size: 32,
-                          color: Color(0xFFFF6900),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  for (var i = 0; i < (step == 0 ? 4 : 3); i++)
-                    _PreviewRow(step: step, index: i),
-                  if (step == 2)
-                    Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.add_circle_outline,
-                            size: 16,
-                            color: Color(0xFFFF6900),
-                          ),
-                          SizedBox(width: 5),
-                          Flexible(
-                            child: Text(
-                              'Add variation',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFFFF6900),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
+          header,
+          const SizedBox(height: 12),
+          Expanded(child: previewBox),
         ],
       ),
     );

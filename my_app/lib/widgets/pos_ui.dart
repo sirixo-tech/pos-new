@@ -1216,6 +1216,52 @@ void showPosSnackBar(
   });
 }
 
+/// Rich success toast with animated checkmark, title, and subtitle.
+void showPosSuccessToast(
+  BuildContext context, {
+  required String title,
+  required String subtitle,
+  IconData icon = Icons.check_circle_rounded,
+  Duration duration = const Duration(seconds: 2, milliseconds: 800),
+}) {
+  ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+  _dismissPosToast();
+
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+
+  final accent = const Color(0xFF10B981);
+  final media = MediaQuery.of(context);
+  final top = media.padding.top + 12;
+
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (ctx) {
+      return _PosToast(
+        top: top,
+        message: title,
+        subtitle: subtitle,
+        error: false,
+        accent: accent,
+        customIcon: icon,
+        onDismiss: () {
+          if (_posToastEntry == entry) {
+            _dismissPosToast();
+          }
+        },
+      );
+    },
+  );
+
+  _posToastEntry = entry;
+  overlay.insert(entry);
+  _posToastTimer = Timer(duration, () {
+    if (_posToastEntry == entry) {
+      _dismissPosToast();
+    }
+  });
+}
+
 /// Error toast with staff-safe copy (no URLs, API paths, or raw exceptions).
 void showPosErrorSnackBar(BuildContext context, Object error) {
   showPosSnackBar(context, posUserFacingError(error), error: true);
@@ -1232,15 +1278,19 @@ class _PosToast extends StatefulWidget {
   const _PosToast({
     required this.top,
     required this.message,
+    this.subtitle,
     required this.error,
     required this.accent,
+    this.customIcon,
     required this.onDismiss,
   });
 
   final double top;
   final String message;
+  final String? subtitle;
   final bool error;
   final Color accent;
+  final IconData? customIcon;
   final VoidCallback onDismiss;
 
   @override
@@ -1251,16 +1301,20 @@ class _PosToastState extends State<_PosToast>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 220),
+    duration: const Duration(milliseconds: 320),
   );
   late final Animation<double> _fade = CurvedAnimation(
     parent: _controller,
     curve: Curves.easeOutCubic,
   );
   late final Animation<Offset> _slide = Tween<Offset>(
-    begin: const Offset(0, -0.18),
+    begin: const Offset(0, -0.22),
     end: Offset.zero,
   ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+  late final Animation<double> _iconScale = Tween<double>(
+    begin: 0.35,
+    end: 1.0,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
   @override
   void initState() {
@@ -1288,13 +1342,22 @@ class _PosToastState extends State<_PosToast>
     final iconColor = widget.error ? const Color(0xFFDC2626) : widget.accent;
     final iconBg = widget.error
         ? (PosTheme.isDark ? const Color(0xFF4C0519) : const Color(0xFFFEE2E2))
-        : posAccentSoft(widget.accent).bg;
-    final icon = widget.error
-        ? Icons.error_outline_rounded
-        : Icons.check_circle_rounded;
+        : (widget.accent == const Color(0xFF10B981)
+            ? (PosTheme.isDark
+                ? const Color(0xFF064E3B)
+                : const Color(0xFFD1FAE5))
+            : posAccentSoft(widget.accent).bg);
+    final icon = widget.customIcon ??
+        (widget.error
+            ? Icons.error_outline_rounded
+            : Icons.check_circle_rounded);
     final borderColor = widget.error
         ? const Color(0xFFFECACA)
-        : PosTheme.border;
+        : (widget.accent == const Color(0xFF10B981)
+            ? (PosTheme.isDark
+                ? const Color(0xFF065F46)
+                : const Color(0xFFA7F3D0))
+            : PosTheme.border);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final toastWidth = screenWidth - 32 < 420 ? screenWidth - 32 : 420.0;
 
@@ -1344,28 +1407,62 @@ class _PosToastState extends State<_PosToast>
                         ),
                         child: Row(
                           children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: iconBg,
-                                borderRadius: BorderRadius.circular(9),
+                            ScaleTransition(
+                              scale: _iconScale,
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: iconBg,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(icon, color: iconColor, size: 20),
                               ),
-                              child: Icon(icon, color: iconColor, size: 18),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Text(
-                                widget.message,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: PosTheme.ink,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13.5,
-                                  height: 1.3,
-                                ),
-                              ),
+                              child: widget.subtitle != null
+                                  ? Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          widget.message,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: PosTheme.ink,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13.5,
+                                            height: 1.2,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          widget.subtitle!,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: PosTheme.inkMuted,
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 12,
+                                            height: 1.3,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Text(
+                                      widget.message,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: PosTheme.ink,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13.5,
+                                        height: 1.3,
+                                      ),
+                                    ),
                             ),
                             IconButton(
                               onPressed: _close,

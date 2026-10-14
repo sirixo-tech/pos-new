@@ -8,6 +8,7 @@ import '../../models/admin_models.dart';
 import '../../providers/pos_controller.dart';
 import '../../services/pos_api.dart';
 import '../../theme/pos_theme.dart';
+import '../../utils/pos_layout.dart';
 import '../../utils/pos_user_facing_error.dart';
 import '../../widgets/pos_overlay.dart';
 import '../../widgets/pos_ui.dart';
@@ -55,6 +56,25 @@ Future<AdminMenuCategoryEditResult?> showAdminMenuCategoryEditDialog(
   List<AdminMenuTimeSlot> timeSlots = const [],
   bool canManageSlots = false,
 }) {
+  final handheld = usePosHandheldLayout(context);
+  if (handheld) {
+    return Navigator.of(context).push<AdminMenuCategoryEditResult>(
+      MaterialPageRoute<AdminMenuCategoryEditResult>(
+        builder: (ctx) => Scaffold(
+          backgroundColor: PosTheme.canvas,
+          body: SafeArea(
+            child: PosKeyboardSheetHost(
+              child: _CategoryEditDialog(
+                category: category,
+                timeSlots: timeSlots,
+                canManageSlots: canManageSlots,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
   return showAdminPanel<AdminMenuCategoryEditResult>(
     context: context,
     sidePanelWidth: 480,
@@ -76,6 +96,29 @@ Future<AdminMenuItemEditResult?> showAdminMenuItemEditDialog(
   bool canManageSlots = false,
   bool canManageModifiers = false,
 }) {
+  final handheld = usePosHandheldLayout(context);
+  if (handheld) {
+    return Navigator.of(context).push<AdminMenuItemEditResult>(
+      MaterialPageRoute<AdminMenuItemEditResult>(
+        builder: (ctx) => Scaffold(
+          backgroundColor: PosTheme.canvas,
+          body: SafeArea(
+            child: PosKeyboardSheetHost(
+              child: _ItemEditDialog(
+                item: item,
+                categories: categories,
+                initialCategoryId: initialCategoryId,
+                timeSlots: timeSlots,
+                modifiers: modifiers,
+                canManageSlots: canManageSlots,
+                canManageModifiers: canManageModifiers,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
   return showAdminPanel<AdminMenuItemEditResult>(
     context: context,
     sidePanelWidth: 520,

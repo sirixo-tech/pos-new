@@ -59,88 +59,100 @@ class AdminMenuImagePickerSection extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final media = MediaQuery.of(context);
               final availableHeight =
                   media.size.height - media.viewInsets.bottom;
               final height = compactPreview
-                  ? (availableHeight * 0.22).clamp(100.0, 180.0)
+                  ? (availableHeight * 0.22).clamp(130.0, 190.0)
                   : constraints.maxWidth * 3 / 4;
-              return SizedBox(
+              return Container(
                 height: height,
                 width: double.infinity,
-                child: _buildPreview(context),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: PosTheme.border),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildPreview(context),
+                    Positioned(
+                      bottom: 10,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: PosTheme.surface.withValues(alpha: 0.94),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: PosTheme.border.withValues(alpha: 0.8),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _ImageActionButton(
+                                icon: Icons.photo_library_outlined,
+                                label: pickedImage != null
+                                    ? context.posText(
+                                        'adminChangePhoto',
+                                        'Change photo',
+                                      )
+                                    : context.posText(
+                                        'adminUpdatePhoto',
+                                        'Update photo',
+                                      ),
+                                fallbackLabel: 'Update photo',
+                                loading: picking && onGenerate == null,
+                                onTap: picking ? null : onPick,
+                              ),
+                              if (onCamera != null) ...[
+                                Container(
+                                  width: 1,
+                                  height: 18,
+                                  color: PosTheme.border.withValues(alpha: 0.6),
+                                ),
+                                _ImageActionButton(
+                                  icon: Icons.camera_alt_outlined,
+                                  label: 'Take photo',
+                                  onTap: picking ? null : onCamera,
+                                ),
+                              ],
+                              if (onGenerate != null) ...[
+                                Container(
+                                  width: 1,
+                                  height: 18,
+                                  color: PosTheme.border.withValues(alpha: 0.6),
+                                ),
+                                _ImageActionButton(
+                                  icon: Icons.auto_awesome_rounded,
+                                  label: 'Generate with AI',
+                                  color: const Color(0xFFFF6900),
+                                  loading: picking && onGenerate != null,
+                                  onTap: picking ? null : onGenerate,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           ),
-        ),
-        const SizedBox(height: 8),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final actions = <Widget>[
-              OutlinedButton.icon(
-                onPressed: picking ? null : onPick,
-                icon: picking && onGenerate == null
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.photo_outlined, size: 18),
-                label: Text(
-                  pickedImage != null
-                      ? context.posText('adminChangePhoto', 'Change photo')
-                      : context.posText('adminUpdatePhoto', 'Update photo'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (onCamera != null)
-                OutlinedButton.icon(
-                  onPressed: picking ? null : onCamera,
-                  icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                  label: const Text('Take photo'),
-                ),
-              if (onGenerate != null)
-                FilledButton.tonalIcon(
-                  onPressed: picking ? null : onGenerate,
-                  icon: picking
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome_rounded, size: 18),
-                  label: const Text(
-                    'Generate with AI',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ];
-            if (constraints.maxWidth < 560 ||
-                MediaQuery.textScalerOf(context).scale(14) > 18) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < actions.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 8),
-                    actions[i],
-                  ],
-                ],
-              );
-            }
-            return Row(
-              children: [
-                for (var i = 0; i < actions.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 8),
-                  Expanded(child: actions[i]),
-                ],
-              ],
-            );
-          },
         ),
       ],
     );
@@ -187,13 +199,96 @@ class AdminMenuImagePickerSection extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(placeholderIcon, size: 40, color: PosTheme.inkFaint),
-          const SizedBox(height: 8),
+          Icon(placeholderIcon, size: 36, color: PosTheme.inkFaint),
+          const SizedBox(height: 6),
           Text(
             context.posText('adminNoPhotoYet', 'No photo yet'),
-            style: TextStyle(color: PosTheme.inkMuted, fontSize: 12.5),
+            style: TextStyle(color: PosTheme.inkMuted, fontSize: 12),
           ),
+          const SizedBox(height: 32),
         ],
+      ),
+    );
+  }
+}
+
+class _ImageActionButton extends StatelessWidget {
+  const _ImageActionButton({
+    required this.icon,
+    required this.label,
+    this.fallbackLabel,
+    required this.onTap,
+    this.color,
+    this.loading = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? fallbackLabel;
+  final VoidCallback? onTap;
+  final Color? color;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = color ?? PosTheme.ink;
+    return Tooltip(
+      message: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.transparent,
+                      ),
+                    ),
+                  ),
+                ),
+                if (fallbackLabel != null && fallbackLabel != label)
+                  Positioned.fill(
+                    child: Center(
+                      child: Text(
+                        fallbackLabel!,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.transparent,
+                        ),
+                      ),
+                    ),
+                  ),
+                IgnorePointer(
+                  child: loading
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: effectiveColor,
+                          ),
+                        )
+                      : Icon(
+                          icon,
+                          size: 20,
+                          color: onTap == null
+                              ? PosTheme.inkFaint
+                              : effectiveColor,
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

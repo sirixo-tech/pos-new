@@ -9,6 +9,7 @@ import '../../providers/pos_locale_controller.dart';
 import '../../services/pos_api.dart';
 import '../../services/printing/pos_receipt_printer.dart';
 import '../../theme/pos_theme.dart';
+import '../../utils/pos_layout.dart';
 import '../../widgets/day_end_reports_sheet.dart';
 import '../../widgets/pos_overlay.dart';
 import '../../widgets/pos_ui.dart';
@@ -63,22 +64,35 @@ Future<void> openPosAdminMenuSheet(BuildContext context) async {
 
   final accent = Theme.of(context).colorScheme.primary;
   final screenWidth = MediaQuery.sizeOf(context).width;
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.5),
-    // Material caps bottom sheets at 640. The menu needs the window width.
-    constraints: BoxConstraints(maxWidth: screenWidth),
-    builder: (sheetContext) {
-      return ChangeNotifierProvider(
-        create: (_) => PosAdminController(api: api, pos: pos),
-        child: PosKeyboardSheetHost(
-          child: _AdminMenuPickerSheet(accent: accent),
+  final handheld = usePosHandheldLayout(context);
+
+  if (handheld) {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ChangeNotifierProvider(
+          create: (_) => PosAdminController(api: api, pos: pos),
+          child: const _AdminMenuFullScreen(),
         ),
-      );
-    },
-  );
+      ),
+    );
+  } else {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      // Material caps bottom sheets at 640. The menu needs the window width.
+      constraints: BoxConstraints(maxWidth: screenWidth),
+      builder: (sheetContext) {
+        return ChangeNotifierProvider(
+          create: (_) => PosAdminController(api: api, pos: pos),
+          child: PosKeyboardSheetHost(
+            child: _AdminMenuPickerSheet(accent: accent),
+          ),
+        );
+      },
+    );
+  }
   if (context.mounted) {
     await pos.refreshBootstrap();
   }
@@ -712,3 +726,91 @@ class _AdminMenuPickerSheet extends StatelessWidget {
     );
   }
 }
+
+class _AdminMenuFullScreen extends StatelessWidget {
+  const _AdminMenuFullScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final soft = posAccentSoft(accent);
+
+    return Scaffold(
+      backgroundColor: PosTheme.canvas,
+      appBar: AppBar(
+        backgroundColor: PosTheme.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          tooltip: context.posText('commonBack', 'Back'),
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: soft.bg,
+                borderRadius: BorderRadius.circular(PosTheme.radiusSm),
+                border: Border.all(
+                  color: accent.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Icon(
+                Icons.menu_book_rounded,
+                color: soft.fg,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.l10n.adminMenu,
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      letterSpacing: -0.2,
+                      color: PosTheme.ink,
+                    ),
+                  ),
+                  Text(
+                    context.posText(
+                      'adminMenuSubtitle',
+                      'Categories, items, and availability',
+                    ),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: PosTheme.inkMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: context.l10n.commonClose,
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: PosTheme.border),
+        ),
+      ),
+      body: const SafeArea(
+        top: false,
+        child: AdminMenuScreen(),
+      ),
+    );
+  }
+}
+

@@ -441,13 +441,38 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     };
 
     if (category == null) {
-      await admin.createMenuCategory(body, imageFile: result.imageFile);
+      final oldIds = admin.categories.map((c) => c.id).toSet();
+      final success = await admin.createMenuCategory(body, imageFile: result.imageFile);
+      if (!context.mounted) return;
+      if (success) {
+        final newCategory = admin.categories.where((c) => !oldIds.contains(c.id)).firstOrNull;
+        if (newCategory != null) {
+          setState(() {
+            _selectedCategoryId = newCategory.id;
+          });
+        }
+        showPosSuccessToast(
+          context,
+          title: 'Category added',
+          subtitle: "'${result.name}' is now in your menu",
+          icon: Icons.category_rounded,
+        );
+      }
     } else {
-      await admin.updateMenuCategory(
+      final success = await admin.updateMenuCategory(
         category.id,
         body,
         imageFile: result.imageFile,
       );
+      if (!context.mounted) return;
+      if (success) {
+        showPosSuccessToast(
+          context,
+          title: 'Category updated',
+          subtitle: "'${result.name}' saved",
+          icon: Icons.check_circle_rounded,
+        );
+      }
     }
   }
 
@@ -473,22 +498,44 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
     if (item == null) {
       if (result.categoryId == null) return;
-      await admin.createMenuItem({
-        'menu_category_id': result.categoryId,
+      final targetCatId = result.categoryId!;
+      final success = await admin.createMenuItem({
+        'menu_category_id': targetCatId,
         'name': result.name,
         'price': result.price,
         'description': result.description.isEmpty ? null : result.description,
         if (canSlots) 'time_slot_ids': result.timeSlotIds,
         if (canMods) 'modifier_ids': result.modifierIds,
       }, imageFile: result.imageFile);
+      if (!context.mounted) return;
+      if (success) {
+        setState(() {
+          _selectedCategoryId = targetCatId;
+        });
+        showPosSuccessToast(
+          context,
+          title: 'Item added',
+          subtitle: "'${result.name}' added to menu",
+          icon: Icons.restaurant_menu_rounded,
+        );
+      }
     } else {
-      await admin.updateMenuItem(item.id, {
+      final success = await admin.updateMenuItem(item.id, {
         'name': result.name,
         'price': result.price,
         'description': result.description.isEmpty ? null : result.description,
         if (canSlots) 'time_slot_ids': result.timeSlotIds,
         if (canMods) 'modifier_ids': result.modifierIds,
       }, imageFile: result.imageFile);
+      if (!context.mounted) return;
+      if (success) {
+        showPosSuccessToast(
+          context,
+          title: 'Item updated',
+          subtitle: "'${result.name}' saved",
+          icon: Icons.check_circle_rounded,
+        );
+      }
     }
   }
 }
