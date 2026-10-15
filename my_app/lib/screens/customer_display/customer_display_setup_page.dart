@@ -1,17 +1,26 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../services/customer_display/lan/customer_display_lan_service.dart';
 import '../../services/customer_display/lan/models/customer_display_device.dart';
 
-const _ink = Color(0xFF081735);
-const _muted = Color(0xFF526078);
-const _orange = Color(0xFFFF6500);
-const _green = Color(0xFF079B35);
-const _page = Color(0xFFF5F8FC);
-const _line = Color(0xFFDCE4EF);
+// Ultra-premium executive design palette
+const _ink = Color(0xFF0F172A); // Deep Slate Navy
+const _muted = Color(0xFF64748B); // Slate Muted
+const _subtle = Color(0xFF94A3B8); // Slate Light Muted
+const _orange = Color(0xFFFF6500); // POS Brand Orange
+const _emerald = Color(0xFF10B981); // Emerald Active Green
+const _emeraldDark = Color(0xFF059669);
+const _emeraldBg = Color(0xFFECFDF5);
+const _emeraldBorder = Color(0xFFA7F3D0);
+const _amber = Color(0xFFF59E0B);
+const _amberBg = Color(0xFFFFFBEB);
+const _pageBg = Color(0xFFF8FAFC); // Clean Slate Canvas
+const _cardBorder = Color(0xFFE2E8F0); // Subtle 1px Line
+const _cardSurface = Colors.white;
 
 class CustomerDisplaySetupPage extends StatefulWidget {
   const CustomerDisplaySetupPage({super.key});
@@ -41,107 +50,101 @@ class _CustomerDisplaySetupPageState extends State<CustomerDisplaySetupPage> {
     );
   }
 
-  Widget _buildScaffold(BuildContext context, CustomerDisplayLanService service) {
+  Widget _buildScaffold(
+    BuildContext context,
+    CustomerDisplayLanService service,
+  ) {
     final connected = service.devices.isNotEmpty;
-    final showStatusPill = MediaQuery.sizeOf(context).width >= 620;
+    final hasError = service.errorMessage != null;
 
     return Scaffold(
-      backgroundColor: _page,
+      backgroundColor: _pageBg,
       appBar: AppBar(
-        toolbarHeight: 76,
+        toolbarHeight: 64,
         elevation: 0,
         scrolledUnderElevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: _ink,
+        centerTitle: false,
         title: const Text(
           'QR Display Pairing',
-          style: TextStyle(fontWeight: FontWeight.w900),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+            color: _ink,
+          ),
         ),
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
-          child: Divider(height: 1, color: _line),
+          child: Divider(height: 1, color: _cardBorder),
         ),
         actions: [
-          if (showStatusPill) ...[
-            _PairingStatusPill(connected: connected),
-            const SizedBox(width: 12),
-          ],
+          _PairingStatusPill(
+            connected: connected,
+            hasError: hasError,
+            count: service.devices.length,
+          ),
+          const SizedBox(width: 8),
           IconButton(
             tooltip: 'Close',
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.close_rounded),
+            icon: const Icon(Icons.close_rounded, size: 22),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
         ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // Width alone is not enough for desktop responsiveness. Many POS
-          // laptops are wide but only 600-700 logical pixels tall after the
-          // Windows taskbar and title bar. The old Expanded layout compressed
-          // the pairing QR to its 64px fallback and pushed the lower actions
-          // outside the visible area on those screens.
-          final compact = constraints.maxWidth < 980;
-          final shortDesktop = !compact && constraints.maxHeight < 780;
-          final horizontalPadding = compact ? 16.0 : 32.0;
-          final contentWidth = math
-              .min(
-                1320.0,
-                math.max(0.0, constraints.maxWidth - horizontalPadding * 2),
-              )
-              .toDouble();
-          final columnWidth = compact ? contentWidth : (contentWidth - 18) / 2;
-          final qrSize = math
-              .min(compact ? 280.0 : 270.0, math.max(140.0, columnWidth - 92))
-              .toDouble();
+          final isCompact = constraints.maxWidth < 980;
+          final hPadding = isCompact ? 16.0 : 32.0;
+          final maxContentWidth = math.min(
+            1200.0,
+            constraints.maxWidth - hPadding * 2,
+          );
 
           final qrCard = _ScanCard(
             pairingData: service.pairingData,
             errorMessage: service.errorMessage,
-            qrSize: qrSize,
-            dense: !compact,
             connected: connected,
             onRefresh: service.refreshPairingCode,
           );
-          final statusCard = _ConnectionCard(
+
+          final connectionCard = _ConnectionStatusCard(
             connected: connected,
             errorMessage: service.errorMessage,
-            connectionOptions: service.connectionOptions,
             connections: service.connections,
+            connectionOptions: service.connectionOptions,
             selectedAddress: service.selectedAddress,
             onConnectionSelected: service.selectConnection,
-            dense: !compact,
           );
-          final connectedDevicesCard = _ConnectedDevicesCard(
+
+          final devicesCard = _ConnectedDevicesCard(
             devices: service.devices,
             onRefresh: service.restart,
             onDisconnect: service.disconnect,
-            dense: !compact,
           );
 
-          if (compact) {
+          const securityNote = _NetworkSecurityNote();
+
+          if (isCompact) {
             return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                horizontalPadding,
-                22,
-                horizontalPadding,
-                30,
-              ),
+              padding: EdgeInsets.fromLTRB(hPadding, 20, hPadding, 32),
               child: Center(
-                child: SizedBox(
-                  width: contentWidth,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxContentWidth),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const _PairingIntroduction(),
-                      const SizedBox(height: 20),
+                      const _PairingHeader(),
+                      const SizedBox(height: 16),
                       qrCard,
                       const SizedBox(height: 16),
-                      statusCard,
-                      const SizedBox(height: 18),
-                      connectedDevicesCard,
+                      connectionCard,
                       const SizedBox(height: 16),
-                      const _PairingReminder(),
+                      devicesCard,
+                      const SizedBox(height: 16),
+                      securityNote,
                     ],
                   ),
                 ),
@@ -149,73 +152,42 @@ class _CustomerDisplaySetupPageState extends State<CustomerDisplaySetupPage> {
             );
           }
 
-          if (shortDesktop) {
-            return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                horizontalPadding,
-                18,
-                horizontalPadding,
-                28,
-              ),
-              child: Center(
-                child: SizedBox(
-                  width: contentWidth,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const _PairingIntroduction(),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        height: 430,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(child: qrCard),
-                            const SizedBox(width: 18),
-                            Expanded(child: statusCard),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      connectedDevicesCard,
-                      const SizedBox(height: 12),
-                      const _PairingReminder(dense: true),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }
-
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              18,
-              horizontalPadding,
-              18,
-            ),
+          // Desktop & Wide Tablet 2-Column Executive Layout
+          return SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(hPadding, 24, hPadding, 36),
             child: Center(
-              child: SizedBox(
-                width: contentWidth,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxContentWidth),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const _PairingIntroduction(),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(child: qrCard),
-                          const SizedBox(width: 18),
-                          Expanded(child: statusCard),
-                        ],
-                      ),
+                    const _PairingHeader(),
+                    const SizedBox(height: 20),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Left Column: Prominent QR Card
+                        Expanded(
+                          flex: 5,
+                          child: qrCard,
+                        ),
+                        const SizedBox(width: 20),
+                        // Right Column: Connection Details + Active Displays
+                        Expanded(
+                          flex: 6,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              connectionCard,
+                              const SizedBox(height: 16),
+                              devicesCard,
+                              const SizedBox(height: 16),
+                              securityNote,
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    connectedDevicesCard,
-                    const SizedBox(height: 12),
-                    const _PairingReminder(dense: true),
                   ],
                 ),
               ),
@@ -228,35 +200,68 @@ class _CustomerDisplaySetupPageState extends State<CustomerDisplaySetupPage> {
 }
 
 class _PairingStatusPill extends StatelessWidget {
-  const _PairingStatusPill({required this.connected});
+  const _PairingStatusPill({
+    required this.connected,
+    required this.hasError,
+    required this.count,
+  });
 
   final bool connected;
+  final bool hasError;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
+    final Color bg;
+    final Color dotColor;
+    final Color textColor;
+    final String label;
+
+    if (hasError) {
+      bg = const Color(0xFFFEF2F2);
+      dotColor = const Color(0xFFEF4444);
+      textColor = const Color(0xFF991B1B);
+      label = 'Unavailable';
+    } else if (connected) {
+      bg = _emeraldBg;
+      dotColor = _emerald;
+      textColor = _emeraldDark;
+      label = count > 1 ? '$count Displays' : 'Connected';
+    } else {
+      bg = _amberBg;
+      dotColor = _amber;
+      textColor = const Color(0xFF92400E);
+      label = 'Ready to Pair';
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: connected ? const Color(0xFFEAF8EF) : const Color(0xFFFFF2E9),
-        borderRadius: BorderRadius.circular(999),
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: dotColor.withValues(alpha: 0.25),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 10,
-            height: 10,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(
-              color: connected ? _green : _orange,
+              color: dotColor,
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 9),
+          const SizedBox(width: 7),
           Text(
-            connected ? 'Connected' : 'Waiting for device',
+            label,
             style: TextStyle(
-              color: connected ? _green : const Color(0xFF9A3E00),
-              fontWeight: FontWeight.w800,
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -265,43 +270,116 @@ class _PairingStatusPill extends StatelessWidget {
   }
 }
 
-class _PairingIntroduction extends StatelessWidget {
-  const _PairingIntroduction();
+class _PairingHeader extends StatelessWidget {
+  const _PairingHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Connect Customer Display',
+          style: TextStyle(
+            color: _ink,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Pair a secondary screen to display payment QR codes and live totals.',
+          style: TextStyle(
+            color: _muted,
+            fontSize: 14,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _cardBorder),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isSmall = constraints.maxWidth < 480;
+              if (isSmall) {
+                return const Column(
+                  children: [
+                    _StepItem(step: '1', title: 'Connect to Wi-Fi'),
+                    SizedBox(height: 8),
+                    _StepItem(step: '2', title: 'Open QR Display App'),
+                    SizedBox(height: 8),
+                    _StepItem(step: '3', title: 'Scan Pairing Code'),
+                  ],
+                );
+              }
+              return const Row(
+                children: [
+                  Expanded(
+                    child: _StepItem(step: '1', title: 'Same Wi-Fi'),
+                  ),
+                  Icon(Icons.chevron_right_rounded, size: 18, color: _subtle),
+                  Expanded(
+                    child: _StepItem(step: '2', title: 'Open Display App'),
+                  ),
+                  Icon(Icons.chevron_right_rounded, size: 18, color: _subtle),
+                  Expanded(
+                    child: _StepItem(step: '3', title: 'Scan Code'),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StepItem extends StatelessWidget {
+  const _StepItem({required this.step, required this.title});
+
+  final String step;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 82,
-          height: 82,
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFEFE5),
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: _ink.withValues(alpha: 0.07),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.phone_android_rounded, color: _ink, size: 47),
+          alignment: Alignment.center,
+          child: Text(
+            step,
+            style: const TextStyle(
+              color: _ink,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
-        const SizedBox(width: 22),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Connect QR Display',
-                style: TextStyle(
-                  color: _ink,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Connect both devices to the same Wi-Fi, then open QR Display and scan the code below.\n'
-                'Once paired, payment QR codes will appear automatically on the phone.',
-                style: TextStyle(color: _muted, fontSize: 15, height: 1.5),
-              ),
-            ],
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _ink,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
@@ -313,536 +391,566 @@ class _ScanCard extends StatelessWidget {
   const _ScanCard({
     required this.pairingData,
     required this.errorMessage,
-    required this.qrSize,
-    required this.dense,
     required this.connected,
     required this.onRefresh,
   });
 
   final String? pairingData;
   final String? errorMessage;
-  final double qrSize;
-  final bool dense;
   final bool connected;
   final Future<void> Function() onRefresh;
 
-  Widget _qrContent(double size) {
-    if (errorMessage != null) {
-      return SizedBox(
-        width: size,
-        height: size,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              errorMessage!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.w700,
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _cardBoxDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.qr_code_scanner_rounded,
+                  color: _orange,
+                  size: 20,
+                ),
               ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (pairingData == null) {
-      return SizedBox(
-        width: size,
-        height: size,
-        child: Center(
-          child: connected
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.verified_user_rounded,
-                      color: _green,
-                      size: 58,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Secure display paired',
+                    Text(
+                      'Pairing Code',
                       style: TextStyle(
                         color: _ink,
-                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: onRefresh,
-                      icon: const Icon(Icons.qr_code_2_rounded),
-                      label: const Text('Pair another display'),
+                    Text(
+                      'Scan with the customer display app',
+                      style: TextStyle(
+                        color: _muted,
+                        fontSize: 12.5,
+                      ),
                     ),
                   ],
-                )
-              : const CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    return Container(
-      padding: EdgeInsets.all(dense ? 8 : 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _line),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: QrImageView(
-        data: pairingData!,
-        size: size,
-        backgroundColor: Colors.white,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh pairing code',
+                onPressed: onRefresh,
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: _muted,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Center(
+            child: _buildQrContent(context),
+          ),
+          const SizedBox(height: 16),
+          // Compact footer hint
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.lock_outline_rounded,
+                size: 14,
+                color: _subtle,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  connected
+                      ? 'Display synchronized over secure LAN'
+                      : 'Keep this screen open while pairing',
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    const heading = _SectionHeading(
-      icon: Icons.qr_code_scanner_rounded,
-      title: 'Scan to Pair',
-      subtitle:
-          'Open the QR Display app on your Android phone and scan this code.',
-      color: _orange,
-    );
-    const footer = Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.verified_user_rounded, color: _orange, size: 20),
-        SizedBox(width: 9),
-        Flexible(
-          child: Text(
-            'Keep the app open while pairing.',
-            style: TextStyle(color: _ink, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
-    );
-
-    if (dense) {
+  Widget _buildQrContent(BuildContext context) {
+    if (errorMessage != null) {
       return Container(
+        height: 220,
         padding: const EdgeInsets.all(16),
-        decoration: _panelDecoration(),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFFCA5A5)),
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            heading,
+            const Icon(
+              Icons.error_outline_rounded,
+              color: Color(0xFFDC2626),
+              size: 36,
+            ),
             const SizedBox(height: 10),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final framePadding =
-                      errorMessage == null && pairingData != null ? 16.0 : 0.0;
-                  final available = math.min(
-                    constraints.maxWidth,
-                    constraints.maxHeight,
-                  );
-                  final resolvedSize = math.max(
-                    64.0,
-                    math.min(qrSize, available - framePadding),
-                  );
-                  return Center(child: _qrContent(resolvedSize));
-                },
+            Text(
+              errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF991B1B),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 8),
-            footer,
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onRefresh,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF991B1B),
+                side: const BorderSide(color: Color(0xFFFCA5A5)),
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Retry'),
+            ),
           ],
         ),
       );
     }
 
+    if (pairingData == null) {
+      if (connected) {
+        return Container(
+          height: 220,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            color: _emeraldBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _emeraldBorder),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: const BoxDecoration(
+                  color: _emerald,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Display Paired & Active',
+                style: TextStyle(
+                  color: _ink,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Payment QR codes will show automatically.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _muted,
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: onRefresh,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _ink,
+                  side: const BorderSide(color: _cardBorder),
+                  backgroundColor: Colors.white,
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.qr_code_2_rounded, size: 16),
+                label: const Text(
+                  'Pair Another Display',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return const SizedBox(
+        height: 220,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: _orange,
+                ),
+              ),
+              SizedBox(height: 14),
+              Text(
+                'Generating pairing session...',
+                style: TextStyle(color: _muted, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: _panelDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          heading,
-          const SizedBox(height: 18),
-          Center(child: _qrContent(qrSize)),
-          const SizedBox(height: 16),
-          footer,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
+      ),
+      child: QrImageView(
+        data: pairingData!,
+        size: 230,
+        backgroundColor: Colors.white,
       ),
     );
   }
 }
 
-class _ConnectionCard extends StatelessWidget {
-  const _ConnectionCard({
+class _ConnectionStatusCard extends StatelessWidget {
+  const _ConnectionStatusCard({
     required this.connected,
     required this.errorMessage,
-    required this.connectionOptions,
     required this.connections,
+    required this.connectionOptions,
     required this.selectedAddress,
     required this.onConnectionSelected,
-    required this.dense,
   });
 
   final bool connected;
   final String? errorMessage;
-  final List<String> connectionOptions;
   final List<CustomerDisplayConnection> connections;
+  final List<String> connectionOptions;
   final String? selectedAddress;
   final Future<void> Function(String address) onConnectionSelected;
-  final bool dense;
 
   @override
   Widget build(BuildContext context) {
     final address = selectedAddress ?? _firstIpAddress(connectionOptions);
-    final ready = errorMessage == null;
-
-    final contents = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionHeading(
-          icon: Icons.wifi_rounded,
-          title: 'Connection Status',
-          color: _green,
-        ),
-        SizedBox(height: dense ? 12 : 18),
-        Container(
-          width: double.infinity,
-          padding: EdgeInsets.all(dense ? 12 : 16),
-          decoration: BoxDecoration(
-            color: ready ? const Color(0xFFEDF9F1) : const Color(0xFFFFEEEE),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 15,
-                backgroundColor: ready ? _green : Colors.red,
-                child: Icon(
-                  ready ? Icons.check_rounded : Icons.error_outline_rounded,
-                  color: Colors.white,
-                  size: 19,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      connected
-                          ? 'QR Display Connected'
-                          : ready
-                          ? 'Ready to Pair'
-                          : 'Pairing unavailable',
-                      style: TextStyle(
-                        color: ready ? _green : Colors.red,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      connected
-                          ? 'Payment QR codes will appear automatically.'
-                          : errorMessage ??
-                                'Waiting for Android device to connect...',
-                      style: const TextStyle(color: _muted),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: dense ? 10 : 12),
-        Container(
-          padding: EdgeInsets.all(dense ? 12 : 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF9FAFC),
-            border: Border.all(color: _line),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Row(
-            children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFFE9EDF3),
-                child: Icon(Icons.wifi_rounded, color: _muted),
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: _ConnectionValue(label: 'Network', value: 'Wi-Fi'),
-              ),
-              Container(width: 1, height: 42, color: _line),
-              const SizedBox(width: 18),
-              Expanded(
-                child: _ConnectionValue(
-                  label: 'IP Address',
-                  value: address ?? 'Starting...',
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: dense ? 14 : 20),
-        if (connections.length > 1) ...[
-          const Text(
-            'Customer display network',
-            style: TextStyle(
-              color: _ink,
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final connection in connections)
-                ChoiceChip(
-                  selected: connection.address == selectedAddress,
-                  label: Text(
-                    '${connection.transport.toUpperCase()} ${connection.address}',
-                  ),
-                  onSelected: (selected) {
-                    if (selected) {
-                      onConnectionSelected(connection.address);
-                    }
-                  },
-                ),
-            ],
-          ),
-          SizedBox(height: dense ? 10 : 14),
-        ],
-        const Text(
-          'How to Connect',
-          style: TextStyle(
-            color: _ink,
-            fontSize: 15,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        SizedBox(height: dense ? 6 : 14),
-        if (dense)
-          const Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _CompactInstruction(
-                  number: 1,
-                  text: 'Open the QR Display app.',
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _CompactInstruction(
-                  number: 2,
-                  text: 'Scan the QR code.',
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _CompactInstruction(
-                  number: 3,
-                  text: 'Wait for Connected.',
-                ),
-              ),
-            ],
-          )
-        else ...[
-          const _InstructionStep(
-            number: 1,
-            text: 'Open QR Display app on your Android phone.',
-          ),
-          const _InstructionStep(
-            number: 2,
-            text: 'Scan the QR code shown on the left.',
-          ),
-          const _InstructionStep(
-            number: 3,
-            text: 'Wait for the Connected status.',
-            showLine: false,
-          ),
-        ],
-      ],
-    );
+    final isReady = errorMessage == null;
 
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: dense ? 16 : 24,
-        vertical: dense ? 10 : 24,
-      ),
-      decoration: _panelDecoration(),
-      child: dense
-          ? LayoutBuilder(
-              builder: (context, constraints) {
-                return FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.topLeft,
-                  child: SizedBox(width: constraints.maxWidth, child: contents),
-                );
-              },
-            )
-          : contents,
-    );
-  }
-}
-
-class _CompactInstruction extends StatelessWidget {
-  const _CompactInstruction({required this.number, required this.text});
-
-  final int number;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        CircleAvatar(
-          radius: 12,
-          backgroundColor: const Color(0xFFFFE4D4),
-          child: Text(
-            '$number',
-            style: const TextStyle(
-              color: _orange,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: Text(
-              text,
-              style: const TextStyle(color: _ink, fontSize: 12.5),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({
-    required this.icon,
-    required this.title,
-    required this.color,
-    this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        CircleAvatar(
-          radius: 23,
-          backgroundColor: color.withValues(alpha: 0.11),
-          child: Icon(icon, color: color),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(20),
+      decoration: _cardBoxDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: _ink,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _emerald.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.wifi_tethering_rounded,
+                  color: _emeraldDark,
+                  size: 20,
                 ),
               ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 5),
-                Text(
-                  subtitle!,
-                  style: const TextStyle(color: _muted, height: 1.35),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Connection Status',
+                  style: TextStyle(
+                    color: _ink,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isReady ? _emeraldBg : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  isReady ? 'Active' : 'Offline',
+                  style: TextStyle(
+                    color: isReady ? _emeraldDark : const Color(0xFFDC2626),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          // Info Tile Grid - Responsive Layout
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _cardBorder),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 360;
+                if (isNarrow) {
+                  return Column(
+                    children: [
+                      const _InfoRow(
+                        label: 'Network',
+                        value: 'Wi-Fi LAN',
+                        icon: Icons.wifi_rounded,
+                      ),
+                      const SizedBox(height: 8),
+                      const Divider(height: 1, color: _cardBorder),
+                      const SizedBox(height: 8),
+                      _InfoRow(
+                        label: 'IP Address',
+                        value: address ?? 'Starting...',
+                        icon: Icons.lan_outlined,
+                        trailing: address != null
+                            ? IconButton(
+                                tooltip: 'Copy IP',
+                                icon: const Icon(
+                                  Icons.copy_rounded,
+                                  size: 15,
+                                  color: _muted,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _copyIp(context, address),
+                              )
+                            : null,
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    const Expanded(
+                      child: _InfoColumn(
+                        label: 'Network',
+                        value: 'Wi-Fi LAN',
+                        icon: Icons.wifi_rounded,
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: _cardBorder),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _InfoColumn(
+                        label: 'IP Address',
+                        value: address ?? 'Starting...',
+                        icon: Icons.lan_outlined,
+                      ),
+                    ),
+                    if (address != null)
+                      IconButton(
+                        tooltip: 'Copy IP',
+                        icon: const Icon(
+                          Icons.copy_rounded,
+                          size: 16,
+                          color: _muted,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _copyIp(context, address),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+          // Multi-interface selector if applicable
+          if (connections.length > 1) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Select Network Interface:',
+              style: TextStyle(
+                color: _muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                for (final item in connections)
+                  ChoiceChip(
+                    label: Text(
+                      '${item.transport.toUpperCase()} • ${item.address}',
+                    ),
+                    selected: item.address == selectedAddress,
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          item.address == selectedAddress ? Colors.white : _ink,
+                    ),
+                    selectedColor: _ink,
+                    backgroundColor: Colors.white,
+                    side: BorderSide(
+                      color:
+                          item.address == selectedAddress ? _ink : _cardBorder,
+                    ),
+                    onSelected: (selected) {
+                      if (selected) {
+                        onConnectionSelected(item.address);
+                      }
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static void _copyIp(BuildContext context, String address) {
+    Clipboard.setData(ClipboardData(text: address));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('IP address copied to clipboard'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 }
 
-class _ConnectionValue extends StatelessWidget {
-  const _ConnectionValue({required this.label, required this.value});
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.trailing,
+  });
 
   final String label;
   final String value;
+  final IconData icon;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: _subtle),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            color: _muted,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const Spacer(),
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _ink,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: 4),
+          trailing!,
+        ],
+      ],
+    );
+  }
+}
+
+class _InfoColumn extends StatelessWidget {
+  const _InfoColumn({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: _muted, fontSize: 12)),
-        const SizedBox(height: 4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: _subtle),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3),
         Text(
           value,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: _ink, fontWeight: FontWeight.w900),
+          style: const TextStyle(
+            color: _ink,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
-    );
-  }
-}
-
-class _InstructionStep extends StatelessWidget {
-  const _InstructionStep({
-    required this.number,
-    required this.text,
-    this.showLine = true,
-  });
-
-  final int number;
-  final String text;
-  final bool showLine;
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 32,
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 15,
-                  backgroundColor: const Color(0xFFFFE4D4),
-                  child: Text(
-                    '$number',
-                    style: const TextStyle(
-                      color: _orange,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                if (showLine)
-                  Expanded(child: Container(width: 1, color: _line)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 18),
-              child: Text(text, style: const TextStyle(color: _ink)),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -852,167 +960,243 @@ class _ConnectedDevicesCard extends StatelessWidget {
     required this.devices,
     required this.onRefresh,
     required this.onDisconnect,
-    required this.dense,
   });
 
   final List<CustomerDisplayDevice> devices;
   final VoidCallback onRefresh;
   final void Function(String id) onDisconnect;
-  final bool dense;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(dense ? 12 : 20),
-      decoration: _panelDecoration(),
+      padding: const EdgeInsets.all(20),
+      decoration: _cardBoxDecoration(),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFFFFEEE4),
-                child: Icon(Icons.phone_android_rounded, color: _orange),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.devices_rounded,
+                  color: Color(0xFF6366F1),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  'Connected Devices (${devices.length})',
-                  style: const TextStyle(
-                    color: _ink,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Flexible(
+                      child: Text(
+                        'Displays',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _ink,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${devices.length}',
+                        style: const TextStyle(
+                          color: _muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              OutlinedButton.icon(
+              IconButton(
+                tooltip: 'Refresh',
                 onPressed: onRefresh,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _orange,
-                  side: const BorderSide(color: Color(0xFFFFB88C)),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                ),
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text(
-                  'Refresh',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  size: 20,
+                  color: _muted,
                 ),
               ),
             ],
           ),
-          SizedBox(height: dense ? 8 : 14),
-          Container(
-            width: double.infinity,
-            constraints: BoxConstraints(minHeight: dense ? 78 : 112),
-            padding: EdgeInsets.all(dense ? 10 : 18),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFBFCFE),
-              border: Border.all(color: _line),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: devices.isEmpty
-                ? const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+          const SizedBox(height: 16),
+          if (devices.isEmpty)
+            // Clean empty state that NEVER overflows
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _cardBorder),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _cardBorder),
+                    ),
+                    child: const Icon(
+                      Icons.phonelink_outlined,
+                      color: _subtle,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'No Displays Connected',
+                    style: TextStyle(
+                      color: _ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Devices scanning the QR code will appear here automatically.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: devices.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final device = devices[index];
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _cardBorder),
+                  ),
+                  child: Row(
                     children: [
-                      Icon(
-                        Icons.phone_android_outlined,
-                        size: 54,
-                        color: Color(0xFFB3BDCD),
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: _emeraldBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.phone_android_rounded,
+                          color: _emeraldDark,
+                          size: 18,
+                        ),
                       ),
-                      SizedBox(width: 24),
-                      Flexible(
+                      const SizedBox(width: 10),
+                      Expanded(
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'No device connected',
-                              style: TextStyle(
+                              device.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
                                 color: _ink,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            SizedBox(height: 6),
+                            const SizedBox(height: 2),
                             Text(
-                              'Scan the pairing QR from the Android phone.',
-                              style: TextStyle(color: _muted),
-                            ),
-                            SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Icon(Icons.wifi, size: 16, color: _muted),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Waiting for connection...',
-                                  style: TextStyle(color: _muted),
-                                ),
-                              ],
+                              '${device.address} • Connected at ${_time(device.connectedAt)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _muted,
+                                fontSize: 11.5,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      for (var index = 0; index < devices.length; index++) ...[
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const CircleAvatar(
-                            child: Icon(Icons.phone_android_outlined),
-                          ),
-                          title: Text(devices[index].name),
-                          subtitle: Text(
-                            '${devices[index].address} - connected ${_time(devices[index].connectedAt)}',
-                          ),
-                          trailing: IconButton(
-                            tooltip: 'Disconnect',
-                            onPressed: () => onDisconnect(devices[index].id),
-                            icon: const Icon(Icons.link_off),
-                          ),
+                      IconButton(
+                        tooltip: 'Disconnect',
+                        onPressed: () => onDisconnect(device.id),
+                        icon: const Icon(
+                          Icons.link_off_rounded,
+                          color: Color(0xFFEF4444),
+                          size: 18,
                         ),
-                        if (index != devices.length - 1) const Divider(),
-                      ],
+                      ),
                     ],
                   ),
-          ),
+                );
+              },
+            ),
         ],
       ),
     );
   }
 }
 
-class _PairingReminder extends StatelessWidget {
-  const _PairingReminder({this.dense = false});
-
-  final bool dense;
+class _NetworkSecurityNote extends StatelessWidget {
+  const _NetworkSecurityNote();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 18, vertical: dense ? 10 : 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F6FF),
-        border: Border.all(color: const Color(0xFFCEE0FA)),
-        borderRadius: BorderRadius.circular(9),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _cardBorder),
       ),
-      child: const Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 12,
-        runSpacing: 6,
+      child: const Row(
         children: [
-          Icon(Icons.shield_outlined, color: _ink),
-          Text(
-            'Keep the POS app open while pairing.',
-            style: TextStyle(color: _ink, fontWeight: FontWeight.w900),
+          Icon(
+            Icons.shield_outlined,
+            size: 18,
+            color: _muted,
           ),
-          Text(
-            'On Windows, allow private-network access if Firewall asks.',
-            style: TextStyle(color: _muted),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Secure peer-to-peer connection. Both devices must remain on the same Wi-Fi network.',
+              style: TextStyle(
+                color: _muted,
+                fontSize: 12,
+                height: 1.35,
+              ),
+            ),
           ),
         ],
       ),
@@ -1020,13 +1204,17 @@ class _PairingReminder extends StatelessWidget {
   }
 }
 
-BoxDecoration _panelDecoration() {
+BoxDecoration _cardBoxDecoration() {
   return BoxDecoration(
-    color: Colors.white,
-    border: Border.all(color: _line),
-    borderRadius: BorderRadius.circular(12),
-    boxShadow: const [
-      BoxShadow(color: Color(0x0E21314F), blurRadius: 22, offset: Offset(0, 7)),
+    color: _cardSurface,
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(color: _cardBorder),
+    boxShadow: [
+      BoxShadow(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+        blurRadius: 16,
+        offset: const Offset(0, 4),
+      ),
     ],
   );
 }

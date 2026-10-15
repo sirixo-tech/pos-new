@@ -393,12 +393,18 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                           ),
                         ),
                         style: FilledButton.styleFrom(
+                          foregroundColor: const Color(0xFFAB480F),
+                          backgroundColor: const Color(0xFFFFECDF),
+                          disabledForegroundColor: const Color(0xFFAB480F)
+                              .withValues(alpha: 0.5),
+                          disabledBackgroundColor: const Color(0xFFFFECDF)
+                              .withValues(alpha: 0.5),
+                          side: const BorderSide(
+                            color: Color(0xFFFF6101),
+                            width: 1.5,
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 13),
-                          elevation: 3,
-                          shadowColor: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.35),
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -509,6 +515,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     final result = await showAdminMenuCategoryEditDialog(
       context,
       category: category,
+      existingCategories: admin.categories,
       timeSlots: admin.timeSlots,
       canManageSlots: canSlots,
     );

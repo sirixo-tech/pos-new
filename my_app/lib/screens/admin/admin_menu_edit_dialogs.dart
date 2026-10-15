@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../l10n/pos_l10n.dart';
 import '../../models/admin_models.dart';
+import '../../providers/pos_admin_controller.dart';
 import '../../providers/pos_controller.dart';
 import '../../services/pos_api.dart';
 import '../../theme/pos_theme.dart';
@@ -57,6 +58,7 @@ class AdminMenuItemEditResult {
 Future<AdminMenuCategoryEditResult?> showAdminMenuCategoryEditDialog(
   BuildContext context, {
   AdminMenuCategory? category,
+  List<AdminMenuCategory> existingCategories = const [],
   List<AdminMenuTimeSlot> timeSlots = const [],
   bool canManageSlots = false,
 }) {
@@ -67,12 +69,12 @@ Future<AdminMenuCategoryEditResult?> showAdminMenuCategoryEditDialog(
         builder: (ctx) => Scaffold(
           backgroundColor: PosTheme.canvas,
           body: SafeArea(
-            child: PosKeyboardSheetHost(
-              child: _CategoryEditDialog(
-                category: category,
-                timeSlots: timeSlots,
-                canManageSlots: canManageSlots,
-              ),
+            bottom: false,
+            child: _CategoryEditDialog(
+              category: category,
+              existingCategories: existingCategories,
+              timeSlots: timeSlots,
+              canManageSlots: canManageSlots,
             ),
           ),
         ),
@@ -84,6 +86,7 @@ Future<AdminMenuCategoryEditResult?> showAdminMenuCategoryEditDialog(
     sidePanelWidth: 480,
     builder: (ctx) => _CategoryEditDialog(
       category: category,
+      existingCategories: existingCategories,
       timeSlots: timeSlots,
       canManageSlots: canManageSlots,
     ),
@@ -107,16 +110,15 @@ Future<AdminMenuItemEditResult?> showAdminMenuItemEditDialog(
         builder: (ctx) => Scaffold(
           backgroundColor: PosTheme.canvas,
           body: SafeArea(
-            child: PosKeyboardSheetHost(
-              child: _ItemEditDialog(
-                item: item,
-                categories: categories,
-                initialCategoryId: initialCategoryId,
-                timeSlots: timeSlots,
-                modifiers: modifiers,
-                canManageSlots: canManageSlots,
-                canManageModifiers: canManageModifiers,
-              ),
+            bottom: false,
+            child: _ItemEditDialog(
+              item: item,
+              categories: categories,
+              initialCategoryId: initialCategoryId,
+              timeSlots: timeSlots,
+              modifiers: modifiers,
+              canManageSlots: canManageSlots,
+              canManageModifiers: canManageModifiers,
             ),
           ),
         ),
@@ -141,11 +143,13 @@ Future<AdminMenuItemEditResult?> showAdminMenuItemEditDialog(
 class _CategoryEditDialog extends StatefulWidget {
   const _CategoryEditDialog({
     this.category,
+    this.existingCategories = const [],
     required this.timeSlots,
     required this.canManageSlots,
   });
 
   final AdminMenuCategory? category;
+  final List<AdminMenuCategory> existingCategories;
   final List<AdminMenuTimeSlot> timeSlots;
   final bool canManageSlots;
 
@@ -169,13 +173,35 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
     _nameCtrl = TextEditingController(text: category?.name ?? '');
     _descCtrl = TextEditingController(text: category?.description ?? '');
     _slotIds = [...(category?.timeSlotIds ?? const <int>[])];
+    _nameCtrl.addListener(_onNameChanged);
+  }
+
+  void _onNameChanged() {
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _nameCtrl.removeListener(_onNameChanged);
     _nameCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
+  }
+
+  List<AdminMenuCategory> _remainingCategories(BuildContext context) {
+    List<AdminMenuCategory> source = widget.existingCategories;
+    if (source.isEmpty) {
+      try {
+        source = context.read<PosAdminController>().categories;
+      } catch (_) {
+        source = const [];
+      }
+    }
+    final currentId = widget.category?.id;
+    if (currentId != null) {
+      return source.where((c) => c.id != currentId).toList();
+    }
+    return source;
   }
 
   Future<void> _generateImage() async {
@@ -290,6 +316,11 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final remainingCategories = _remainingCategories(context);
+    final typedName = _nameCtrl.text.trim().toLowerCase();
+    final isDuplicate = typedName.isNotEmpty &&
+        remainingCategories.any((c) => c.name.trim().toLowerCase() == typedName);
+
     return PosDialogShell(
       title: _isCreate
           ? context.posText('adminNewCategory', 'New category')
@@ -316,6 +347,7 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
       ],
       body: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AdminMenuImagePickerSection(
             label: context.posText('adminCategoryImage', 'Category image'),
@@ -337,6 +369,37 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
             autofocus: true,
             textCapitalization: TextCapitalization.words,
           ),
+          if (isDuplicate) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    size: 16,
+                    color: Color(0xFFD97706),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'A category with this name already exists',
+                      style: const TextStyle(
+                        color: Color(0xFF92400E),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           TextField(
             controller: _descCtrl,
@@ -349,10 +412,12 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
             const SizedBox(height: 16),
             AdminMenuOptionPicker(
               title: context.posText('adminTimeSlots', 'Time slots'),
-              helpText: context.posText(
-                'adminCategorySlotsHelp',
-                'Schedule windows for items in this category unless an item overrides them.',
-              ),
+              helpText: usePosHandheldLayout(context)
+                  ? null
+                  : context.posText(
+                      'adminCategorySlotsHelp',
+                      'Schedule windows for items in this category unless an item overrides them.',
+                    ),
               emptyText: context.posText(
                 'adminNoTimeSlotsYet',
                 'No time slots yet. Create them under Manage → Time slots.',
@@ -363,6 +428,140 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
               ],
               selectedIds: _slotIds,
               onChanged: (ids) => setState(() => _slotIds = ids),
+            ),
+          ],
+          if (remainingCategories.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Text(
+                  'ALL CATEGORIES',
+                  style: TextStyle(
+                    color: PosTheme.inkMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: PosTheme.surfaceMuted,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${remainingCategories.length}',
+                    style: TextStyle(
+                      color: PosTheme.inkMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: PosTheme.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: remainingCategories.length,
+                separatorBuilder: (_, __) => Divider(
+                  height: 1,
+                  color: PosTheme.border.withValues(alpha: 0.7),
+                ),
+                itemBuilder: (context, index) {
+                  final cat = remainingCategories[index];
+                  final matches = typedName.isNotEmpty &&
+                      cat.name.trim().toLowerCase() == typedName;
+                  return Container(
+                    color: matches
+                        ? const Color(0xFFFFFBEB)
+                        : Colors.transparent,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: matches
+                                ? const Color(0xFFFEF3C7)
+                                : PosTheme.surfaceMuted,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Icon(
+                            Icons.folder_outlined,
+                            size: 15,
+                            color: matches
+                                ? const Color(0xFFD97706)
+                                : PosTheme.inkMuted,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            cat.name,
+                            style: TextStyle(
+                              color: matches
+                                  ? const Color(0xFFB45309)
+                                  : PosTheme.ink,
+                              fontSize: 13.5,
+                              fontWeight: matches
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        if (matches)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0xFFFDE68A),
+                              ),
+                            ),
+                            child: const Text(
+                              'Duplicate',
+                              style: TextStyle(
+                                color: Color(0xFFB45309),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          )
+                        else if (cat.items.isNotEmpty)
+                          Text(
+                            '${cat.items.length} ${cat.items.length == 1 ? 'item' : 'items'}',
+                            style: TextStyle(
+                              color: PosTheme.inkFaint,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ],
           if (!_isCreate) ...[

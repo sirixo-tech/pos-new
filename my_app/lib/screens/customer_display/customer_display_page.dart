@@ -308,8 +308,8 @@ class _CustomerCartDisplayPageState extends State<CustomerCartDisplayPage> {
                 constraints: const BoxConstraints(maxWidth: 860),
                 child: Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: compact ? 18 : 28,
-                    vertical: compact ? 18 : 34,
+                    horizontal: compact ? 16 : 28,
+                    vertical: compact ? 14 : 34,
                   ),
                   child: Column(
                     children: [
@@ -319,14 +319,18 @@ class _CustomerCartDisplayPageState extends State<CustomerCartDisplayPage> {
                         fullscreen: _fullscreen,
                         onFullscreen: _toggleFullscreen,
                         onExitToPos: _exitToPos,
+                        compact: compact,
                       ),
-                      SizedBox(height: compact ? 26 : 42),
+                      SizedBox(height: compact ? 16 : 36),
                       Expanded(
                         child: Align(
                           alignment: Alignment.topCenter,
-                          child: _CartDisplayContent(
-                            state: state,
-                            compact: compact,
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            child: _CartDisplayContent(
+                              state: state,
+                              compact: compact,
+                            ),
                           ),
                         ),
                       ),
@@ -376,6 +380,7 @@ class _CartDisplayTopBar extends StatelessWidget {
     required this.fullscreen,
     required this.onFullscreen,
     required this.onExitToPos,
+    required this.compact,
   });
 
   final CustomerDisplayState state;
@@ -383,20 +388,29 @@ class _CartDisplayTopBar extends StatelessWidget {
   final bool fullscreen;
   final VoidCallback onFullscreen;
   final VoidCallback onExitToPos;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
     final time = DateFormat('HH:mm').format(now);
     final date = DateFormat('EEEE d MMMM').format(now);
+    final shortDate = DateFormat('d MMM').format(now);
+    final showFullDate = !compact && width >= 700;
+    final showDate = width >= 440;
+    final btnSize = compact ? 38.0 : 48.0;
+    final iconSize = compact ? 20.0 : 24.0;
+    final btnRadius = compact ? 10.0 : 14.0;
+
     return Row(
       children: [
         Container(
-          width: 58,
-          height: 58,
-          padding: const EdgeInsets.all(7),
+          width: compact ? 44 : 58,
+          height: compact ? 44 : 58,
+          padding: EdgeInsets.all(compact ? 6 : 7),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(compact ? 11 : 14),
             border: Border.all(color: const Color(0xFFE9E4F8)),
             boxShadow: const [
               BoxShadow(
@@ -407,98 +421,107 @@ class _CartDisplayTopBar extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(compact ? 7 : 9),
             child: Image.asset(
-                PosAppInfo.emblemAsset,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.storefront_rounded, color: Colors.white),
-              ),
+              PosAppInfo.emblemAsset,
+              errorBuilder: (_, __, ___) =>
+                  const Icon(Icons.storefront_rounded, color: Colors.white),
+            ),
           ),
         ),
-        const SizedBox(width: 16),
+        SizedBox(width: compact ? 10 : 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 state.restaurantName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   color: _CartDisplayColors.accent,
-                  fontSize: 28,
-                  height: 1.05,
+                  fontSize: compact ? 18 : 28,
+                  height: 1.1,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 5),
+              SizedBox(height: compact ? 2 : 5),
               Text(
                 '${state.branchName} · ${state.terminalCode}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF64748B),
-                  fontSize: 19,
+                style: TextStyle(
+                  color: const Color(0xFF64748B),
+                  fontSize: compact ? 12 : 19,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
         ),
+        SizedBox(width: compact ? 8 : 16),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               time,
-              style: const TextStyle(
-                color: Color(0xFF111827),
-                fontSize: 24,
+              style: TextStyle(
+                color: const Color(0xFF111827),
+                fontSize: compact ? 16 : 24,
                 fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              date,
-              style: const TextStyle(
-                color: Color(0xFF64748B),
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
+            if (showDate) ...[
+              SizedBox(height: compact ? 2 : 6),
+              Text(
+                showFullDate ? date : shortDate,
+                style: TextStyle(
+                  color: const Color(0xFF64748B),
+                  fontSize: compact ? 11 : 15,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
+            ],
           ],
         ),
-        const SizedBox(width: 18),
+        SizedBox(width: compact ? 8 : 18),
         Tooltip(
           message: fullscreen ? 'Exit fullscreen' : 'Fullscreen',
           child: SizedBox.square(
-            dimension: 48,
+            dimension: btnSize,
             child: IconButton(
               onPressed: onFullscreen,
+              padding: EdgeInsets.zero,
+              iconSize: iconSize,
               style: IconButton.styleFrom(
                 foregroundColor: const Color(0xFF2563EB),
                 backgroundColor: Colors.white,
                 side: const BorderSide(color: Color(0xFFBFDBFE), width: 1.5),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(btnRadius),
                 ),
               ),
               icon: Icon(fullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: compact ? 6 : 12),
         Tooltip(
           message: 'Back to POS',
           child: SizedBox.square(
-            dimension: 48,
+            dimension: btnSize,
             child: IconButton(
               onPressed: onExitToPos,
+              padding: EdgeInsets.zero,
+              iconSize: iconSize,
               style: IconButton.styleFrom(
                 foregroundColor: const Color(0xFF0F172A),
                 backgroundColor: Colors.white,
                 side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(btnRadius),
                 ),
               ),
               icon: const Icon(Icons.logout),
@@ -530,19 +553,24 @@ class _CartDisplayContent extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _CartItemsCard(items: items, money: money, compact: compact),
-        const SizedBox(height: 20),
-        _CartTotalsCard(subtotal: subtotal, total: total, money: money),
-        const SizedBox(height: 44),
+        SizedBox(height: compact ? 14 : 20),
+        _CartTotalsCard(
+          subtotal: subtotal,
+          total: total,
+          money: money,
+          compact: compact,
+        ),
+        SizedBox(height: compact ? 22 : 44),
         Text(
           context.tr('Thank you for dining with us!'),
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF111827),
-            fontSize: 21,
+          style: TextStyle(
+            color: const Color(0xFF111827),
+            fontSize: compact ? 18 : 21,
             fontWeight: FontWeight.w900,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 8 : 12),
         Text(
           context.tr(
             items.isEmpty
@@ -550,14 +578,14 @@ class _CartDisplayContent extends StatelessWidget {
                 : 'Please proceed to payment to finalize your order.',
           ),
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF64748B),
-            fontSize: 16,
+          style: TextStyle(
+            color: const Color(0xFF64748B),
+            fontSize: compact ? 14 : 16,
             fontWeight: FontWeight.w800,
           ),
         ),
         if (state.errorMessage != null) ...[
-          const SizedBox(height: 18),
+          SizedBox(height: compact ? 12 : 18),
           Text(
             state.errorMessage!,
             textAlign: TextAlign.center,
@@ -568,6 +596,7 @@ class _CartDisplayContent extends StatelessWidget {
             ),
           ),
         ],
+        SizedBox(height: compact ? 16 : 28),
       ],
     );
   }
@@ -590,7 +619,7 @@ class _CartItemsCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(compact ? 18 : 24),
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: const [
           BoxShadow(
@@ -604,43 +633,44 @@ class _CartItemsCard extends StatelessWidget {
         children: [
           Padding(
             padding: EdgeInsets.fromLTRB(
-              compact ? 18 : 34,
-              compact ? 20 : 28,
-              compact ? 18 : 34,
-              compact ? 18 : 26,
+              compact ? 16 : 34,
+              compact ? 16 : 28,
+              compact ? 16 : 34,
+              compact ? 14 : 26,
             ),
             child: Row(
               children: [
                 Container(
-                  width: 46,
-                  height: 46,
+                  width: compact ? 38 : 46,
+                  height: compact ? 38 : 46,
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFEDE2),
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius: BorderRadius.circular(compact ? 10 : 13),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.shopping_cart_outlined,
                     color: _CartDisplayColors.accent,
-                    size: 26,
+                    size: compact ? 20 : 26,
                   ),
                 ),
-                const SizedBox(width: 15),
+                SizedBox(width: compact ? 10 : 15),
                 Expanded(
                   child: Text(
                     context.tr('Review Your Order'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF030712),
-                      fontSize: 24,
+                    style: TextStyle(
+                      color: const Color(0xFF030712),
+                      fontSize: compact ? 18 : 24,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 12,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 12 : 22,
+                    vertical: compact ? 7 : 12,
                   ),
                   decoration: BoxDecoration(
                     color: _CartDisplayColors.accent,
@@ -655,9 +685,9 @@ class _CartItemsCard extends StatelessWidget {
                   ),
                   child: Text(
                     '${items.length} item${items.length == 1 ? '' : 's'}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: compact ? 13 : 16,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -666,20 +696,20 @@ class _CartItemsCard extends StatelessWidget {
             ),
           ),
           Container(
-            height: 56,
+            height: compact ? 44 : 56,
             color: const Color(0xFFF8FAFC),
-            padding: EdgeInsets.symmetric(horizontal: compact ? 18 : 34),
+            padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 34),
             child: Row(
               children: [
                 SizedBox(
-                  width: 70,
+                  width: compact ? 48 : 70,
                   child: Text(context.tr('QTY'), style: _cartHeaderStyle),
                 ),
                 Expanded(
                   child: Text(context.tr('ITEM NAME'), style: _cartHeaderStyle),
                 ),
                 SizedBox(
-                  width: 132,
+                  width: compact ? 90 : 132,
                   child: Text(
                     context.tr('AMOUNT'),
                     textAlign: TextAlign.right,
@@ -691,12 +721,15 @@ class _CartItemsCard extends StatelessWidget {
           ),
           if (items.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 44),
+              padding: EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: compact ? 26 : 44,
+              ),
               child: Text(
                 context.tr('No items in the cart'),
-                style: const TextStyle(
-                  color: Color(0xFF64748B),
-                  fontSize: 18,
+                style: TextStyle(
+                  color: const Color(0xFF64748B),
+                  fontSize: compact ? 16 : 18,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -731,8 +764,8 @@ class _CartItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: compact ? 82 : 96,
-      padding: EdgeInsets.symmetric(horizontal: compact ? 18 : 34),
+      height: compact ? 68 : 96,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 34),
       decoration: BoxDecoration(
         border: showDivider
             ? const Border(bottom: BorderSide(color: Color(0xFFF1F5F9)))
@@ -741,23 +774,23 @@ class _CartItemRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 70,
+            width: compact ? 48 : 70,
             child: Align(
               alignment: Alignment.centerLeft,
               child: Container(
-                width: 48,
-                height: 48,
+                width: compact ? 36 : 48,
+                height: compact ? 36 : 48,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF3EC),
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius: BorderRadius.circular(compact ? 9 : 13),
                   border: Border.all(color: const Color(0xFFFFD1B8)),
                 ),
                 child: Text(
                   item.quantity.toString(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: _CartDisplayColors.accent,
-                    fontSize: 18,
+                    fontSize: compact ? 15 : 18,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -769,24 +802,24 @@ class _CartItemRow extends StatelessWidget {
               item.name,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF111827),
-                fontSize: 21,
+              style: TextStyle(
+                color: const Color(0xFF111827),
+                fontSize: compact ? 16 : 21,
                 height: 1.15,
                 fontWeight: FontWeight.w900,
               ),
             ),
           ),
           SizedBox(
-            width: 132,
+            width: compact ? 90 : 132,
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
               child: Text(
                 money.format(item.lineTotal),
-                style: const TextStyle(
-                  color: Color(0xFF030712),
-                  fontSize: 22,
+                style: TextStyle(
+                  color: const Color(0xFF030712),
+                  fontSize: compact ? 18 : 22,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -803,19 +836,26 @@ class _CartTotalsCard extends StatelessWidget {
     required this.subtotal,
     required this.total,
     required this.money,
+    required this.compact,
   });
 
   final double subtotal;
   final double total;
   final NumberFormat money;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(34, 26, 34, 30),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 16 : 34,
+        compact ? 18 : 26,
+        compact ? 16 : 34,
+        compact ? 20 : 30,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(compact ? 18 : 22),
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: const [
           BoxShadow(
@@ -832,35 +872,35 @@ class _CartTotalsCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   context.tr('Subtotal'),
-                  style: const TextStyle(
-                    color: Color(0xFF475569),
-                    fontSize: 18,
+                  style: TextStyle(
+                    color: const Color(0xFF475569),
+                    fontSize: compact ? 15 : 18,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
               Text(
                 money.format(subtotal),
-                style: const TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontSize: 19,
+                style: TextStyle(
+                  color: const Color(0xFF0F172A),
+                  fontSize: compact ? 16 : 19,
                   fontWeight: FontWeight.w900,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: compact ? 14 : 20),
           const Divider(height: 1, color: Color(0xFFE2E8F0)),
-          const SizedBox(height: 26),
+          SizedBox(height: compact ? 16 : 26),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
                 child: Text(
                   context.tr('Grand Total'),
-                  style: const TextStyle(
-                    color: Color(0xFF030712),
-                    fontSize: 29,
+                  style: TextStyle(
+                    color: const Color(0xFF030712),
+                    fontSize: compact ? 22 : 29,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -869,9 +909,9 @@ class _CartTotalsCard extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 child: Text(
                   money.format(total),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: _CartDisplayColors.accent,
-                    fontSize: 44,
+                    fontSize: compact ? 32 : 44,
                     height: 0.95,
                     fontWeight: FontWeight.w900,
                   ),
