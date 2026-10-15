@@ -515,6 +515,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 4),
+            Text(
+              'Version ${PosAppInfo.versionLabel}',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
+            ),
           ],
         ),
       ),
