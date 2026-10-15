@@ -12,6 +12,7 @@ import '../theme/pos_theme.dart';
 import '../services/pos_storage.dart';
 import '../widgets/pos_more_menu.dart';
 import '../widgets/pos_more_menu_sections.dart';
+import '../widgets/pos_plan_selection_header_card.dart';
 
 /// Phone Settings tab. Same actions as the header More menu.
 class PosMobileSettingsPage extends StatelessWidget {
@@ -246,25 +247,36 @@ class _PosSettingsOverviewState extends State<PosSettingsOverview> {
                       onPressed: !_loaded
                           ? null
                           : () => setState(() => _customizing = !_customizing),
-                      icon: const Icon(
-                        CupertinoIcons.slider_horizontal_3,
-                        size: 16,
+                      icon: Icon(
+                        _customizing
+                            ? CupertinoIcons.checkmark_alt
+                            : CupertinoIcons.slider_horizontal_3,
+                        size: 15,
+                        color: _customizing
+                            ? const Color(0xFF34C759)
+                            : const Color(0xFF007AFF),
                       ),
                       label: Text(_customizing ? 'Done' : 'Customize'),
                       style: TextButton.styleFrom(
-                        foregroundColor: orange,
-                        backgroundColor: orange.withValues(alpha: .13),
+                        foregroundColor: _customizing
+                            ? const Color(0xFF34C759)
+                            : const Color(0xFF007AFF),
+                        backgroundColor: (_customizing
+                                ? const Color(0xFF34C759)
+                                : const Color(0xFF007AFF))
+                            .withValues(alpha: 0.12),
                         textStyle: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
+                          letterSpacing: -0.1,
                         ),
-                        minimumSize: const Size(0, 40),
+                        minimumSize: const Size(0, 36),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                          horizontal: 14,
+                          vertical: 6,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(18),
                         ),
                       ),
                     ),
@@ -283,6 +295,8 @@ class _PosSettingsOverviewState extends State<PosSettingsOverview> {
                     color: Color.lerp(PosTheme.inkMuted, PosTheme.ink, .3)!,
                   ),
                 ),
+                const SizedBox(height: 14),
+                const PosPlanSelectionHeaderCard(),
                 const SizedBox(height: 14),
                 if (_customizing) ...[
                   Text(
@@ -393,18 +407,35 @@ class _SettingsIcon extends StatelessWidget {
     required this.color,
     this.size = 36,
   });
+
   final IconData icon;
   final Color color;
   final double size;
+
   @override
   Widget build(BuildContext context) => Container(
     width: size,
     height: size,
     decoration: BoxDecoration(
-      color: color.withValues(alpha: .13),
-      borderRadius: BorderRadius.circular(14),
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color.lerp(color, Colors.white, 0.16)!,
+          color,
+        ],
+      ),
+      borderRadius: BorderRadius.circular(size * 0.26),
+      boxShadow: [
+        BoxShadow(
+          color: color.withValues(alpha: 0.28),
+          blurRadius: 5,
+          offset: const Offset(0, 2),
+        ),
+      ],
     ),
-    child: Icon(icon, color: color, size: size * .55),
+    alignment: Alignment.center,
+    child: Icon(icon, color: Colors.white, size: size * 0.54),
   );
 }
 
@@ -418,6 +449,7 @@ class _SettingsCategory extends StatelessWidget {
     this.destructive = false,
     this.expanded = false,
   });
+
   final String title;
   final String? subtitle;
   final IconData icon;
@@ -425,26 +457,33 @@ class _SettingsCategory extends StatelessWidget {
   final VoidCallback onTap;
   final bool destructive;
   final bool expanded;
+
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 7),
+    padding: const EdgeInsets.only(bottom: 8),
     child: Material(
-      color: destructive ? color.withValues(alpha: .035) : PosTheme.surface,
+      color: destructive
+          ? color.withValues(alpha: .05)
+          : PosTheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: destructive ? color.withValues(alpha: .2) : PosTheme.border,
+          color: destructive
+              ? color.withValues(alpha: .24)
+              : PosTheme.border.withValues(alpha: 0.8),
         ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        splashColor: color.withValues(alpha: 0.08),
+        highlightColor: color.withValues(alpha: 0.04),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
-              _SettingsIcon(icon: icon, color: color),
-              const SizedBox(width: 10),
+              _SettingsIcon(icon: icon, color: color, size: 38),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,22 +491,20 @@ class _SettingsCategory extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
                         color: destructive ? color : PosTheme.ink,
                       ),
                     ),
                     if (subtitle != null) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
                         subtitle!,
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Color.lerp(
-                            PosTheme.inkMuted,
-                            PosTheme.ink,
-                            .3,
-                          )!,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w400,
+                          color: PosTheme.inkMuted,
                         ),
                       ),
                     ],
@@ -478,9 +515,9 @@ class _SettingsCategory extends StatelessWidget {
               Icon(
                 expanded
                     ? CupertinoIcons.chevron_down
-                    : CupertinoIcons.chevron_right,
-                color: Color.lerp(PosTheme.inkMuted, PosTheme.ink, .3)!,
-                size: 18,
+                    : CupertinoIcons.chevron_forward,
+                color: const Color(0xFFC7C7CC),
+                size: 16,
               ),
             ],
           ),

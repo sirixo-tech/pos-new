@@ -22,12 +22,16 @@ class AdminMenuCategoryEditResult {
     required this.description,
     required this.timeSlotIds,
     this.imageFile,
+    this.isDelete = false,
+    this.saveAndNew = false,
   });
 
   final String name;
   final String description;
   final List<int> timeSlotIds;
   final XFile? imageFile;
+  final bool isDelete;
+  final bool saveAndNew;
 }
 
 class AdminMenuItemEditResult {
@@ -240,7 +244,7 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
     }
   }
 
-  void _save() {
+  void _save({bool saveAndNew = false}) {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
       showPosSnackBar(
@@ -257,6 +261,29 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
         description: _descCtrl.text.trim(),
         timeSlotIds: _slotIds,
         imageFile: _pickedImage,
+        saveAndNew: saveAndNew,
+      ),
+    );
+  }
+
+  Future<void> _delete() async {
+    final cat = widget.category;
+    if (cat == null) return;
+    final ok = await showPosConfirmDialog(
+      context,
+      title: context.posText('adminDeleteCategory', 'Delete category?'),
+      message: cat.name,
+      confirmLabel: context.posText('adminDelete', 'Delete'),
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    Navigator.pop(
+      context,
+      AdminMenuCategoryEditResult(
+        name: cat.name,
+        description: cat.description ?? '',
+        timeSlotIds: _slotIds,
+        isDelete: true,
       ),
     );
   }
@@ -275,6 +302,18 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
       maxWidth: 480,
       embedded: true,
       onClose: () => Navigator.pop(context),
+      headerActions: [
+        if (!_isCreate)
+          IconButton(
+            tooltip: context.posText('adminDeleteCategory', 'Delete category'),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: Color(0xFFDC2626),
+              size: 20,
+            ),
+            onPressed: _delete,
+          ),
+      ],
       body: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -326,16 +365,80 @@ class _CategoryEditDialogState extends State<_CategoryEditDialog> {
               onChanged: (ids) => setState(() => _slotIds = ids),
             ),
           ],
+          if (!_isCreate) ...[
+            const SizedBox(height: 24),
+            Center(
+              child: TextButton.icon(
+                onPressed: _delete,
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: Color(0xFFDC2626),
+                ),
+                label: Text(
+                  context.posText('adminDeleteCategory', 'Delete category'),
+                  style: const TextStyle(
+                    color: Color(0xFFDC2626),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
-      footer: posDialogActionFooter(
-        context: context,
-        confirmLabel: _isCreate
-            ? context.posText('adminCreate', 'Create')
-            : context.l10n.commonSave,
-        onCancel: () => Navigator.pop(context),
-        onConfirm: _save,
-      ),
+      footer: _isCreate
+          ? Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _save(saveAndNew: true),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: PosTheme.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      context.posText('adminSaveAndNew', 'Save & New'),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: PosTheme.ink,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => _save(saveAndNew: false),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      context.l10n.commonSave,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : posDialogActionFooter(
+              context: context,
+              confirmLabel: context.l10n.commonSave,
+              onCancel: () => Navigator.pop(context),
+              onConfirm: () => _save(saveAndNew: false),
+              sideBySide: true,
+            ),
     );
   }
 }
@@ -632,6 +735,7 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
             : context.l10n.commonSave,
         onCancel: () => Navigator.pop(context),
         onConfirm: _save,
+        sideBySide: true,
       ),
     );
   }

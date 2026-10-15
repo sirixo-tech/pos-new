@@ -914,29 +914,13 @@ class _PosSearchFieldState extends State<PosSearchField> {
           ),
           child: Row(
             children: [
-              const SizedBox(width: 8),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: focused
-                      ? soft.bg
-                      : PosTheme.surface.withValues(alpha: 0.72),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: focused
-                        ? accent.withValues(alpha: 0.22)
-                        : PosTheme.border.withValues(alpha: 0.8),
-                  ),
-                ),
-                child: Icon(
-                  Icons.search_rounded,
-                  size: 18,
-                  color: focused ? soft.fg : PosTheme.inkMuted,
-                ),
+              const SizedBox(width: 12),
+              Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: focused ? accent : PosTheme.inkMuted,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: TextField(
                   controller: widget.controller,
@@ -1509,6 +1493,7 @@ class PosDialogShell extends StatelessWidget {
 
     /// Fill a side panel / bottom sheet instead of a centered [Dialog].
     this.embedded = false,
+    this.headerActions,
   });
 
   final String title;
@@ -1520,6 +1505,7 @@ class PosDialogShell extends StatelessWidget {
   final double maxWidth;
   final VoidCallback? onClose;
   final bool embedded;
+  final List<Widget>? headerActions;
 
   @override
   Widget build(BuildContext context) {
@@ -1577,6 +1563,10 @@ class PosDialogShell extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (headerActions != null) ...[
+                    ...headerActions!,
+                    const SizedBox(width: 6),
+                  ],
                   if (onClose != null)
                     Material(
                       color: soft.bg,
@@ -1691,6 +1681,10 @@ class PosDialogShell extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (headerActions != null) ...[
+                  ...headerActions!,
+                  const SizedBox(width: 4),
+                ],
                 if (onClose != null)
                   IconButton(
                     onPressed: onClose,
@@ -1752,6 +1746,7 @@ Widget posDialogActionFooter({
   String? confirmLabel,
   bool destructive = false,
   Color? confirmColor,
+  bool sideBySide = false,
 }) {
   final l10n = context.l10n;
   final accent = Theme.of(context).colorScheme.primary;
@@ -1787,7 +1782,10 @@ Widget posDialogActionFooter({
   return LayoutBuilder(
     builder: (context, constraints) {
       final largeText = MediaQuery.textScalerOf(context).scale(15) > 19;
-      if (constraints.maxWidth < 400 || largeText) {
+      final shouldStack = (!sideBySide && constraints.maxWidth < 400) ||
+          (constraints.maxWidth < 240) ||
+          largeText;
+      if (shouldStack) {
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

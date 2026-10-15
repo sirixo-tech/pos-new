@@ -132,90 +132,86 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     return Column(
       children: [
         if (handheld)
-          AdminToolbar(
-            singleRowActions: true,
-            leading: handheld
-                ? ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: TextField(
-                      controller: _searchCtrl,
-                      style: const TextStyle(fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: context.posText(
-                          'adminMenuSearch',
-                          'Search categories & items',
-                        ),
-                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                        suffixIcon: _query.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: context.l10n.commonClear,
-                                onPressed: () {
-                                  _searchCtrl.clear();
-                                  setState(() => _query = '');
-                                },
-                                icon: const Icon(Icons.close_rounded, size: 18),
-                              ),
-                        isDense: true,
-                        filled: true,
-                        fillColor: PosTheme.surfaceMuted,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            PosTheme.radiusSm,
-                          ),
-                          borderSide: BorderSide(color: PosTheme.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            PosTheme.radiusSm,
-                          ),
-                          borderSide: BorderSide(color: PosTheme.border),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 10,
-                        ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchCtrl,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: context.posText(
+                        'adminMenuSearch',
+                        'Search categories & items',
                       ),
-                      onChanged: (v) => setState(() => _query = v),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: context.l10n.commonClear,
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _query = '');
+                              },
+                              icon: const Icon(Icons.close_rounded, size: 18),
+                            ),
+                      isDense: true,
+                      filled: true,
+                      fillColor: PosTheme.surfaceMuted,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          PosTheme.radiusSm,
+                        ),
+                        borderSide: BorderSide(color: PosTheme.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          PosTheme.radiusSm,
+                        ),
+                        borderSide: BorderSide(color: PosTheme.border),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                      ),
                     ),
-                  )
-                : null,
-            children: [
-              IconButton.filledTonal(
-                tooltip: context.l10n.commonRefresh,
-                onPressed: admin.menuLoading ? null : admin.loadMenu,
-                icon: admin.menuLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh_rounded, size: 20),
-              ),
-              if (canManageCategories || canManageItems)
-                FilledButton.tonalIcon(
-                  onPressed: admin.mutating || admin.categories.isEmpty
-                      ? null
-                      : () => openAdminMenuReorder(context),
-                  icon: const Icon(Icons.swap_vert_rounded, size: 18),
-                  label: Text(context.posText('adminMenuReorder', 'Reorder')),
+                    onChanged: (v) => setState(() => _query = v),
+                  ),
                 ),
-              if (canManageCategories)
-                FilledButton.tonalIcon(
-                  onPressed: admin.mutating
-                      ? null
-                      : () => _editCategory(context, admin),
-                  icon: const Icon(Icons.create_new_folder_outlined, size: 18),
-                  label: Text(context.posText('adminNewCategory', 'Category')),
+                if (canManageCategories || canManageItems) ...[
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    tooltip: context.posText('adminMenuReorder', 'Reorder'),
+                    onPressed: admin.mutating || admin.categories.isEmpty
+                        ? null
+                        : () => openAdminMenuReorder(context),
+                    icon: const Icon(Icons.swap_vert_rounded, size: 20),
+                    style: IconButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(PosTheme.radiusSm),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 6),
+                IconButton.filledTonal(
+                  tooltip: context.l10n.commonRefresh,
+                  onPressed: admin.menuLoading ? null : admin.loadMenu,
+                  icon: admin.menuLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh_rounded, size: 20),
+                  style: IconButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(PosTheme.radiusSm),
+                    ),
+                  ),
                 ),
-              if (canManageItems)
-                FilledButton.icon(
-                  onPressed: admin.mutating || admin.categories.isEmpty
-                      ? null
-                      : () => _editItem(context, admin),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: Text(context.posText('adminNewItem', 'Item')),
-                ),
-            ],
+              ],
+            ),
           ),
         if (handheld && admin.categories.isNotEmpty)
           _MenuSummaryBar(
@@ -290,6 +286,14 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                     ),
                     onDeleteItem: (item) =>
                         _confirmDeleteItem(context, admin, item),
+                    onEditCategory: canManageCategories
+                        ? (category) =>
+                            _editCategory(context, admin, category: category)
+                        : null,
+                    onDeleteCategory: canManageCategories
+                        ? (category) =>
+                            _confirmDeleteCategory(context, admin, category)
+                        : null,
                   )
                 : AdminDesktopMenuBrowser(
                     categories: _desktopCategories(admin.categories),
@@ -338,6 +342,73 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   ),
           ),
         ),
+        if (handheld && (canManageCategories || canManageItems))
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+              child: Row(
+                children: [
+                  if (canManageCategories)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: admin.mutating
+                            ? null
+                            : () => _editCategory(context, admin),
+                        icon: const Icon(Icons.folder_outlined, size: 18),
+                        label: Text(
+                          context.posText('adminNewCategory', 'Category'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: PosTheme.ink,
+                          backgroundColor: PosTheme.surface,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          side: BorderSide(color: PosTheme.border),
+                          elevation: 2,
+                          shadowColor: Colors.black.withValues(alpha: 0.06),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (canManageCategories && canManageItems)
+                    const SizedBox(width: 12),
+                  if (canManageItems)
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: admin.mutating || admin.categories.isEmpty
+                            ? null
+                            : () => _editItem(context, admin),
+                        icon: const Icon(Icons.add_rounded, size: 20),
+                        label: Text(
+                          context.posText('adminNewItem', 'Add Item'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          elevation: 3,
+                          shadowColor: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.35),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -402,7 +473,16 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
       destructive: true,
     );
     if (!ok) return;
-    await admin.deleteMenuCategory(category.id);
+    final success = await admin.deleteMenuCategory(category.id);
+    if (!context.mounted) return;
+    if (success) {
+      showPosSuccessToast(
+        context,
+        title: context.posText('adminDeleted', 'Deleted'),
+        subtitle: context.posText('adminCategoryDeleted', 'Category deleted'),
+        icon: Icons.delete_outline_rounded,
+      );
+    }
   }
 
   Future<void> _confirmDeleteItem(
@@ -434,6 +514,20 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     );
     if (result == null) return;
 
+    if (result.isDelete && category != null) {
+      final success = await admin.deleteMenuCategory(category.id);
+      if (!context.mounted) return;
+      if (success) {
+        showPosSuccessToast(
+          context,
+          title: context.posText('adminDeleted', 'Deleted'),
+          subtitle: context.posText('adminCategoryDeleted', 'Category deleted'),
+          icon: Icons.delete_outline_rounded,
+        );
+      }
+      return;
+    }
+
     final body = <String, dynamic>{
       'name': result.name,
       'description': result.description.isEmpty ? null : result.description,
@@ -457,6 +551,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
           subtitle: "'${result.name}' is now in your menu",
           icon: Icons.category_rounded,
         );
+        if (result.saveAndNew && mounted) {
+          await _editCategory(context, admin);
+        }
       }
     } else {
       final success = await admin.updateMenuCategory(

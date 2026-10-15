@@ -18,9 +18,9 @@ void main() {
     expect(find.byType(BottomSheet), findsNothing);
     expect(tester.getSize(find.byType(MenuImportSourcePage)).width, 360);
     for (final entry in {
-      'Photo or PDF': MenuImportSource.photo,
-      'Voice': MenuImportSource.voice,
-      'Zomato': MenuImportSource.zomato,
+      'Scan/Upload Menu Photo': MenuImportSource.photo,
+      'Add Items Using Voice': MenuImportSource.voice,
+      'Import From Zomato': MenuImportSource.zomato,
     }.entries) {
       await tester.ensureVisible(find.text(entry.key));
       await tester.tap(find.text(entry.key));

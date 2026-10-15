@@ -102,7 +102,7 @@ class _SourceSheet extends StatelessWidget {
         const SizedBox(height: 12),
         _SourceTile(
           mark: const _FileMark(),
-          title: 'Photo or PDF',
+          title: 'Scan/Upload Menu Photo',
           subtitle: 'A photo of the printed menu, a PDF, or a spreadsheet.',
           detail: 'Best when the menu is already on paper or in a file.',
           onTap: () => _select(context, MenuImportSource.photo),
@@ -111,7 +111,7 @@ class _SourceSheet extends StatelessWidget {
           const SizedBox(height: 10),
           _SourceTile(
             mark: const _VoiceMark(),
-            title: 'Voice',
+            title: 'Add Items Using Voice',
             subtitle: 'Say each item, then its price.',
             detail: 'Best for a short list you can read aloud.',
             onTap: () => _select(context, MenuImportSource.voice),
@@ -120,14 +120,19 @@ class _SourceSheet extends StatelessWidget {
         const SizedBox(height: 10),
         _SourceTile(
           mark: const ZomatoMark(size: 48),
-          title: 'Zomato',
+          title: 'Import From Zomato',
           subtitle: 'Paste the outlet share link from the partner app.',
           detail: 'Best when this menu is already live on Zomato.',
           onTap: () => _select(context, MenuImportSource.zomato),
         ),
       ],
     );
-    if (fullPage) return choices;
+    if (fullPage) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: choices,
+      );
+    }
     return Align(
       alignment: Alignment.bottomCenter,
       child: ConstrainedBox(

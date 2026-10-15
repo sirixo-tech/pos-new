@@ -28,11 +28,15 @@ class PosVoiceSearchButton extends StatefulWidget {
   State<PosVoiceSearchButton> createState() => _PosVoiceSearchButtonState();
 }
 
-class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton> {
+class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton>
+    with SingleTickerProviderStateMixin {
   var _listening = false;
   bool _starting = false;
   String _transcript = '';
   PosSpeech get _speech => widget.speech ?? PosSpeech.instance;
+  late final AnimationController _pulseCtrl;
+  late final Animation<double> _glowAnimation;
+  late final Animation<double> _scaleAnimation;
 
   void _setListening(bool listening, [String transcript = '']) {
     if (!mounted) return;
@@ -114,17 +118,29 @@ class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    widget.onBindStop?.call(_stop);
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
+    _glowAnimation = CurvedAnimation(
+      parent: _pulseCtrl,
+      curve: Curves.easeInOut,
+    );
+    _scaleAnimation = Tween<double>(begin: 0.94, end: 1.06).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
   void dispose() {
+    _pulseCtrl.dispose();
     if (_listening) {
       _speech.stop();
     }
     super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    widget.onBindStop?.call(_stop);
   }
 
   @override
@@ -135,32 +151,74 @@ class _PosVoiceSearchButtonState extends State<PosVoiceSearchButton> {
       child: Tooltip(
         message: _listening ? 'Stop voice search' : 'Search items by voice',
         child: Material(
-          color: _listening
-              ? accent.withValues(alpha: 0.14)
-              : PosTheme.surface.withValues(alpha: 0.78),
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           child: InkWell(
             onTap: _toggle,
             borderRadius: BorderRadius.circular(10),
-            child: Container(
-              height: 32,
-              width: 34,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _listening
-                      ? accent.withValues(alpha: 0.45)
-                      : PosTheme.border.withValues(alpha: 0.85),
-                ),
-              ),
-              child: _listening
-                  ? PosListeningBars(active: true, color: accent, height: 16)
-                  : Icon(
-                      Icons.mic_none_rounded,
-                      size: 18,
-                      color: PosTheme.inkMuted,
+            child: _listening
+                ? Container(
+                    height: 32,
+                    width: 34,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: accent.withValues(alpha: 0.45),
+                      ),
                     ),
-            ),
+                    child: PosListeningBars(
+                      active: true,
+                      color: accent,
+                      height: 16,
+                    ),
+                  )
+                : AnimatedBuilder(
+                    animation: _pulseCtrl,
+                    builder: (context, child) {
+                      final t = _glowAnimation.value;
+                      final scale = _scaleAnimation.value;
+                      return Container(
+                        height: 32,
+                        width: 34,
+                        decoration: BoxDecoration(
+                          color: Color.lerp(
+                            PosTheme.surface.withValues(alpha: 0.8),
+                            accent.withValues(alpha: 0.08),
+                            t,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Color.lerp(
+                              PosTheme.border.withValues(alpha: 0.85),
+                              accent.withValues(alpha: 0.42),
+                              t,
+                            )!,
+                            width: 1.0 + (t * 0.4),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withValues(alpha: 0.12 * t),
+                              blurRadius: 5 * t,
+                              spreadRadius: 0.5 * t,
+                            ),
+                          ],
+                        ),
+                        child: Transform.scale(
+                          scale: scale,
+                          child: Icon(
+                            Icons.mic_rounded,
+                            size: 18,
+                            color: Color.lerp(
+                              PosTheme.inkMuted,
+                              accent,
+                              0.55 * t,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ),
       ),

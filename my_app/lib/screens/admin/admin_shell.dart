@@ -12,6 +12,7 @@ import '../../theme/pos_theme.dart';
 import '../../utils/pos_layout.dart';
 import '../../widgets/day_end_reports_sheet.dart';
 import '../../widgets/pos_overlay.dart';
+import '../../widgets/pos_plan_selection_header_card.dart';
 import '../../widgets/pos_ui.dart';
 import '../pos_billing_screen.dart';
 import 'admin_chrome.dart';
@@ -450,10 +451,15 @@ class _AdminHub extends StatelessWidget {
         return CustomScrollView(
           slivers: [
             SliverPadding(
-              padding: EdgeInsets.symmetric(horizontal: wide ? 32 : 16, vertical: 24),
+              padding: EdgeInsets.symmetric(horizontal: wide ? 32 : 16, vertical: 20),
               sliver: SliverToBoxAdapter(
-                child: wide
-                    ? Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const PosPlanSelectionHeaderCard(),
+                    const SizedBox(height: 20),
+                    wide
+                        ? Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
@@ -506,6 +512,8 @@ class _AdminHub extends StatelessWidget {
                           const SizedBox(height: 32),
                         ],
                       ),
+                  ],
+                ),
               ),
             ),
           ],

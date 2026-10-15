@@ -33,6 +33,8 @@ class AdminMobileMenuBrowser extends StatelessWidget {
     this.onToggleCategory,
     required this.onEditItem,
     required this.onDeleteItem,
+    this.onEditCategory,
+    this.onDeleteCategory,
   });
 
   final List<AdminMenuCategory> categories;
@@ -49,6 +51,8 @@ class AdminMobileMenuBrowser extends StatelessWidget {
   final ValueChanged<int> onToggleItem;
   final void Function(AdminMenuItem item, int categoryId) onEditItem;
   final ValueChanged<AdminMenuItem> onDeleteItem;
+  final ValueChanged<AdminMenuCategory>? onEditCategory;
+  final ValueChanged<AdminMenuCategory>? onDeleteCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -64,25 +68,113 @@ class AdminMobileMenuBrowser extends StatelessWidget {
       children: [
         SizedBox(
           height: 52,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          child: Row(
             children: [
-              _CategoryChip(
-                label: context.posText('adminMenuAll', 'All'),
-                selected: selectedCategoryId == null,
-                accent: accent,
-                onTap: () => onSelectCategory(null),
-              ),
-              for (final category in categories) ...[
-                const SizedBox(width: 8),
-                _CategoryChip(
-                  label: category.name,
-                  selected: category.id == selectedCategoryId,
-                  accent: accent,
-                  onTap: () => onSelectCategory(category.id),
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: PopupMenuButton<int?>(
+                  tooltip: context.posText('adminSelectCategory', 'All categories'),
+                  onSelected: onSelectCategory,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: PosTheme.border),
+                  ),
+                  color: PosTheme.surface,
+                  itemBuilder: (ctx) => [
+                    PopupMenuItem<int?>(
+                      value: null,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.layers_outlined,
+                            size: 18,
+                            color: selectedCategoryId == null ? accent : PosTheme.inkMuted,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            context.posText('adminMenuAll', 'All Categories'),
+                            style: TextStyle(
+                              fontWeight: selectedCategoryId == null ? FontWeight.w700 : FontWeight.w500,
+                              color: selectedCategoryId == null ? accent : PosTheme.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    for (final category in categories)
+                      PopupMenuItem<int?>(
+                        value: category.id,
+                        child: Row(
+                          children: [
+                            Icon(
+                              category.isActive ? Icons.check_circle_outline_rounded : Icons.radio_button_unchecked_rounded,
+                              size: 16,
+                              color: category.id == selectedCategoryId ? accent : PosTheme.inkMuted,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                category.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: category.id == selectedCategoryId ? FontWeight.w700 : FontWeight.w500,
+                                  color: category.id == selectedCategoryId ? accent : PosTheme.ink,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${category.items.length}',
+                              style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                  child: Container(
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: PosTheme.surfaceMuted,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: PosTheme.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.tune_rounded, size: 15, color: PosTheme.ink),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_drop_down_rounded, size: 18, color: PosTheme.ink),
+                      ],
+                    ),
+                  ),
                 ),
-              ],
+              ),
+              Expanded(
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+                  children: [
+                    _CategoryChip(
+                      label: context.posText('adminMenuAll', 'All'),
+                      selected: selectedCategoryId == null,
+                      accent: accent,
+                      onTap: () => onSelectCategory(null),
+                    ),
+                    for (final category in categories) ...[
+                      const SizedBox(width: 8),
+                      _CategoryChip(
+                        label: category.name,
+                        selected: category.id == selectedCategoryId,
+                        accent: accent,
+                        onTap: () => onSelectCategory(category.id),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -96,25 +188,26 @@ class AdminMobileMenuBrowser extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          category.name,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: category.isActive
-                                ? PosTheme.ink
-                                : PosTheme.inkMuted,
+                        child: InkWell(
+                          onTap: onEditCategory != null
+                              ? () => onEditCategory!(category)
+                              : null,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            child: Text(
+                              category.name,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: category.isActive
+                                    ? PosTheme.ink
+                                    : PosTheme.inkMuted,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                      Text(
-                        category.isActive ? 'On' : 'Off',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: PosTheme.inkMuted,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
                       if (canToggle && onToggleCategory != null)
                         Switch.adaptive(
                           value: category.isActive,
@@ -122,6 +215,57 @@ class AdminMobileMenuBrowser extends StatelessWidget {
                               busy || savingCategoryIds.contains(category.id)
                               ? null
                               : (_) => onToggleCategory!(category.id),
+                        ),
+                      if (onEditCategory != null || onDeleteCategory != null)
+                        PopupMenuButton<String>(
+                          icon: Icon(
+                            Icons.more_vert_rounded,
+                            size: 20,
+                            color: PosTheme.inkMuted,
+                          ),
+                          tooltip: 'Category actions',
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: PosTheme.border),
+                          ),
+                          onSelected: (val) {
+                            if (val == 'edit' && onEditCategory != null) {
+                              onEditCategory!(category);
+                            } else if (val == 'delete' && onDeleteCategory != null) {
+                              onDeleteCategory!(category);
+                            }
+                          },
+                          itemBuilder: (ctx) => [
+                            if (onEditCategory != null)
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.edit_outlined, size: 18),
+                                    const SizedBox(width: 10),
+                                    Text(context.posText('adminEditCategory', 'Edit category')),
+                                  ],
+                                ),
+                              ),
+                            if (onDeleteCategory != null)
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 18,
+                                      color: Color(0xFFDC2626),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      context.posText('adminDeleteCategory', 'Delete category'),
+                                      style: const TextStyle(color: Color(0xFFDC2626)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
                         ),
                     ],
                   ),
@@ -297,6 +441,12 @@ class AdminDesktopMenuBrowser extends StatelessWidget {
                               selected: category?.id == row.id,
                               accent: accent,
                               onTap: () => onSelectCategory(row.id),
+                              onEdit: canManageCategories
+                                  ? () => onEditCategory(row)
+                                  : null,
+                              onDelete: canManageCategories
+                                  ? () => onDeleteCategory(row)
+                                  : null,
                             );
                           },
                         )
@@ -322,6 +472,12 @@ class AdminDesktopMenuBrowser extends StatelessWidget {
                                 accent: accent,
                                 reorderIndex: index,
                                 onTap: () => onSelectCategory(row.id),
+                                onEdit: canManageCategories
+                                    ? () => onEditCategory(row)
+                                    : null,
+                                onDelete: canManageCategories
+                                    ? () => onDeleteCategory(row)
+                                    : null,
                               ),
                             );
                           },
@@ -654,6 +810,8 @@ class _CategoryTile extends StatelessWidget {
     required this.accent,
     required this.onTap,
     this.reorderIndex,
+    this.onEdit,
+    this.onDelete,
   });
 
   final AdminMenuCategory category;
@@ -661,6 +819,8 @@ class _CategoryTile extends StatelessWidget {
   final Color accent;
   final VoidCallback onTap;
   final int? reorderIndex;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -672,7 +832,7 @@ class _CategoryTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+          padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
@@ -736,6 +896,35 @@ class _CategoryTile extends StatelessWidget {
                     : context.posText('adminInactive', 'Inactive'),
                 active: category.isActive,
               ),
+              if (onEdit != null || onDelete != null)
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    size: 18,
+                    color: PosTheme.inkFaint,
+                  ),
+                  padding: EdgeInsets.zero,
+                  tooltip: context.posText('adminActions', 'Actions'),
+                  onSelected: (val) {
+                    if (val == 'edit') onEdit?.call();
+                    if (val == 'delete') onDelete?.call();
+                  },
+                  itemBuilder: (_) => [
+                    if (onEdit != null)
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Text(context.posText('adminEdit', 'Edit')),
+                      ),
+                    if (onDelete != null)
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(
+                          context.posText('adminDelete', 'Delete'),
+                          style: const TextStyle(color: Color(0xFFDC2626)),
+                        ),
+                      ),
+                  ],
+                ),
             ],
           ),
         ),
