@@ -21,6 +21,7 @@ import 'screens/context_picker_screen.dart';
 import 'screens/kitchen/kitchen_shell.dart';
 import 'screens/lock_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/pending_approval_screen.dart';
 import 'screens/mode_picker_screen.dart';
 import 'screens/pair_device_screen.dart';
 import 'screens/pos_billing_screen.dart';
@@ -393,6 +394,8 @@ class _RootRouterState extends State<_RootRouter> with WidgetsBindingObserver {
         return const PairDeviceScreen();
       case PosAppPhase.login:
         return const LoginScreen();
+      case PosAppPhase.pendingApproval:
+        return const PendingApprovalScreen();
       case PosAppPhase.contextPicker:
         return const ContextPickerScreen();
       case PosAppPhase.modePicker:

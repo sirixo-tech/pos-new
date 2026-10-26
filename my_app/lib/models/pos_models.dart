@@ -143,6 +143,8 @@ class StaffProfile {
     this.currentRestaurantId,
     this.currentBranchId,
     this.permissions = const [],
+    this.restaurantStatus,
+    this.pendingApproval = false,
   });
 
   final StaffUserInfo user;
@@ -150,10 +152,15 @@ class StaffProfile {
   final int? currentRestaurantId;
   final int? currentBranchId;
   final List<String> permissions;
+  final String? restaurantStatus;
+  final bool pendingApproval;
 
   factory StaffProfile.fromJson(Map<String, dynamic> json) {
     final restaurant = json['current_restaurant'] as Map<String, dynamic>?;
     final branch = json['current_branch'] as Map<String, dynamic>?;
+    final status = restaurant?['status'] as String?;
+    final pending =
+        json['pending_approval'] == true || status == 'pending';
     return StaffProfile(
       user: StaffUserInfo.fromJson(json['user'] as Map<String, dynamic>?),
       restaurants: (json['restaurants'] as List<dynamic>? ?? [])
@@ -164,6 +171,8 @@ class StaffProfile {
           : null,
       currentBranchId: branch != null ? parseJsonInt(branch['id']) : null,
       permissions: _staffPermissionKeys(json),
+      restaurantStatus: status,
+      pendingApproval: pending,
     );
   }
 

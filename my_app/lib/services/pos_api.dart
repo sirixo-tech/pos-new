@@ -27,6 +27,7 @@ class PosApiException implements Exception {
     this.canManageBilling = false,
     this.billingSelfServe = false,
     this.coveredByOrganization = false,
+    this.fieldErrors = const {},
   });
 
   final String message;
@@ -37,6 +38,9 @@ class PosApiException implements Exception {
   final bool canManageBilling;
   final bool billingSelfServe;
   final bool coveredByOrganization;
+
+  /// First validation message per field (`errors.email[0]`, and so on).
+  final Map<String, String> fieldErrors;
 
   bool get isSubscriptionBlocked => trialExpired || subscriptionInactive;
 
@@ -64,10 +68,68 @@ class PosApiException implements Exception {
 }
 
 class StaffLoginResult {
-  StaffLoginResult({required this.session, required this.profile});
+  StaffLoginResult({
+    required this.session,
+    required this.profile,
+    this.pendingApproval = false,
+  });
 
   final PosSession session;
   final StaffProfile profile;
+
+  /// Platform is waiting on super-admin approval before the restaurant can trade.
+  final bool pendingApproval;
+}
+
+class PhoneCodeSent {
+  const PhoneCodeSent({required this.message, this.debugOtp});
+
+  final String message;
+
+  /// Present only when the server is using the log SMS driver.
+  final String? debugOtp;
+}
+
+class PhoneVerifyResult {
+  const PhoneVerifyResult({this.phone, this.phoneToken, this.session});
+
+  final String? phone;
+  final String? phoneToken;
+  final StaffLoginResult? session;
+}
+
+enum AuthLoginMethod { both, phone, email }
+
+class AuthOptions {
+  const AuthOptions({
+    required this.loginMethod,
+    required this.registrationEnabled,
+    required this.phoneDefaultCountry,
+  });
+
+  final AuthLoginMethod loginMethod;
+  final bool registrationEnabled;
+  final String phoneDefaultCountry;
+
+  bool get phoneSignIn => loginMethod != AuthLoginMethod.email;
+  bool get emailSignIn => true;
+  bool get phoneSignUp => loginMethod != AuthLoginMethod.email;
+  bool get emailSignUp => loginMethod != AuthLoginMethod.phone;
+
+  factory AuthOptions.fromJson(Map<String, dynamic> json) {
+    final raw = (json['login_method'] as String? ?? 'both').toLowerCase();
+    final method = switch (raw) {
+      'phone' => AuthLoginMethod.phone,
+      'email' => AuthLoginMethod.email,
+      _ => AuthLoginMethod.both,
+    };
+    return AuthOptions(
+      loginMethod: method,
+      registrationEnabled: json['registration_enabled'] == true,
+      phoneDefaultCountry:
+          (json['phone_default_country'] as String? ?? 'IN').toUpperCase(),
+    );
+  }
 }
 
 class PosApi {
@@ -212,6 +274,141 @@ class PosApi {
 
     final json = await _decode(response);
     final data = json['data'] as Map<String, dynamic>? ?? json;
+    return _sessionFromAuthData(base, data);
+  }
+
+  String _deviceName() => '${PosAppInfo.displayName} (${posPlatformLabel()})';
+
+  Future<AuthOptions> fetchAuthOptions(String serverUrl) async {
+    final base = _normalizeServerUrl(serverUrl);
+    final http.Response response;
+    try {
+      response = await _client.get(
+        Uri.parse('$base/api/v1/auth/options'),
+        headers: _jsonHeaders(),
+      );
+    } catch (e) {
+      throw PosApiException(_networkErrorMessage(e));
+    }
+    final json = await _decode(response);
+    final data = json['data'] as Map<String, dynamic>? ?? json;
+    return AuthOptions.fromJson(data);
+  }
+
+  Future<PhoneCodeSent> sendPhoneCode({
+    required String serverUrl,
+    required String phone,
+    required String purpose,
+  }) async {
+    final base = _normalizeServerUrl(serverUrl);
+    final http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse('$base/api/v1/auth/phone/send'),
+        headers: _jsonHeaders(),
+        body: jsonEncode({'phone': phone, 'purpose': purpose}),
+      );
+    } catch (e) {
+      throw PosApiException(_networkErrorMessage(e));
+    }
+    final json = await _decode(response);
+    final data = json['data'] as Map<String, dynamic>? ?? json;
+    final debug = data['debug_otp']?.toString();
+    return PhoneCodeSent(
+      message: data['message'] as String? ??
+          'We sent a 6-digit code to your mobile number.',
+      debugOtp: debug == null || debug.isEmpty ? null : debug,
+    );
+  }
+
+  Future<PhoneVerifyResult> verifyPhoneCode({
+    required String serverUrl,
+    required String phone,
+    required String code,
+    required String purpose,
+    int? restaurantId,
+    int? branchId,
+  }) async {
+    final base = _normalizeServerUrl(serverUrl);
+    final http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse('$base/api/v1/auth/phone/verify'),
+        headers: _jsonHeaders(),
+        body: jsonEncode({
+          'phone': phone,
+          'code': code,
+          'purpose': purpose,
+          'token_ability': 'pos',
+          'device_name': _deviceName(),
+          if (restaurantId != null) 'restaurant_id': restaurantId,
+          if (branchId != null) 'branch_id': branchId,
+        }),
+      );
+    } catch (e) {
+      throw PosApiException(_networkErrorMessage(e));
+    }
+    final json = await _decode(response);
+    final data = json['data'] as Map<String, dynamic>? ?? json;
+    final phoneToken = data['phone_token'] as String?;
+    if (phoneToken != null && phoneToken.isNotEmpty) {
+      return PhoneVerifyResult(
+        phone: data['phone'] as String? ?? phone,
+        phoneToken: phoneToken,
+      );
+    }
+    return PhoneVerifyResult(
+      session: _sessionFromAuthData(base, data),
+    );
+  }
+
+  Future<StaffLoginResult> register({
+    required String serverUrl,
+    required String name,
+    required String restaurantName,
+    String? email,
+    String? password,
+    String? phoneToken,
+    String? restaurantCity,
+    String? restaurantCuisine,
+    int? restaurantId,
+    int? branchId,
+  }) async {
+    final base = _normalizeServerUrl(serverUrl);
+    final http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse('$base/api/v1/auth/register'),
+        headers: _jsonHeaders(),
+        body: jsonEncode({
+          'name': name,
+          'restaurant_name': restaurantName,
+          if (email != null && email.isNotEmpty) 'email': email,
+          if (password != null && password.isNotEmpty) 'password': password,
+          if (phoneToken != null && phoneToken.isNotEmpty)
+            'phone_token': phoneToken,
+          if (restaurantCity != null && restaurantCity.isNotEmpty)
+            'restaurant_city': restaurantCity,
+          if (restaurantCuisine != null && restaurantCuisine.isNotEmpty)
+            'restaurant_cuisine': restaurantCuisine,
+          'token_ability': 'pos',
+          'device_name': _deviceName(),
+          if (restaurantId != null) 'restaurant_id': restaurantId,
+          if (branchId != null) 'branch_id': branchId,
+        }),
+      );
+    } catch (e) {
+      throw PosApiException(_networkErrorMessage(e));
+    }
+    final json = await _decode(response);
+    final data = json['data'] as Map<String, dynamic>? ?? json;
+    return _sessionFromAuthData(base, data);
+  }
+
+  StaffLoginResult _sessionFromAuthData(
+    String base,
+    Map<String, dynamic> data,
+  ) {
     final token = data['token'] as String?;
     if (token == null || token.isEmpty) {
       throw PosApiException(
@@ -221,11 +418,9 @@ class PosApi {
         ),
       );
     }
-
     final profile = StaffProfile.fromJson(data);
     final restaurantIdResolved = profile.currentRestaurantId;
     final branchIdResolved = profile.currentBranchId;
-
     if (restaurantIdResolved == null || branchIdResolved == null) {
       throw PosApiException(
         PosTranslationStore.instance.text(
@@ -234,7 +429,6 @@ class PosApi {
         ),
       );
     }
-
     return StaffLoginResult(
       session: PosSession(
         serverUrl: base,
@@ -243,10 +437,12 @@ class PosApi {
         branchId: branchIdResolved,
         userId: profile.user.id,
         userName: profile.user.name,
-        userEmail: profile.user.email,
+        userEmail: profile.user.email.isEmpty ? null : profile.user.email,
         hasPosPin: profile.user.hasPosPin,
       ),
       profile: profile,
+      pendingApproval:
+          data['pending_approval'] == true || profile.pendingApproval,
     );
   }
 
@@ -321,7 +517,7 @@ class PosApi {
   Future<void> setPosPin(
     PosSession session, {
     required String pin,
-    required String currentPassword,
+    String? currentPassword,
   }) async {
     final response = await _client.post(
       Uri.parse('${session.authBaseUrl}/set-pos-pin'),
@@ -332,7 +528,8 @@ class PosApi {
       ),
       body: jsonEncode({
         'pin': pin,
-        'current_password': currentPassword,
+        if (currentPassword != null && currentPassword.isNotEmpty)
+          'current_password': currentPassword,
       }),
     );
     await _decode(response);
@@ -2560,11 +2757,10 @@ class PosApi {
       return body;
     }
 
+    final fieldErrors = _fieldErrors(body['errors']);
     final message = body['message'] as String? ??
         body['error'] as String? ??
-        (body['errors'] is Map
-            ? (body['errors'] as Map).values.first?.first?.toString()
-            : null) ??
+        (fieldErrors.isEmpty ? null : fieldErrors.values.first) ??
         'Request failed (${response.statusCode}).';
 
     final error = PosApiException(
@@ -2576,9 +2772,24 @@ class PosApi {
       canManageBilling: body['can_manage_billing'] == true,
       billingSelfServe: body['billing_self_serve'] == true,
       coveredByOrganization: body['covered_by_organization'] == true,
+      fieldErrors: fieldErrors,
     );
     if (recordBackoff) noteIfRateLimited(error);
     throw error;
+  }
+
+  Map<String, String> _fieldErrors(Object? raw) {
+    if (raw is! Map) return const {};
+    final out = <String, String>{};
+    raw.forEach((key, value) {
+      if (value is List && value.isNotEmpty) {
+        final first = value.first?.toString() ?? '';
+        if (first.isNotEmpty) out['$key'] = first;
+      } else if (value is String && value.isNotEmpty) {
+        out['$key'] = value;
+      }
+    });
+    return out;
   }
 
   Duration? _retryAfter(http.Response response, Map<String, dynamic> body) {

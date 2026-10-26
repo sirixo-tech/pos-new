@@ -41,6 +41,7 @@ enum PosAppPhase {
   setup,
   pairDevice,
   login,
+  pendingApproval,
   contextPicker,
   modePicker,
   terminalPicker,
@@ -107,6 +108,13 @@ class PosController extends ChangeNotifier {
   String? errorMessage;
   int? lastLoginStatusCode;
   Duration? lastLoginRetryAfter;
+  Map<String, String> authFieldErrors = const {};
+  AuthOptions authOptions = const AuthOptions(
+    loginMethod: AuthLoginMethod.both,
+    registrationEnabled: true,
+    phoneDefaultCountry: 'IN',
+  );
+  bool authOptionsLoaded = false;
 
   /// True when POS is blocked because trial/subscription is inactive.
   bool subscriptionBlocked = false;
@@ -1082,25 +1090,30 @@ class PosController extends ChangeNotifier {
     return norm(a) == norm(b);
   }
 
-  Future<void> login(String email, String password) async {
+  Future<void> loadAuthOptions() async {
     final url = serverUrl;
-    if (url == null || url.isEmpty) {
-      phase = PlatformConfig.allowCustomServerUrl
-          ? PosAppPhase.setup
-          : PosAppPhase.login;
-      notifyListeners();
-      return;
+    if (url == null || url.isEmpty) return;
+    try {
+      authOptions = await _api.fetchAuthOptions(url);
+      authOptionsLoaded = true;
+      errorMessage = null;
+    } on PosApiException catch (e) {
+      errorMessage = posUserFacingError(e);
+    } catch (e) {
+      errorMessage = posUserFacingError(e);
     }
-
-    errorMessage = null;
-    lastLoginStatusCode = null;
-    lastLoginRetryAfter = null;
-    subscriptionBlocked = false;
-    trialExpired = false;
-    canManageBilling = false;
-    billingSelfServe = false;
     notifyListeners();
+  }
 
+  Future<void> login(
+    String email,
+    String password, {
+    bool keepSignedIn = true,
+  }) async {
+    final url = _requireServerUrl();
+    if (url == null) return;
+
+    _beginAuthAttempt();
     try {
       final binding = deviceBinding;
       StaffLoginResult result;
@@ -1129,34 +1142,222 @@ class PosController extends ChangeNotifier {
         await PosDeviceBindingStorage.clear();
         deviceBinding = null;
       }
-
-      session = result.session;
-      profile = result.profile;
-      await _storage.saveSession(session!);
-      await _afterAuth(profile!);
+      await _finishAuth(result, keepSignedIn: keepSignedIn);
     } on PosApiException catch (e) {
-      lastLoginStatusCode = e.statusCode;
-      lastLoginRetryAfter = e.retryAfter;
-      if (e.isSubscriptionBlocked) {
-        _presentSubscriptionBlock(e);
-      } else {
-        errorMessage = posUserFacingError(e);
-      }
+      _failAuth(e);
     } catch (e, stack) {
-      errorMessage = e is TypeError
-          ? PosTranslationStore.instance.text(
-              'authAccountLoadFailed',
-              'Could not load account data from server. Try again.',
-            )
-          : posUserFacingError(e);
-      assert(() {
-        // ignore: avoid_print
-        print('POS login error: $e\n$stack');
-        return true;
-      }());
+      _failAuthUnknown(e, stack);
     }
-
     notifyListeners();
+  }
+
+  Future<PhoneCodeSent> sendPhoneCode({
+    required String phone,
+    required String purpose,
+  }) async {
+    final url = serverUrl;
+    if (url == null || url.isEmpty) {
+      throw PosApiException('Set a server address before continuing.');
+    }
+    authFieldErrors = const {};
+    errorMessage = null;
+    return _api.sendPhoneCode(serverUrl: url, phone: phone, purpose: purpose);
+  }
+
+  Future<String> verifyPhoneForRegister({
+    required String phone,
+    required String code,
+  }) async {
+    final url = serverUrl;
+    if (url == null || url.isEmpty) {
+      throw PosApiException('Set a server address before continuing.');
+    }
+    authFieldErrors = const {};
+    final result = await _api.verifyPhoneCode(
+      serverUrl: url,
+      phone: phone,
+      code: code,
+      purpose: 'register',
+    );
+    final token = result.phoneToken;
+    if (token == null || token.isEmpty) {
+      throw PosApiException('Mobile verification did not return a proof.');
+    }
+    return token;
+  }
+
+  Future<void> signInWithPhone({
+    required String phone,
+    required String code,
+    bool keepSignedIn = true,
+  }) async {
+    final url = _requireServerUrl();
+    if (url == null) return;
+    _beginAuthAttempt();
+    try {
+      final binding = deviceBinding;
+      PhoneVerifyResult result;
+      try {
+        result = await _api.verifyPhoneCode(
+          serverUrl: url,
+          phone: phone,
+          code: code,
+          purpose: 'sign_in',
+          restaurantId: binding?.restaurantId,
+          branchId: binding?.branchId,
+        );
+      } on PosApiException catch (e) {
+        final shouldRetry =
+            binding?.restaurantId != null && e.statusCode == 403;
+        if (!shouldRetry) rethrow;
+        result = await _api.verifyPhoneCode(
+          serverUrl: url,
+          phone: phone,
+          code: code,
+          purpose: 'sign_in',
+        );
+        await PosDeviceBindingStorage.clear();
+        deviceBinding = null;
+      }
+      final sessionResult = result.session;
+      if (sessionResult == null) {
+        throw PosApiException('Sign-in did not return a token.');
+      }
+      await _finishAuth(sessionResult, keepSignedIn: keepSignedIn);
+    } on PosApiException catch (e) {
+      _failAuth(e);
+    } catch (e, stack) {
+      _failAuthUnknown(e, stack);
+    }
+    notifyListeners();
+  }
+
+  Future<void> registerRestaurant({
+    required String name,
+    required String restaurantName,
+    String? email,
+    String? password,
+    String? phoneToken,
+    String? restaurantCity,
+    String? restaurantCuisine,
+    bool keepSignedIn = true,
+  }) async {
+    final url = _requireServerUrl();
+    if (url == null) return;
+    _beginAuthAttempt();
+    try {
+      final result = await _api.register(
+        serverUrl: url,
+        name: name,
+        restaurantName: restaurantName,
+        email: email,
+        password: password,
+        phoneToken: phoneToken,
+        restaurantCity: restaurantCity,
+        restaurantCuisine: restaurantCuisine,
+      );
+      await _finishAuth(result, keepSignedIn: keepSignedIn);
+    } on PosApiException catch (e) {
+      _failAuth(e);
+    } catch (e, stack) {
+      _failAuthUnknown(e, stack);
+    }
+    notifyListeners();
+  }
+
+  Future<void> refreshPendingApproval() async {
+    final current = session;
+    if (current == null) {
+      phase = PosAppPhase.login;
+      notifyListeners();
+      return;
+    }
+    try {
+      profile = await _api.fetchMe(current);
+      if (profile?.pendingApproval == true) {
+        phase = PosAppPhase.pendingApproval;
+      } else if (profile != null) {
+        await _afterAuth(profile!);
+      }
+      errorMessage = null;
+    } on PosApiException catch (e) {
+      if (e.statusCode == 401) {
+        await logout();
+        return;
+      }
+      errorMessage = posUserFacingError(e);
+    } catch (e) {
+      errorMessage = posUserFacingError(e);
+    }
+    notifyListeners();
+  }
+
+  String? _requireServerUrl() {
+    final url = serverUrl;
+    if (url == null || url.isEmpty) {
+      phase = PlatformConfig.allowCustomServerUrl
+          ? PosAppPhase.setup
+          : PosAppPhase.login;
+      notifyListeners();
+      return null;
+    }
+    return url;
+  }
+
+  void _beginAuthAttempt() {
+    errorMessage = null;
+    authFieldErrors = const {};
+    lastLoginStatusCode = null;
+    lastLoginRetryAfter = null;
+    subscriptionBlocked = false;
+    trialExpired = false;
+    canManageBilling = false;
+    billingSelfServe = false;
+    notifyListeners();
+  }
+
+  Future<void> _finishAuth(
+    StaffLoginResult result, {
+    required bool keepSignedIn,
+  }) async {
+    session = result.session;
+    profile = result.profile;
+    if (keepSignedIn) {
+      await _storage.saveSession(session!);
+    } else {
+      await _storage.clearSession();
+    }
+    if (result.pendingApproval || result.profile.pendingApproval) {
+      phase = PosAppPhase.pendingApproval;
+      return;
+    }
+    await _afterAuth(profile!);
+  }
+
+  void _failAuth(PosApiException e) {
+    lastLoginStatusCode = e.statusCode;
+    lastLoginRetryAfter = e.retryAfter;
+    authFieldErrors = e.fieldErrors;
+    if (e.isSubscriptionBlocked) {
+      _presentSubscriptionBlock(e);
+    } else {
+      errorMessage = posUserFacingError(e);
+    }
+  }
+
+  void _failAuthUnknown(Object e, StackTrace stack) {
+    authFieldErrors = const {};
+    errorMessage = e is TypeError
+        ? PosTranslationStore.instance.text(
+            'authAccountLoadFailed',
+            'Could not load account data from server. Try again.',
+          )
+        : posUserFacingError(e);
+    assert(() {
+      // ignore: avoid_print
+      print('POS login error: $e\n$stack');
+      return true;
+    }());
   }
 
   Future<void> _resumeSession() async {
@@ -1188,6 +1389,10 @@ class PosController extends ChangeNotifier {
       hasPosPin: profile!.user.hasPosPin,
     );
     await _storage.saveSession(session!);
+    if (profile!.pendingApproval) {
+      phase = PosAppPhase.pendingApproval;
+      return;
+    }
     await _afterAuth(profile!, fromResume: true);
   }
 
@@ -2099,7 +2304,11 @@ class PosController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _api.setPosPin(current, pin: pin, currentPassword: currentPassword);
+      await _api.setPosPin(
+        current,
+        pin: pin,
+        currentPassword: currentPassword.isEmpty ? null : currentPassword,
+      );
       profile = await _api.fetchMe(current);
       final userId = profile?.user.id ?? current.userId;
       session = current.copyWith(

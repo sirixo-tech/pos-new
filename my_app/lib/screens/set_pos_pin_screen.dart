@@ -54,6 +54,12 @@ class _SetPosPinScreenState extends State<SetPosPinScreen> {
     super.dispose();
   }
 
+  bool _needsAccountPassword(PosController pos) {
+    final email = (pos.profile?.user.email ?? pos.session?.userEmail ?? '')
+        .trim();
+    return email.isNotEmpty;
+  }
+
   Future<void> _submit() async {
     final l10n = context.l10n;
     final pin = _pinController.text.trim();
@@ -73,7 +79,8 @@ class _SetPosPinScreenState extends State<SetPosPinScreen> {
       _confirmFocus.requestFocus();
       return;
     }
-    if (password.isEmpty) {
+    final needsPassword = _needsAccountPassword(context.read<PosController>());
+    if (needsPassword && password.isEmpty) {
       setState(() => _inlineError = l10n.pinNeedPassword);
       _passwordFocus.requestFocus();
       return;
@@ -196,36 +203,42 @@ class _SetPosPinScreenState extends State<SetPosPinScreen> {
               length: _pinLen,
               accent: accent,
               enabled: !_loading,
-              onCompleted: (_) => _passwordFocus.requestFocus(),
+              onCompleted: (_) {
+                if (_needsAccountPassword(pos)) {
+                  _passwordFocus.requestFocus();
+                }
+              },
             ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: TextField(
-                controller: _passwordController,
-                focusNode: _passwordFocus,
-                obscureText: _obscurePassword,
-                enabled: !_loading,
-                textAlign: TextAlign.center,
-                autofillHints: const [AutofillHints.password],
-                decoration: InputDecoration(
-                  labelText: l10n.pinAccountPassword,
-                  helperText: l10n.pinPasswordHelper,
-                  helperStyle: const TextStyle(fontSize: 12),
-                  prefixIcon: const Icon(Icons.lock_outline_rounded),
-                  suffixIcon: IconButton(
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
+            if (_needsAccountPassword(pos)) ...[
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: TextField(
+                  controller: _passwordController,
+                  focusNode: _passwordFocus,
+                  obscureText: _obscurePassword,
+                  enabled: !_loading,
+                  textAlign: TextAlign.center,
+                  autofillHints: const [AutofillHints.password],
+                  decoration: InputDecoration(
+                    labelText: l10n.pinAccountPassword,
+                    helperText: l10n.pinPasswordHelper,
+                    helperStyle: const TextStyle(fontSize: 12),
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: IconButton(
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
                     ),
                   ),
+                  onSubmitted: (_) => _submit(),
                 ),
-                onSubmitted: (_) => _submit(),
               ),
-            ),
+            ],
             if (_inlineError != null) ...[
               const SizedBox(height: 12),
               SizedBox(
