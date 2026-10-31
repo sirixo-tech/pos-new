@@ -1154,6 +1154,7 @@ class PosController extends ChangeNotifier {
   Future<PhoneCodeSent> sendPhoneCode({
     required String phone,
     required String purpose,
+    bool supportsFirebase = false,
   }) async {
     final url = serverUrl;
     if (url == null || url.isEmpty) {
@@ -1161,12 +1162,18 @@ class PosController extends ChangeNotifier {
     }
     authFieldErrors = const {};
     errorMessage = null;
-    return _api.sendPhoneCode(serverUrl: url, phone: phone, purpose: purpose);
+    return _api.sendPhoneCode(
+      serverUrl: url,
+      phone: phone,
+      purpose: purpose,
+      supportsFirebase: supportsFirebase,
+    );
   }
 
   Future<String> verifyPhoneForRegister({
     required String phone,
-    required String code,
+    String? code,
+    String? idToken,
   }) async {
     final url = serverUrl;
     if (url == null || url.isEmpty) {
@@ -1177,6 +1184,7 @@ class PosController extends ChangeNotifier {
       serverUrl: url,
       phone: phone,
       code: code,
+      idToken: idToken,
       purpose: 'register',
     );
     final token = result.phoneToken;
@@ -1188,7 +1196,8 @@ class PosController extends ChangeNotifier {
 
   Future<void> signInWithPhone({
     required String phone,
-    required String code,
+    String? code,
+    String? idToken,
     bool keepSignedIn = true,
   }) async {
     final url = _requireServerUrl();
@@ -1202,6 +1211,7 @@ class PosController extends ChangeNotifier {
           serverUrl: url,
           phone: phone,
           code: code,
+          idToken: idToken,
           purpose: 'sign_in',
           restaurantId: binding?.restaurantId,
           branchId: binding?.branchId,
@@ -1214,6 +1224,7 @@ class PosController extends ChangeNotifier {
           serverUrl: url,
           phone: phone,
           code: code,
+          idToken: idToken,
           purpose: 'sign_in',
         );
         await PosDeviceBindingStorage.clear();

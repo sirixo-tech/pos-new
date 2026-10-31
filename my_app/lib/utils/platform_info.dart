@@ -2,6 +2,15 @@ import 'package:flutter/foundation.dart';
 
 import '../config/pos_app_info.dart';
 
+/// Firebase can text the code from Chrome, Android, and iOS.
+///
+/// Native Windows, macOS, and Linux builds cannot run Firebase phone auth.
+bool get posCanUseFirebasePhoneAuth {
+  if (kIsWeb) return true;
+  return defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+}
+
 /// Platform label for API headers.
 String posPlatformLabel() {
   if (kIsWeb) return 'web';

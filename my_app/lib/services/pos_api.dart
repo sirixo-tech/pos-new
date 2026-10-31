@@ -82,12 +82,70 @@ class StaffLoginResult {
 }
 
 class PhoneCodeSent {
-  const PhoneCodeSent({required this.message, this.debugOtp});
+  const PhoneCodeSent({
+    required this.message,
+    this.debugOtp,
+    this.authProvider = 'server',
+    this.firebaseConfig,
+  });
 
   final String message;
 
   /// Present only when the server is using the log SMS driver.
   final String? debugOtp;
+
+  /// `server` (ServeAI/Twilio texts the code) or `firebase` (the app does).
+  final String authProvider;
+  final FirebasePublicConfig? firebaseConfig;
+
+  bool get usesFirebase => authProvider == 'firebase';
+}
+
+/// Public Firebase web config from auth options or phone/send. No secrets.
+class FirebasePublicConfig {
+  const FirebasePublicConfig({
+    required this.apiKey,
+    required this.projectId,
+    required this.appId,
+    required this.messagingSenderId,
+    this.authDomain,
+    this.androidAppId = '',
+    this.iosAppId = '',
+  });
+
+  final String apiKey;
+  final String projectId;
+  final String appId;
+  final String messagingSenderId;
+  final String? authDomain;
+  final String androidAppId;
+  final String iosAppId;
+
+  /// POS native app id for this platform, or the web [appId] when that field is blank.
+  String appIdFor(String platform) {
+    final native = switch (platform) {
+      'android' => androidAppId.trim(),
+      'ios' => iosAppId.trim(),
+      _ => '',
+    };
+    if (native.isNotEmpty) return native;
+    return appId;
+  }
+
+  factory FirebasePublicConfig.fromJson(Map<String, dynamic> json) {
+    final native = json['nativeAppIds'];
+    final pos = native is Map ? native['pos'] : null;
+    final posMap = pos is Map ? Map<String, dynamic>.from(pos) : const {};
+    return FirebasePublicConfig(
+      apiKey: json['apiKey'] as String? ?? '',
+      authDomain: json['authDomain'] as String?,
+      projectId: json['projectId'] as String? ?? '',
+      appId: json['appId'] as String? ?? '',
+      messagingSenderId: json['messagingSenderId'] as String? ?? '',
+      androidAppId: posMap['android'] as String? ?? '',
+      iosAppId: posMap['ios'] as String? ?? '',
+    );
+  }
 }
 
 class PhoneVerifyResult {
@@ -105,11 +163,15 @@ class AuthOptions {
     required this.loginMethod,
     required this.registrationEnabled,
     required this.phoneDefaultCountry,
+    this.phoneAuthProvider = 'server',
+    this.firebaseConfig,
   });
 
   final AuthLoginMethod loginMethod;
   final bool registrationEnabled;
   final String phoneDefaultCountry;
+  final String phoneAuthProvider;
+  final FirebasePublicConfig? firebaseConfig;
 
   bool get phoneSignIn => loginMethod != AuthLoginMethod.email;
   bool get emailSignIn => true;
@@ -123,11 +185,17 @@ class AuthOptions {
       'email' => AuthLoginMethod.email,
       _ => AuthLoginMethod.both,
     };
+    final firebase = json['firebase_config'];
     return AuthOptions(
       loginMethod: method,
       registrationEnabled: json['registration_enabled'] == true,
       phoneDefaultCountry:
           (json['phone_default_country'] as String? ?? 'IN').toUpperCase(),
+      phoneAuthProvider:
+          (json['phone_auth_provider'] as String? ?? 'server').toLowerCase(),
+      firebaseConfig: firebase is Map
+          ? FirebasePublicConfig.fromJson(Map<String, dynamic>.from(firebase))
+          : null,
     );
   }
 }
@@ -299,6 +367,7 @@ class PosApi {
     required String serverUrl,
     required String phone,
     required String purpose,
+    bool supportsFirebase = false,
   }) async {
     final base = _normalizeServerUrl(serverUrl);
     final http.Response response;
@@ -306,7 +375,13 @@ class PosApi {
       response = await _client.post(
         Uri.parse('$base/api/v1/auth/phone/send'),
         headers: _jsonHeaders(),
-        body: jsonEncode({'phone': phone, 'purpose': purpose}),
+        body: jsonEncode({
+          'phone': phone,
+          'purpose': purpose,
+          // Desktop and web cannot run Firebase phone auth. Sending false
+          // lets the server fall back to Twilio when that is configured.
+          'supports_firebase': supportsFirebase,
+        }),
       );
     } catch (e) {
       throw PosApiException(_networkErrorMessage(e));
@@ -314,18 +389,24 @@ class PosApi {
     final json = await _decode(response);
     final data = json['data'] as Map<String, dynamic>? ?? json;
     final debug = data['debug_otp']?.toString();
+    final firebase = data['firebase_config'];
     return PhoneCodeSent(
       message: data['message'] as String? ??
           'We sent a 6-digit code to your mobile number.',
       debugOtp: debug == null || debug.isEmpty ? null : debug,
+      authProvider: (data['auth_provider'] as String? ?? 'server').toLowerCase(),
+      firebaseConfig: firebase is Map
+          ? FirebasePublicConfig.fromJson(Map<String, dynamic>.from(firebase))
+          : null,
     );
   }
 
   Future<PhoneVerifyResult> verifyPhoneCode({
     required String serverUrl,
-    required String phone,
-    required String code,
     required String purpose,
+    String? phone,
+    String? code,
+    String? idToken,
     int? restaurantId,
     int? branchId,
   }) async {
@@ -336,8 +417,9 @@ class PosApi {
         Uri.parse('$base/api/v1/auth/phone/verify'),
         headers: _jsonHeaders(),
         body: jsonEncode({
-          'phone': phone,
-          'code': code,
+          if (idToken != null && idToken.isNotEmpty) 'id_token': idToken,
+          if (idToken == null || idToken.isEmpty) 'phone': phone,
+          if (idToken == null || idToken.isEmpty) 'code': code,
           'purpose': purpose,
           'token_ability': 'pos',
           'device_name': _deviceName(),

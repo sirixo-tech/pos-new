@@ -10,8 +10,10 @@ import '../config/platform_config.dart';
 import '../config/pos_app_info.dart';
 import '../l10n/pos_l10n.dart';
 import '../providers/pos_controller.dart';
+import '../services/firebase_phone_auth.dart';
 import '../services/pos_api.dart';
 import '../utils/phone_e164.dart';
+import '../utils/platform_info.dart';
 import '../widgets/pos_ui.dart';
 
 const _orange = Color(0xFFFF6200);
@@ -52,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String _countryIso = 'IN';
   String? _phoneToken;
   String? _debugOtp;
+  bool _firebaseSms = false;
   String? _banner;
   Map<String, String> _fields = const {};
   Timer? _loginCooldownTimer;
@@ -247,12 +250,30 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     final pos = context.read<PosController>();
     try {
-      final sent = await pos.sendPhoneCode(phone: phone, purpose: purpose);
+      final sent = await pos.sendPhoneCode(
+        phone: phone,
+        purpose: purpose,
+        supportsFirebase: posCanUseFirebasePhoneAuth,
+      );
+      if (sent.usesFirebase) {
+        final config = sent.firebaseConfig;
+        if (config == null) {
+          throw PosApiException(
+            'Phone verification is not configured for this app.',
+          );
+        }
+        await posFirebasePhoneAuth.sendCode(
+          config: config,
+          phone: phone,
+          resend: _firebaseSms,
+        );
+      }
       if (!mounted) return;
       _codeController.clear();
       setState(() {
         _phoneStep = _PhoneStep.code;
         _debugOtp = sent.debugOtp;
+        _firebaseSms = sent.usesFirebase;
       });
       _startResendCooldown();
     } on PosApiException catch (e) {
@@ -289,9 +310,13 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     final pos = context.read<PosController>();
     try {
+      final idToken = _firebaseSms
+          ? await posFirebasePhoneAuth.idTokenForCode(code)
+          : null;
       await pos.signInWithPhone(
         phone: phone,
-        code: code,
+        code: idToken == null ? code : null,
+        idToken: idToken,
         keepSignedIn: _keepSignedIn,
       );
       if (!mounted) return;
@@ -316,7 +341,14 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     final pos = context.read<PosController>();
     try {
-      final token = await pos.verifyPhoneForRegister(phone: phone, code: code);
+      final idToken = _firebaseSms
+          ? await posFirebasePhoneAuth.idTokenForCode(code)
+          : null;
+      final token = await pos.verifyPhoneForRegister(
+        phone: phone,
+        code: idToken == null ? code : null,
+        idToken: idToken,
+      );
       if (!mounted) return;
       setState(() => _phoneToken = token);
     } on PosApiException catch (e) {
@@ -388,6 +420,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _pane = _AuthPane.register;
       _phoneStep = _PhoneStep.number;
       _phoneToken = null;
+      _firebaseSms = false;
       _fields = const {};
       _banner = null;
       _method = options.emailSignUp && options.loginMethod != AuthLoginMethod.phone
@@ -691,6 +724,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 : (method) => setState(() {
                     _method = method;
                     _phoneStep = _PhoneStep.number;
+                    _firebaseSms = false;
                     _fields = const {};
                     _banner = null;
                   }),
@@ -945,6 +979,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     _method = method;
                     _phoneStep = _PhoneStep.number;
                     _phoneToken = null;
+                    _firebaseSms = false;
                     _fields = const {};
                     _banner = null;
                   }),

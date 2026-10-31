@@ -17,19 +17,22 @@ For bootstrap, terminals and shifts after sign-in see [10-auth-bootstrap-shifts.
 
 ```text
 App start
-  └─ GET /api/v1/auth/options            → login_method, registration_enabled, phone_default_country
+  └─ GET /api/v1/auth/options            → login_method, registration_enabled, phone_default_country,
+       │                                     phone_auth_provider, firebase_config
        │
        ├─ "Create a new restaurant"  (only if registration_enabled)
-       │     phone mode:  POST /auth/phone/send (purpose=register)
-       │                  POST /auth/phone/verify (purpose=register)  → phone_token
+       │     phone mode:  POST /auth/phone/send (purpose=register, supports_firebase)
+       │                  [auth_provider=firebase → app sends SMS via Firebase, gets id_token]
+       │                  POST /auth/phone/verify (purpose=register, code | id_token)  → phone_token
        │                  POST /auth/register { phone_token, name, restaurant_name, … }
        │     email mode:  POST /auth/register { email, password, name, restaurant_name, … }
        │                                                              → Bearer token (ability pos)
        │
        ├─ "Sign in"
        │     email:       POST /auth/login                            → Bearer token
-       │     phone:       POST /auth/phone/send (purpose=sign_in)
-       │                  POST /auth/phone/verify (purpose=sign_in)   → Bearer token
+       │     phone:       POST /auth/phone/send (purpose=sign_in, supports_firebase)
+       │                  [auth_provider=firebase → Firebase SMS → id_token]
+       │                  POST /auth/phone/verify (purpose=sign_in, code | id_token)   → Bearer token
        │
        └─ "Pair with a code" (optional; binds device to a terminal)
              POST /pos/pairing/start → show code → poll GET /pos/pairing/status
@@ -71,7 +74,26 @@ After a token:
   "data": {
     "login_method": "both",
     "registration_enabled": true,
-    "phone_default_country": "IN"
+    "phone_default_country": "IN",
+    "phone_auth_provider": "server",
+    "firebase_config": null
+  }
+}
+```
+
+`phone_auth_provider` is `server` (ServeAI texts the code) or `firebase` (the app texts it through Firebase phone auth, §2). When `firebase`, `firebase_config` holds the public Firebase config (no secrets):
+
+```json
+{
+  "apiKey": "AIza…",
+  "authDomain": "demo.firebaseapp.com",
+  "projectId": "demo",
+  "appId": "1:123:web:abc",
+  "messagingSenderId": "123",
+  "nativeAppIds": {
+    "pos": { "android": "1:123:android:pos", "ios": "1:123:ios:pos" },
+    "kiosk": { "android": "", "ios": "" },
+    "customer": { "android": "", "ios": "" }
   }
 }
 ```
@@ -89,23 +111,51 @@ After a token:
 
 ## 2. SMS one-time codes
 
+The code is texted either by ServeAI (Twilio, etc.) or, when the platform's SMS provider is **Firebase**, by the app itself through the Firebase Auth SDK. Always call **send** first; its `auth_provider` tells you which path to take.
+
 ### Send code
 
 `POST /api/v1/auth/phone/send` — throttle 10/min per IP, plus max **3 sends per hour per number**.
 
 ```json
-{ "phone": "+919876543210", "purpose": "register" }
+{ "phone": "+919876543210", "purpose": "register", "supports_firebase": true }
 ```
 
-`purpose`: `register` | `sign_in`.
+| Field | Rules |
+|---|---|
+| `purpose` | `register` \| `sign_in` |
+| `supports_firebase` | `true` only if this build can run Firebase phone auth (Android / iOS). Omit or `false` on desktop (Windows, macOS, Linux) |
 
-Response:
+**Server-sent code** (`auth_provider: "server"`):
 
 ```json
-{ "data": { "message": "We sent a 6-digit code to your mobile number.", "debug_otp": "123456" } }
+{ "data": { "message": "We sent a 6-digit code to your mobile number.", "auth_provider": "server", "debug_otp": "123456" } }
 ```
 
 `debug_otp` only appears on local/testing servers using the log SMS driver — never rely on it in production.
+
+**Firebase** (`auth_provider: "firebase"`, only when you sent `supports_firebase: true`). The server has checked the number and the rate limit but **has not** sent an SMS:
+
+```json
+{
+  "data": {
+    "message": "We sent a 6-digit code to your mobile number.",
+    "auth_provider": "firebase",
+    "firebase_config": { "apiKey": "…", "projectId": "…", "appId": "…", "messagingSenderId": "…", "nativeAppIds": { "pos": { "android": "…", "ios": "…" } } }
+  }
+}
+```
+
+Then, in the app:
+
+1. Initialize Firebase from `firebase_config` (`Firebase.initializeApp(options: …)`; no `google-services.json` needed). Use `nativeAppIds.pos.android` / `.ios` as the app ID on that platform, falling back to `appId` when empty. Reuse the existing Firebase app if push notifications already initialized one.
+2. `FirebaseAuth.verifyPhoneNumber(phoneNumber: "+919876543210", …)` — Firebase texts the 6-digit code.
+3. When the user enters it: `PhoneAuthProvider.credential(verificationId, smsCode)` → `signInWithCredential` → `user.getIdToken()`.
+4. Send that ID token to **verify** (below) instead of `phone` + `code`.
+
+Firebase errors (invalid number, quota, app not authorized, wrong code) come from the SDK — show `e.message`. Requirements in the Firebase console: Phone sign-in enabled; the POS registered as an Android app (package name + SHA-1/SHA-256 of the signing key) and iOS app (bundle ID), with their app IDs entered in Super Admin → Push notifications → Android & iOS apps.
+
+**Older builds / desktop:** when Firebase is the platform provider but the request has no `supports_firebase`, the server texts the code itself through a configured server provider (Twilio) and answers with `auth_provider: "server"`. If no server provider is configured it returns the 422 below.
 
 Possible 422 errors on `phone`:
 
@@ -117,15 +167,17 @@ Possible 422 errors on `phone`:
 | Too many sends | Too many code requests. Try again in :seconds seconds. |
 | Phone login disabled (`login_method=email`) | Mobile number sign-in is turned off. Use your email address instead. |
 | SMS gateway not configured | SMS verification is not set up on this server yet. |
-| Server uses Firebase SMS | …owner sign-in does not support yet. Use email instead. |
+| Firebase provider, no `supports_firebase`, and no server fallback (Twilio) | This server sends SMS codes with Firebase, which this app version does not support. Update the app or use email instead. |
 
 `register` while registrations are disabled → **403** `New registrations are currently disabled.`
 
-Code rules: 6 digits, valid **10 minutes**, max **5** wrong attempts (then request a new code). Show a resend timer (e.g. 30–60 s).
+Code rules (server-sent codes): 6 digits, valid **10 minutes**, max **5** wrong attempts (then request a new code). Show a resend timer (e.g. 30–60 s); resend = call **send** again (for Firebase, pass the previous `forceResendingToken`).
 
 ### Verify code
 
 `POST /api/v1/auth/phone/verify` — throttle 20/min.
+
+Server-sent code:
 
 ```json
 {
@@ -136,6 +188,19 @@ Code rules: 6 digits, valid **10 minutes**, max **5** wrong attempts (then reque
   "device_name": "ServeAI POS (Android)"
 }
 ```
+
+Firebase — send the ID token instead of `phone` + `code` (the server reads the verified number from the token):
+
+```json
+{
+  "id_token": "eyJhbGciOiJSUzI1NiIs…",
+  "purpose": "sign_in",
+  "token_ability": "pos",
+  "device_name": "ServeAI POS (Android)"
+}
+```
+
+`phone` and `code` are required unless `id_token` is sent. The same purpose checks apply to both: `register` rejects a number that already has an account, `sign_in` rejects an unknown number (422 on `phone`). An invalid or expired ID token → 422 on `id_token`.
 
 - `purpose = register` → returns a short-lived proof of ownership (valid **30 minutes**):
 
@@ -223,7 +288,7 @@ Wrong credentials → 422 on `email` (`These credentials do not match our record
 
 ### Mobile + code
 
-`POST /auth/phone/send` with `purpose=sign_in`, then `POST /auth/phone/verify` with `purpose=sign_in` (§2).
+`POST /auth/phone/send` with `purpose=sign_in`, then `POST /auth/phone/verify` with `purpose=sign_in` and either `phone` + `code` or a Firebase `id_token` (§2).
 
 ### Token payload (login, phone sign-in, register)
 
@@ -426,3 +491,5 @@ Refresh bootstrap/menu so the register shows the new items, mark the wizard dism
 6. Saving CGST 2.5 + SGST 2.5 shows both taxes in the returned status.
 7. AI scan: upload → `awaiting_confirmation` → confirm → `completed`; items appear in bootstrap.
 8. Pairing code expires → `expired` → new code can be generated.
+9. Firebase provider, Android/iOS build: send returns `auth_provider: firebase` with no SMS from ServeAI; Firebase texts the code; verify with `id_token` signs in (or returns `phone_token` for register).
+10. Firebase provider, desktop build (no `supports_firebase`) with Twilio configured: send returns `auth_provider: server` and the code arrives by Twilio; without Twilio, send returns the "update the app or use email" 422.

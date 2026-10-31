@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -6,6 +8,7 @@ import 'package:my_app/providers/pos_controller.dart';
 import 'package:my_app/screens/login_screen.dart';
 import 'package:my_app/services/pos_api.dart';
 import 'package:my_app/utils/phone_e164.dart';
+import 'package:my_app/utils/platform_info.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -37,6 +40,21 @@ void main() {
     expect(email.phoneSignIn, isFalse);
     expect(email.emailSignUp, isTrue);
     expect(email.phoneSignUp, isFalse);
+  });
+
+  test('blank native Firebase app ids fall back to the web app id', () {
+    final config = FirebasePublicConfig.fromJson({
+      'apiKey': 'key',
+      'projectId': 'demo',
+      'appId': '1:123:web:abc',
+      'messagingSenderId': '123',
+      'nativeAppIds': {
+        'pos': {'android': '1:123:android:pos', 'ios': ''},
+      },
+    });
+    expect(config.appIdFor('android'), '1:123:android:pos');
+    expect(config.appIdFor('ios'), '1:123:web:abc');
+    expect(config.appIdFor('web'), '1:123:web:abc');
   });
 
   test('phone numbers are sent as E.164', () {
@@ -99,10 +117,12 @@ void main() {
 
   testWidgets('firebase SMS refusal is shown in full on a phone', (tester) async {
     const message =
-        'This server uses Firebase for SMS codes, which owner sign-in does not support yet. Use email instead.';
+        'This server sends SMS codes with Firebase, which this app version does not support. Update the app or use email instead.';
+    Map<String, dynamic>? sentBody;
     final api = PosApi(
       client: MockClient((request) async {
         if (request.url.path.endsWith('/auth/phone/send')) {
+          sentBody = jsonDecode(request.body) as Map<String, dynamic>;
           return http.Response(
             '{"message":"$message","errors":{"phone":["$message"]}}',
             422,
@@ -140,6 +160,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(message), findsOneWidget);
+    expect(sentBody?['supports_firebase'], posCanUseFirebasePhoneAuth);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.text('Use email instead'));
