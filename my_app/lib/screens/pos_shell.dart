@@ -2457,6 +2457,11 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
     final serverUrl = context.select((PosController p) => p.session?.serverUrl);
     context.select((PosLocaleController c) => c.catalogGeneration);
+    final canShift = context.select(
+      (PosController p) =>
+          p.hasStaffPermission('view_shifts') ||
+          p.hasStaffPermission('manage_shifts'),
+    );
     final pos = context.read<PosController>();
     final l10n = context.l10n;
     final width = MediaQuery.sizeOf(context).width;
@@ -2562,8 +2567,7 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                if (pos.canOpenStaffAction('open_shift'))
-                  const PosShiftControl(),
+                if (canShift) const PosShiftControl(),
               ],
             ),
       actions: [

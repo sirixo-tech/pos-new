@@ -93,6 +93,24 @@ void main() {
     expect(pos.canOpenStaffAction('logout'), isTrue);
   });
 
+  test('view_shifts or manage_shifts shows open and close shift', () {
+    final view = staff(['access_pos', 'view_shifts'])
+      ..profile = StaffProfile.fromJson({
+        'permissions': ['access_pos', 'view_shifts'],
+      });
+    addTearDown(view.dispose);
+    expect(view.canOpenStaffAction('open_shift'), isTrue);
+    expect(view.canOpenStaffAction('close_shift'), isTrue);
+
+    final manage = staff(['access_pos', 'manage_shifts'])
+      ..profile = StaffProfile.fromJson({
+        'permissions': ['access_pos', 'manage_shifts'],
+      });
+    addTearDown(manage.dispose);
+    expect(manage.canOpenStaffAction('open_shift'), isTrue);
+    expect(manage.canOpenStaffAction('close_shift'), isTrue);
+  });
+
   test(
     'empty current permissions do not restore stale login kitchen access',
     () {

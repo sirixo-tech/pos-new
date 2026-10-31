@@ -880,7 +880,9 @@ class PosController extends ChangeNotifier {
         return canUseKitchen;
       case 'open_shift':
       case 'close_shift':
-        return hasStaffPermission('manage_shifts');
+        // Current servers grant view_shifts. Older ones used manage_shifts.
+        return hasStaffPermission('view_shifts') ||
+            hasStaffPermission('manage_shifts');
       case 'waiter_mode':
         return canUseCaptain;
       case 'change_mode':
