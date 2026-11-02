@@ -2,6 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/utils/pos_layout.dart';
 
 void main() {
+  test('compact color cards add a column without changing the normal grid', () {
+    expect(posMenuGridCrossAxisCount(900), 5);
+    expect(posMenuGridCrossAxisCount(900, dense: true), 6);
+    expect(kPosDenseColorCardExtent, inInclusiveRange(90, 110));
+  });
+
   test('1024 by 768 register shows four menu columns beside a narrow cart', () {
     final panels = resolvePosDesktopPanelLayout(
       totalWidth: 1024, kotOpen: false, short: true,

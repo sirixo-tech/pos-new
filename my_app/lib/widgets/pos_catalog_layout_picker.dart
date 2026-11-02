@@ -31,6 +31,12 @@ Future<void> showPosCatalogLayoutPicker(BuildContext context) {
                   'Names and prices only. No item or category photos',
                 ),
                 (
+                  PosCatalogLayout.denseColor,
+                  Icons.view_compact_alt_rounded,
+                  'Compact color cards',
+                  'Same color tiles, without the initials circle. More items on screen',
+                ),
+                (
                   PosCatalogLayout.categoryImages,
                   Icons.dashboard_customize_outlined,
                   'Category images · color cards',

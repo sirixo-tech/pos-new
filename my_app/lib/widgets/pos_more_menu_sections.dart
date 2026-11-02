@@ -110,7 +110,7 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
           id: 'item_images',
           icon: Icons.image_outlined,
           label: 'Item images',
-          subtitle: 'Show or hide photos on item cards',
+          subtitle: 'Photos, color cards, or compact tiles',
         ),
         if (showLanguageSwitcher)
           PosMoreMenuItem(

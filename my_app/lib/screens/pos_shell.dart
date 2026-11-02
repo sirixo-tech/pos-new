@@ -1733,6 +1733,9 @@ class _PosCategoryRailHost extends StatelessWidget {
     final showCategoryImages = context.select(
       (PosCatalogLayoutSettings s) => s.showsCategoryImages,
     );
+    final denseColorCards = context.select(
+      (PosCatalogLayoutSettings s) => s.denseColorCards,
+    );
 
     return PosCategoryRail(
       categories: categories,
@@ -1740,6 +1743,7 @@ class _PosCategoryRailHost extends StatelessWidget {
       accent: accent,
       serverUrl: serverUrl,
       showImages: showCategoryImages,
+      compact: denseColorCards,
       horizontal: horizontal,
       searchActive: searchActive,
       onSelect: (id) {
@@ -1906,6 +1910,9 @@ class _MenuScrollBody extends StatelessWidget {
     final showItemImages = context.select(
       (PosCatalogLayoutSettings s) => s.showsItemImages,
     );
+    final denseColorCards = context.select(
+      (PosCatalogLayoutSettings s) => s.denseColorCards,
+    );
     final pos = context.read<PosController>();
 
     if (menuEmpty) {
@@ -1942,7 +1949,10 @@ class _MenuScrollBody extends StatelessWidget {
       builder: (context, constraints) {
         final paneWidth = constraints.maxWidth;
         final handheld = usePosHandheldLayout(context);
-        final crossAxisCount = posMenuGridCrossAxisCount(paneWidth);
+        final crossAxisCount = posMenuGridCrossAxisCount(
+          paneWidth,
+          dense: denseColorCards,
+        );
         final screenSize = MediaQuery.sizeOf(context);
         final compactRegisterGrid =
             !handheld &&
@@ -1965,6 +1975,7 @@ class _MenuScrollBody extends StatelessWidget {
                   onIncrementSimple: pos.incrementSimpleCartLine,
                   onDecrementSimple: pos.decrementSimpleCartLine,
                   showImage: showItemImages,
+                  dense: denseColorCards,
                 ),
               ),
             if (searchQuery.isNotEmpty)
@@ -2022,14 +2033,18 @@ class _MenuScrollBody extends StatelessWidget {
                       )
                     : SliverGrid(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: handheld ? 2 : crossAxisCount,
-                          mainAxisExtent: handheld
+                          crossAxisCount: denseColorCards
+                              ? crossAxisCount
+                              : (handheld ? 2 : crossAxisCount),
+                          mainAxisExtent: denseColorCards
+                              ? kPosDenseColorCardExtent
+                              : handheld
                               ? handheldMenuCardExtent(context, paneWidth)
                               : compactRegisterGrid
                               ? 130
                               : null,
-                          mainAxisSpacing: 14,
-                          crossAxisSpacing: 14,
+                          mainAxisSpacing: denseColorCards ? 10 : 14,
+                          crossAxisSpacing: denseColorCards ? 10 : 14,
                           childAspectRatio: posMenuGridChildAspectRatio(
                             paneWidth,
                             compact: true,
@@ -2039,8 +2054,9 @@ class _MenuScrollBody extends StatelessWidget {
                         delegate: SliverChildBuilderDelegate((context, index) {
                           final item = items[index];
                           return PosMenuItemCard(
-                            handheld: handheld,
-                            photoGrid: handheld,
+                            handheld: handheld && !denseColorCards,
+                            photoGrid: handheld && !denseColorCards,
+                            dense: denseColorCards,
                             key: ValueKey(item.id),
                             item: item,
                             currency: currency,
@@ -2076,6 +2092,7 @@ class _PopularSection extends StatelessWidget {
     required this.onDecrementSimple,
     this.serverUrl,
     this.showImage = true,
+    this.dense = false,
   });
 
   final List<MenuItem> items;
@@ -2088,15 +2105,18 @@ class _PopularSection extends StatelessWidget {
   final ValueChanged<CartLine> onDecrementSimple;
   final String? serverUrl;
   final bool showImage;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
     final short = PosTheme.isShort(context);
     final soft = posAccentSoft(accent);
-    final stripHeight = showImage
+    final stripHeight = dense
+        ? kPosDenseColorCardExtent
+        : showImage
         ? (short ? 148.0 : 200.0)
         : (short ? 148.0 : 168.0);
-    final cardWidth = short ? 120.0 : 144.0;
+    final cardWidth = dense ? 132.0 : (short ? 120.0 : 144.0);
     final pad = short
         ? const EdgeInsets.fromLTRB(12, 8, 12, 10)
         : const EdgeInsets.fromLTRB(16, 12, 16, 16);
@@ -2177,6 +2197,7 @@ class _PopularSection extends StatelessWidget {
                         accent: accent,
                         serverUrl: serverUrl,
                         showImage: showImage,
+                        dense: dense,
                         compact: true,
                         inTicketQty: qtyByItemId[item.id] ?? 0,
                         simpleCartLine: simpleLineByItemId[item.id],

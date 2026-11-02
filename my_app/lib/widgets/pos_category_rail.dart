@@ -21,6 +21,7 @@ class PosCategoryRail extends StatelessWidget {
     this.accent,
     this.serverUrl,
     this.showImages = true,
+    this.compact = false,
   });
 
   final List<MenuCategory> categories;
@@ -33,6 +34,9 @@ class PosCategoryRail extends StatelessWidget {
   final Color? accent;
   final String? serverUrl;
   final bool showImages;
+
+  /// Smaller tiles, used only by the compact color-card catalog.
+  final bool compact;
 
   void _select(int? id) {
     HapticFeedback.selectionClick();
@@ -95,7 +99,7 @@ class PosCategoryRail extends StatelessWidget {
       child: Container(
         width: usePosHandheldLayout(context)
             ? (MediaQuery.sizeOf(context).width < 400 ? 84 : 104)
-            : 128,
+            : (compact ? kPosDenseCategoryRailWidth : kPosCategoryRailWidth),
         decoration: BoxDecoration(
           color: PosTheme.surface,
           border: Border(right: BorderSide(color: PosTheme.border)),
@@ -111,7 +115,7 @@ class PosCategoryRail extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+              padding: EdgeInsets.fromLTRB(8, compact ? 8 : 10, 8, compact ? 4 : 8),
               child: Row(
                 children: [
                   Container(
@@ -141,7 +145,7 @@ class PosCategoryRail extends StatelessWidget {
             ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(4, 0, 4, 16),
+                padding: EdgeInsets.fromLTRB(4, 0, 4, compact ? 10 : 16),
                 children: [
                   _CategoryTile(
                     label: resolvedAllItems,
@@ -149,9 +153,10 @@ class PosCategoryRail extends StatelessWidget {
                     accent: primary,
                     onTap: () => _select(null),
                     icon: Icons.apps_rounded,
+                    compact: compact,
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: EdgeInsets.symmetric(vertical: compact ? 6 : 10),
                     child: Divider(
                       height: 1,
                       thickness: 1,
@@ -161,13 +166,14 @@ class PosCategoryRail extends StatelessWidget {
                   ...categories.map((category) {
                     final lang = Localizations.localeOf(context).languageCode;
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: EdgeInsets.only(bottom: compact ? 4 : 8),
                       child: _CategoryTile(
                         label: category.localizedName(lang),
                         isActive:
                             !searchActive && category.id == activeCategoryId,
                         accent: primary,
                         onTap: () => _select(category.id),
+                        compact: compact,
                         imageUrl: showImages
                             ? resolveMediaUrl(
                                 category.imageUrl,
@@ -196,6 +202,7 @@ class _CategoryTile extends StatelessWidget {
     required this.onTap,
     this.imageUrl,
     this.icon,
+    this.compact = false,
   });
 
   final String label;
@@ -204,6 +211,7 @@ class _CategoryTile extends StatelessWidget {
   final VoidCallback onTap;
   final String? imageUrl;
   final IconData? icon;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -214,14 +222,19 @@ class _CategoryTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(compact ? 12 : 16),
         splashColor: accent.withValues(alpha: 0.12),
         highlightColor: accent.withValues(alpha: 0.06),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+          padding: EdgeInsets.fromLTRB(
+            compact ? 4 : 8,
+            compact ? 6 : 10,
+            compact ? 4 : 8,
+            compact ? 6 : 10,
+          ),
           decoration: BoxDecoration(
             color: soft,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(compact ? 12 : 16),
             border: Border.all(
               color: isActive
                   ? accent.withValues(alpha: 0.22)
@@ -236,16 +249,18 @@ class _CategoryTile extends StatelessWidget {
                 icon: icon,
                 isActive: isActive,
                 accent: accent,
-                size: usePosHandheldLayout(context) ? 32 : 52,
+                size: usePosHandheldLayout(context)
+                    ? 32
+                    : (compact ? 34 : 52),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: compact ? 4 : 8),
               Text(
                 label,
                 textAlign: TextAlign.center,
                 maxLines: usePosHandheldLayout(context) ? 3 : 2,
                 overflow: TextOverflow.ellipsis,
                 style: _categoryNameStyle(
-                  handheld ? 12 : 13,
+                  handheld ? 12 : (compact ? 11 : 13),
                   color: isActive ? Colors.white : null,
                 ),
               ),

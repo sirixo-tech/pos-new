@@ -27,6 +27,7 @@ class PosMenuItemCard extends StatefulWidget {
     this.showImage = true,
     this.handheld = false,
     this.photoGrid = false,
+    this.dense = false,
   });
 
   final MenuItem item;
@@ -42,6 +43,9 @@ class PosMenuItemCard extends StatefulWidget {
   final bool showImage;
   final bool handheld;
   final bool photoGrid;
+
+  /// Color tile without the initials circle, for the compact catalog layout.
+  final bool dense;
 
   @override
   State<PosMenuItemCard> createState() => _PosMenuItemCardState();
@@ -840,10 +844,10 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                     children: [
                       Padding(
                         padding: EdgeInsets.fromLTRB(
-                          widget.compact ? 10 : 12,
-                          widget.compact ? 8 : 10,
-                          widget.compact ? 10 : 12,
-                          widget.compact ? 8 : 10,
+                          widget.dense ? 8 : (widget.compact ? 10 : 12),
+                          widget.dense ? 5 : (widget.compact ? 8 : 10),
+                          widget.dense ? 8 : (widget.compact ? 10 : 12),
+                          widget.dense ? 4 : (widget.compact ? 8 : 10),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -856,53 +860,65 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                               child:
                                   normalizePosItemType(widget.item.itemType) ==
                                       null
-                                  ? const SizedBox(height: 16)
+                                  ? SizedBox(height: widget.dense ? 0 : 16)
                                   : PosItemTypeMark(
                                       type: widget.item.itemType!,
-                                      size: 14,
+                                      size: widget.dense ? 12 : 14,
                                     ),
                             ),
-                            if (bounded)
-                              Expanded(
-                                child: Center(
+                            if (widget.dense) ...[
+                              const SizedBox(height: 2),
+                              if (bounded)
+                                Expanded(child: _denseItemName(itemName))
+                              else
+                                _denseItemName(itemName),
+                            ] else ...[
+                              if (bounded)
+                                Expanded(
+                                  child: Center(
+                                    child: _colorMonogram(itemName, circle),
+                                  ),
+                                )
+                              else ...[
+                                const SizedBox(height: 8),
+                                Center(
                                   child: _colorMonogram(itemName, circle),
                                 ),
-                              )
-                            else ...[
-                              const SizedBox(height: 8),
-                              Center(child: _colorMonogram(itemName, circle)),
-                            ],
-                            if (showStepper)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Center(
-                                  child: _Stepper(
-                                    quantity: widget.inTicketQty,
-                                    compact: true,
-                                    soft:
-                                        !widget.handheld &&
-                                        !usePosHandheldLayout(context),
-                                    accent: _colorCardPrice,
-                                    onDecrement: () => widget.onDecrementSimple
-                                        ?.call(widget.simpleCartLine!),
-                                    onIncrement: () => widget.onIncrementSimple
-                                        ?.call(widget.simpleCartLine!),
+                              ],
+                              if (showStepper)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Center(
+                                    child: _Stepper(
+                                      quantity: widget.inTicketQty,
+                                      compact: true,
+                                      soft:
+                                          !widget.handheld &&
+                                          !usePosHandheldLayout(context),
+                                      accent: _colorCardPrice,
+                                      onDecrement: () => widget
+                                          .onDecrementSimple
+                                          ?.call(widget.simpleCartLine!),
+                                      onIncrement: () => widget
+                                          .onIncrementSimple
+                                          ?.call(widget.simpleCartLine!),
+                                    ),
                                   ),
                                 ),
+                              SizedBox(height: widget.compact ? 8 : 10),
+                              Text(
+                                itemName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: widget.compact ? 14.3 : 15.4,
+                                  height: 1.15,
+                                  color: const Color(0xFF1F2937),
+                                ),
                               ),
-                            SizedBox(height: widget.compact ? 8 : 10),
-                            Text(
-                              itemName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: widget.compact ? 14.3 : 15.4,
-                                height: 1.15,
-                                color: const Color(0xFF1F2937),
-                              ),
-                            ),
+                            ],
                             if (widget.item.variants.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
@@ -920,7 +936,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                                 ),
                               ),
                             ],
-                            const SizedBox(height: 6),
+                            SizedBox(height: widget.dense ? 2 : 6),
                             Row(
                               children: [
                                 Expanded(
@@ -936,7 +952,9 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                                     style: TextStyle(
                                       color: _colorCardPrice,
                                       fontWeight: FontWeight.w700,
-                                      fontSize: widget.compact ? 14.3 : 15.4,
+                                      fontSize: widget.dense
+                                          ? 12.5
+                                          : (widget.compact ? 14.3 : 15.4),
                                       height: 1,
                                     ),
                                   ),
@@ -950,13 +968,13 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                                     child: InkWell(
                                       customBorder: const CircleBorder(),
                                       onTap: _handleTap,
-                                      child: const SizedBox(
-                                        width: 28,
-                                        height: 28,
+                                      child: SizedBox(
+                                        width: widget.dense ? 18 : 28,
+                                        height: widget.dense ? 18 : 28,
                                         child: Icon(
                                           Icons.add_rounded,
                                           color: Colors.white,
-                                          size: 18,
+                                          size: widget.dense ? 12 : 18,
                                         ),
                                       ),
                                     ),
@@ -1007,6 +1025,21 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _denseItemName(String itemName) {
+    return Text(
+      itemName,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        fontWeight: FontWeight.w800,
+        fontSize: 13,
+        height: 1.15,
+        color: Color(0xFF1F2937),
       ),
     );
   }

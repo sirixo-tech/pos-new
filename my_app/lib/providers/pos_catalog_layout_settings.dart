@@ -6,6 +6,7 @@ enum PosCatalogLayout {
   images,
   colorCards,
   categoryImages,
+  denseColor,
 }
 
 class PosCatalogLayoutSettings extends ChangeNotifier {
@@ -20,7 +21,12 @@ class PosCatalogLayoutSettings extends ChangeNotifier {
 
   bool get showsItemImages => _layout == PosCatalogLayout.images;
 
-  bool get showsCategoryImages => _layout != PosCatalogLayout.colorCards;
+  bool get showsCategoryImages =>
+      _layout != PosCatalogLayout.colorCards &&
+      _layout != PosCatalogLayout.denseColor;
+
+  /// Color tiles with no initials circle and a shorter card.
+  bool get denseColorCards => _layout == PosCatalogLayout.denseColor;
 
   Future<void> load() async {
     if (_loaded) return;

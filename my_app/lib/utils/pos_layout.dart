@@ -89,16 +89,23 @@ PosDesktopPanelLayout resolvePosDesktopPanelLayout({
   );
 }
 
-int posMenuGridCrossAxisCount(double width) {
+int posMenuGridCrossAxisCount(double width, {bool dense = false}) {
   // Keep cards near 140–170 logical pixels on registers with a narrow
   // menu pane after the category rail and ticket have taken their space.
-  if (width >= 1040) return 6;
-  if (width >= 860) return 5;
-  if (width >= 540) return 4;
+  // Dense color cards drop the initials circle, so one extra column fits.
+  if (width >= 1040) return dense ? 8 : 6;
+  if (width >= 860) return dense ? 6 : 5;
+  if (width >= 540) return dense ? 5 : 4;
   // A 1024px register leaves about 392px after its rail, cart and padding.
-  if (width >= 380) return 3;
-  return 2;
+  if (width >= 380) return dense ? 4 : 3;
+  return dense ? 3 : 2;
 }
+
+/// Height of a compact color card: diet mark, two name lines, variant, price.
+const double kPosDenseColorCardExtent = 96;
+
+/// Vertical category rail width when compact color cards are selected.
+const double kPosDenseCategoryRailWidth = 104;
 
 /// Grid cell aspect ratio for 4:3 image + footer.
 ///
