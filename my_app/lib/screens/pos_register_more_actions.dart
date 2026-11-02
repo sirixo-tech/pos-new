@@ -5,6 +5,7 @@ import '../l10n/pos_l10n.dart';
 import '../providers/pos_controller.dart';
 import '../services/pos_display_mode.dart';
 import '../widgets/cart_quick_pay_layout_dialog.dart';
+import '../widgets/pos_local_register_settings.dart';
 import '../widgets/pos_appearance_picker.dart';
 import '../widgets/pos_auto_lock_picker.dart';
 import '../widgets/pos_catalog_layout_picker.dart';
@@ -86,6 +87,18 @@ Future<void> handlePosRegisterMoreAction({
   } else if (value == 'quick_pay_layout') {
     if (context.mounted) {
       await showCartQuickPayLayoutDialog(context);
+    }
+  } else if (value == 'order_types') {
+    if (context.mounted) {
+      await showPosOrderTypeSettingsDialog(context);
+    }
+  } else if (value == 'offline_receipt') {
+    if (context.mounted) {
+      await showOfflineReceiptFormatDialog(context);
+    }
+  } else if (value == 'offline_kot') {
+    if (context.mounted) {
+      await showOfflineKotFormatDialog(context);
     }
   } else if (value == 'sounds') {
     if (context.mounted) {

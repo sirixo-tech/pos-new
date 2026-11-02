@@ -194,6 +194,18 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
           ),
         ),
         PosMoreMenuItem(
+          id: 'order_types',
+          icon: Icons.restaurant_rounded,
+          label: 'Order types',
+          subtitle: 'Show or hide Dine in, Takeaway, Delivery',
+        ),
+        PosMoreMenuItem(
+          id: 'offline_receipt',
+          icon: Icons.receipt_long_rounded,
+          label: 'Offline receipts',
+          subtitle: 'Customer bill and kitchen ticket',
+        ),
+        PosMoreMenuItem(
           id: 'sounds',
           icon: Icons.volume_up_outlined,
           label: 'Sound settings',

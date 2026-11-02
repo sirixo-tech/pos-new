@@ -14,6 +14,7 @@ import 'providers/pos_category_bar_settings.dart';
 import 'providers/kitchen_controller.dart';
 import 'providers/kitchen_kot_filter_order.dart';
 import 'providers/pos_controller.dart';
+import 'providers/pos_register_preferences.dart';
 import 'providers/pos_idle_lock_controller.dart';
 import 'providers/pos_locale_controller.dart';
 import 'providers/pos_theme_controller.dart';
@@ -42,6 +43,7 @@ import 'services/scanner_connection_service.dart';
 import 'services/window_close/window_close_guard.dart';
 import 'payments/payment_session_manager.dart';
 import 'theme/pos_theme.dart';
+import 'utils/pos_layout.dart';
 import 'utils/pos_registration_return.dart';
 import 'widgets/kot_print_failure_host.dart';
 import 'widgets/pos_idle_lock_scope.dart';
@@ -72,6 +74,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
   late final CartQuickPaySettings _quickPaySettings;
   late final PosCategoryBarSettings _categoryBarSettings;
   late final PosCatalogLayoutSettings _catalogLayoutSettings;
+  late final PosRegisterPreferences _registerPreferences;
   late final PosApi _api;
   late final WindowCloseGuard _windowCloseGuard;
 
@@ -102,6 +105,8 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
     unawaited(_categoryBarSettings.load());
     _catalogLayoutSettings = PosCatalogLayoutSettings();
     unawaited(_catalogLayoutSettings.load());
+    _registerPreferences = PosRegisterPreferences.instance;
+    unawaited(_registerPreferences.load());
     _localeController = PosLocaleController()..load();
     _themeController = PosThemeController()..load();
     _idleLockController = PosIdleLockController()..load();
@@ -227,6 +232,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
         ChangeNotifierProvider.value(value: _quickPaySettings),
         ChangeNotifierProvider.value(value: _categoryBarSettings),
         ChangeNotifierProvider.value(value: _catalogLayoutSettings),
+        ChangeNotifierProvider.value(value: _registerPreferences),
       ],
       child: Consumer2<PosLocaleController, PosThemeController>(
         builder: (context, localeController, themeController, _) {
@@ -267,7 +273,8 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
               // other pushed routes still count as activity and stay covered.
               return ColoredBox(
                 color: canvas,
-                child: PosThemeBrightness(
+                child: PosCompactRegisterFrame(
+                  child: PosThemeBrightness(
                   brightness: brightness,
                   child: PosIdleLockScope(
                     child: PosKeyboardDismiss(
@@ -293,6 +300,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
                       ),
                     ),
                   ),
+                ),
                 ),
               );
             },

@@ -27,6 +27,7 @@ import '../services/pos_terminal_storage.dart';
 import '../services/pos_waiter_alerts_storage.dart';
 import '../services/pos_work_mode_storage.dart';
 import '../services/printing/print_job_coordinator.dart';
+import 'pos_register_preferences.dart';
 import '../utils/json_parse.dart';
 import '../utils/marketplace_platform_ui.dart';
 import '../utils/offline_payments.dart';
@@ -894,6 +895,9 @@ class PosController extends ChangeNotifier {
       case '_notifications':
       case 'refresh':
       case 'quick_pay_layout':
+      case 'order_types':
+      case 'offline_receipt':
+      case 'offline_kot':
       case 'sync':
         return canUseRegister;
       case 'status':
@@ -2629,8 +2633,7 @@ class PosController extends ChangeNotifier {
   }
 
   void setOrderType(String type) {
-    final allowed =
-        bootstrap?.restaurant.ordering.activePosOrderTypes ?? const <String>[];
+    final allowed = _visibleOrderTypes();
     if (allowed.isNotEmpty && !allowed.contains(type)) {
       return;
     }
@@ -2681,14 +2684,16 @@ class PosController extends ChangeNotifier {
     notifyListeners();
   }
 
+  List<String> _visibleOrderTypes() {
+    return PosRegisterPreferences.instance.visibleOrderTypes(
+      bootstrap?.restaurant.ordering.activePosOrderTypes ?? const [],
+    );
+  }
+
   void _ensureOrderTypeAllowed() {
-    final allowed = bootstrap?.restaurant.ordering.posOrderTypes ?? const [];
-    if (allowed.isEmpty) {
-      return;
-    }
-    if (!allowed.contains(orderType)) {
-      orderType = allowed.first;
-    }
+    final allowed = _visibleOrderTypes();
+    if (allowed.isEmpty || allowed.contains(orderType)) return;
+    orderType = allowed.first;
   }
 
   void addToCart(CartLine line) {

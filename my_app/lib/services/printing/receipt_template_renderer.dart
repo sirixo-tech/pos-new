@@ -12,6 +12,7 @@ class ReceiptTemplateRenderer {
     required this.settings,
     required this.template,
     this.isDuplicateCopy = false,
+    this.respectTaxToggle = false,
   }) : _typography = ReceiptTypography(
          receiptWidth: settings.paper,
          fontSize: settings.fontSize,
@@ -22,6 +23,10 @@ class ReceiptTemplateRenderer {
   final PosReceiptSettings settings;
   final ReceiptTemplate template;
   final bool isDuplicateCopy;
+
+  /// Saved cashier formats honor the tax switch. Unsaved offline slips keep
+  /// the previous behavior of always printing tax lines.
+  final bool respectTaxToggle;
   final ReceiptTypography _typography;
 
   String get _thermalLogoUrl {
@@ -306,7 +311,9 @@ class ReceiptTemplateRenderer {
         formatMoneyThermal(order.subtotal, currency, showSymbol: showSymbol),
       );
     }
-    if (settings.showTax || order.isOffline) {
+    final printTax =
+        settings.showTax || (order.isOffline && !respectTaxToggle);
+    if (printTax) {
       for (final tax in order.taxBreakdown) {
         if (tax.amount <= 0) continue;
         final included = tax.included ? ' incl.' : '';

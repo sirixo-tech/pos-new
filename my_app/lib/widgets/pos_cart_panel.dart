@@ -9,6 +9,7 @@ import '../l10n/pos_l10n.dart';
 import '../models/pos_models.dart';
 import '../providers/cart_quick_pay_settings.dart';
 import '../providers/pos_controller.dart';
+import '../providers/pos_register_preferences.dart';
 import '../theme/pos_theme.dart';
 import '../utils/format.dart';
 import '../utils/json_parse.dart';
@@ -257,10 +258,21 @@ class _PosCartPanelState extends State<PosCartPanel> {
     final hasDiscount = context.select(
       (PosController p) => p.discountAmount > 0,
     );
-    final allowedOrderTypes = context.select(
-      (PosController p) =>
-          p.bootstrap?.restaurant.ordering.activePosOrderTypes ??
-          const ['dine_in', 'takeaway', 'delivery'],
+    final serverOrderKey = context.select((PosController p) {
+      final types =
+          p.bootstrap?.restaurant.ordering.activePosOrderTypes ?? posOrderTypes;
+      return types.join(',');
+    });
+    final localGates = context.select(
+      (PosRegisterPreferences p) => (p.dineIn, p.takeaway, p.delivery),
+    );
+    final allowedOrderTypes = visiblePosOrderTypes(
+      serverAllowed: serverOrderKey.isEmpty
+          ? posOrderTypes
+          : serverOrderKey.split(','),
+      dineIn: localGates.$1,
+      takeaway: localGates.$2,
+      delivery: localGates.$3,
     );
     final pos = context.read<PosController>();
 
@@ -271,9 +283,8 @@ class _PosCartPanelState extends State<PosCartPanel> {
     final canClear = itemCount > 0 || hasParkedTicket;
     final showDiscount = !widget.lockServiceContext && !pos.isWaiterMode;
 
-    if (orderType == 'delivery' &&
-        allowedOrderTypes.isNotEmpty &&
-        !allowedOrderTypes.contains('delivery')) {
+    if (allowedOrderTypes.isNotEmpty &&
+        !allowedOrderTypes.contains(orderType)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted) return;
         final fallback = allowedOrderTypes.contains('dine_in')

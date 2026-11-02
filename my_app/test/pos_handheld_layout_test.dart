@@ -19,6 +19,7 @@ import 'package:my_app/theme/pos_theme.dart';
 import 'package:my_app/models/pos_models.dart';
 import 'package:my_app/l10n/pos_l10n.dart';
 import 'package:my_app/providers/cart_quick_pay_settings.dart';
+import 'package:my_app/providers/pos_register_preferences.dart';
 import 'package:my_app/providers/pos_controller.dart';
 import 'package:my_app/widgets/pos_cart_panel.dart';
 import 'package:my_app/widgets/pos_category_rail.dart';
@@ -383,6 +384,9 @@ void main() {
               providers: [
                 ChangeNotifierProvider.value(value: pos),
                 ChangeNotifierProvider.value(value: quickPay),
+                ChangeNotifierProvider.value(
+                  value: PosRegisterPreferences.instance,
+                ),
               ],
               child: Column(
                 children: [

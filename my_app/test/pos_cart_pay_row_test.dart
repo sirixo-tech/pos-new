@@ -8,6 +8,7 @@ import 'package:google_fonts/src/google_fonts_base.dart' as fonts;
 import 'package:my_app/l10n/pos_l10n.dart';
 import 'package:my_app/models/pos_models.dart';
 import 'package:my_app/providers/cart_quick_pay_settings.dart';
+import 'package:my_app/providers/pos_register_preferences.dart';
 import 'package:my_app/providers/pos_controller.dart';
 import 'package:my_app/theme/pos_theme.dart';
 import 'package:my_app/widgets/pos_cart_panel.dart';
@@ -71,6 +72,7 @@ void main() {
         providers: [
           ChangeNotifierProvider<PosController>.value(value: pos),
           ChangeNotifierProvider.value(value: quickPay),
+          ChangeNotifierProvider.value(value: PosRegisterPreferences.instance),
         ],
         child: MaterialApp(
           theme: PosTheme.build(),

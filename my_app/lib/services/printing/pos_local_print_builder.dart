@@ -1,4 +1,5 @@
 import '../../models/pos_models.dart';
+import '../../providers/pos_register_preferences.dart';
 import '../offline/pending_order.dart';
 import 'esc_pos_builder.dart';
 import 'offline_print_adapter.dart';
@@ -13,7 +14,11 @@ Future<List<int>> buildPosReceiptBytesLocally({
   required PendingOrder order,
   bool duplicateCopy = false,
 }) async {
-  final settings = bootstrap.receiptSettings ?? PosReceiptSettings();
+  final baseSettings = bootstrap.receiptSettings ?? PosReceiptSettings();
+  final localFormat = PosRegisterPreferences.instance.offlineFormat;
+  final settings = localFormat == null
+      ? baseSettings
+      : localFormat.applyTo(baseSettings);
   final tokenSettings = settings.token;
   final venue = OfflinePrintAdapter.venueFromBootstrap(bootstrap);
   final printOrder = OfflinePrintAdapter.orderFromPending(
@@ -27,7 +32,9 @@ Future<List<int>> buildPosReceiptBytesLocally({
 
   final policy = PosChannelPrintPolicy.fromBootstrap(bootstrap);
   final bytes = <int>[];
-  final printReceipt = policy.customerReceipt;
+  // A saved cashier format prints the customer slip even when the web
+  // receipt switch is off. Online printing does not read this format.
+  final printReceipt = localFormat != null || policy.customerReceipt;
   final printTokens = policy.counterReceipt && printOrder.items.isNotEmpty;
   final cutMode = _normalizeCutMode(tokenSettings.cutMode);
 
@@ -37,8 +44,11 @@ Future<List<int>> buildPosReceiptBytesLocally({
         venue: venue,
         order: printOrder,
         settings: settings,
-        template: settings.template,
+        template: localFormat == null
+            ? settings.template
+            : localFormat.toCodeTemplate(),
         isDuplicateCopy: duplicateCopy,
+        respectTaxToggle: localFormat != null,
       ).buildBytes(cutAtEnd: false),
     );
 
