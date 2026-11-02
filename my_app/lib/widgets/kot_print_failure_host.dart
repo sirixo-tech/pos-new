@@ -59,7 +59,7 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
     }
 
     _modalOpen = true;
-    showDialog<void>(
+    showDialog<bool>(
       context: overlayContext,
       useRootNavigator: true,
       barrierDismissible: false,
@@ -75,8 +75,12 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
           unawaited(coordinator.retryFailed(includeMayHavePrinted: false));
         },
       ),
-    ).whenComplete(() {
-      coordinator.ackFailure(event.jobKey);
+    ).then((dismissAll) {
+      if (dismissAll == true) {
+        coordinator.ackAllFailures();
+      } else {
+        coordinator.ackFailure(event.jobKey);
+      }
       _modalOpen = false;
       if (mounted) _pump();
     });
@@ -206,7 +210,7 @@ class _PrintFailureDialogState extends State<_PrintFailureDialog> {
                 children: [
                   Expanded(
                     child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => Navigator.of(context).pop(true),
                       child: const Text('Dismiss'),
                     ),
                   ),

@@ -120,6 +120,11 @@ class PrintJobCoordinator extends ChangeNotifier {
     _pendingKotUi.removeWhere((event) => event.jobKey == jobKey);
   }
 
+  /// Closes every queued KOT failure popup. Failed slips stay queued to print.
+  void ackAllFailures() {
+    _pendingKotUi.clear();
+  }
+
   void attach({
     required PosSession? Function() session,
     required String? Function() serverUrl,
