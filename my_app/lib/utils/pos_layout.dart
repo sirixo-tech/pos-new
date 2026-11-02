@@ -17,28 +17,6 @@ const double kPosKotOverlayBreakpoint = 1150;
 /// Vertical category rail width in desktop register layout.
 const double kPosCategoryRailWidth = 128;
 
-/// How much to shrink a 1024×768-class register so it matches larger screens.
-///
-/// Other resolutions return 1 and are laid out exactly as before.
-const double kPosCompactRegisterScale = 0.82;
-
-/// True for the physical 1024×768 monitor class, including Windows DPI scaling.
-bool usePosCompactRegister(Size logicalSize, double devicePixelRatio) {
-  final width = logicalSize.width * devicePixelRatio;
-  final height = logicalSize.height * devicePixelRatio;
-  return width >= height &&
-      width >= 980 &&
-      width <= 1100 &&
-      height >= 680 &&
-      height <= 820;
-}
-
-double posCompactRegisterScale(Size logicalSize, double devicePixelRatio) {
-  return usePosCompactRegister(logicalSize, devicePixelRatio)
-      ? kPosCompactRegisterScale
-      : 1;
-}
-
 /// Narrow portrait terminals such as the iMin NM2 Pro.
 bool usePosHandheldLayout(BuildContext context) {
   final size = MediaQuery.sizeOf(context);
@@ -146,40 +124,6 @@ double posMenuGridChildAspectRatio(
 }
 
 /// Phone menu card height. Matches the photo/color header plus name, price, and ADD.
-/// Lays a 1024×768 register out on a larger canvas, then fits it to the window.
-/// Every other size returns [child] unchanged.
-class PosCompactRegisterFrame extends StatelessWidget {
-  const PosCompactRegisterFrame({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final media = MediaQuery.of(context);
-    final scale = posCompactRegisterScale(media.size, media.devicePixelRatio);
-    if (scale == 1) return child;
-
-    final factor = 1 / scale;
-    final logical = Size(media.size.width * factor, media.size.height * factor);
-    return FittedBox(
-      fit: BoxFit.fill,
-      child: SizedBox(
-        width: logical.width,
-        height: logical.height,
-        child: MediaQuery(
-          data: media.copyWith(
-            size: logical,
-            padding: media.padding * factor,
-            viewPadding: media.viewPadding * factor,
-            viewInsets: media.viewInsets * factor,
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
 double handheldMenuCardExtent(BuildContext context, double paneWidth) {
   final scale = MediaQuery.textScalerOf(context).scale(1);
   final cellWidth = (paneWidth - 34) / 2;

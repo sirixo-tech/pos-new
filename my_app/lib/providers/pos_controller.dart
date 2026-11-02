@@ -896,8 +896,6 @@ class PosController extends ChangeNotifier {
       case 'refresh':
       case 'quick_pay_layout':
       case 'order_types':
-      case 'offline_receipt':
-      case 'offline_kot':
       case 'sync':
         return canUseRegister;
       case 'status':

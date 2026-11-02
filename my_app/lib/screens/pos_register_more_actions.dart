@@ -92,14 +92,6 @@ Future<void> handlePosRegisterMoreAction({
     if (context.mounted) {
       await showPosOrderTypeSettingsDialog(context);
     }
-  } else if (value == 'offline_receipt') {
-    if (context.mounted) {
-      await showOfflineReceiptFormatDialog(context);
-    }
-  } else if (value == 'offline_kot') {
-    if (context.mounted) {
-      await showOfflineKotFormatDialog(context);
-    }
   } else if (value == 'sounds') {
     if (context.mounted) {
       await showPosSoundSettingsDialog(context);

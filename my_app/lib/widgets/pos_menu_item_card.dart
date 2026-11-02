@@ -832,8 +832,8 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
               builder: (context, constraints) {
                 final bounded = constraints.maxHeight.isFinite;
                 final circle = bounded
-                    ? (widget.compact ? 44.0 : 48.0)
-                    : (widget.compact ? 36.0 : 40.0);
+                    ? (widget.compact ? 64.0 : 72.0)
+                    : (widget.compact ? 48.0 : 56.0);
                 return SizedBox(
                   height: bounded ? constraints.maxHeight : null,
                   child: Stack(

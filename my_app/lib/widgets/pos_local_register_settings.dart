@@ -5,7 +5,6 @@ import '../l10n/pos_l10n.dart';
 import '../providers/pos_controller.dart';
 import '../providers/pos_register_preferences.dart';
 import '../theme/pos_theme.dart';
-import 'pos_offline_receipt_studio.dart';
 import 'pos_ui.dart';
 
 Future<void> showPosOrderTypeSettingsDialog(BuildContext context) {
@@ -13,32 +12,6 @@ Future<void> showPosOrderTypeSettingsDialog(BuildContext context) {
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.45),
     builder: (_) => const _OrderTypeSettingsDialog(),
-  );
-}
-
-Future<void> showOfflineKotFormatDialog(BuildContext context) {
-  return showOfflineReceiptFormatDialog(context, kitchen: true);
-}
-
-Future<void> showOfflineReceiptFormatDialog(
-  BuildContext context, {
-  bool kitchen = false,
-}) {
-  final height = MediaQuery.sizeOf(context).height;
-  return showDialog<void>(
-    context: context,
-    barrierColor: Colors.black.withValues(alpha: 0.5),
-    builder: (_) => Dialog(
-      backgroundColor: PosTheme.canvas,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(PosTheme.radiusLg),
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 980, maxHeight: height * 0.9),
-        child: PosOfflineReceiptStudio(initialKitchen: kitchen),
-      ),
-    ),
   );
 }
 
