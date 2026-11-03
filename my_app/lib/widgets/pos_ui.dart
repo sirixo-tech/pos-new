@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../config/pos_app_info.dart';
@@ -2139,31 +2141,98 @@ class _PosCancelOrderDialogState extends State<_PosCancelOrderDialog> {
   }
 }
 
-/// Dismisses the software keyboard when the pointer lands outside the
-/// currently focused field — works for cart notes, search, PIN, etc.
-class PosKeyboardDismiss extends StatelessWidget {
+/// Dismisses the software keyboard on a completed tap outside the focused
+/// field. A pointer-down alone does not clear focus: the Windows touch
+/// keyboard delivers one when a key is pressed, and clearing focus there
+/// drops the letter before it reaches the field.
+class PosKeyboardDismiss extends StatefulWidget {
   const PosKeyboardDismiss({super.key, required this.child});
 
   final Widget child;
+
+  @override
+  State<PosKeyboardDismiss> createState() => _PosKeyboardDismissState();
+}
+
+class _PosKeyboardDismissState extends State<PosKeyboardDismiss> {
+  int? _pointer;
+  Offset? _down;
+  bool _downOutside = false;
+  FocusNode? _lastFocus;
+  DateTime? _focusedAt;
+
+  @override
+  void initState() {
+    super.initState();
+    FocusManager.instance.addListener(_rememberFocus);
+  }
+
+  @override
+  void dispose() {
+    FocusManager.instance.removeListener(_rememberFocus);
+    super.dispose();
+  }
+
+  void _rememberFocus() {
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus == null || !focus.hasFocus || identical(focus, _lastFocus)) {
+      return;
+    }
+    _lastFocus = focus;
+    _focusedAt = DateTime.now();
+  }
+
+  bool? _outsideFocusedField(Offset global) {
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus == null || !focus.hasFocus) return null;
+    final box = focus.context?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    final local = box.globalToLocal(global);
+    return !(Offset.zero & box.size).contains(local);
+  }
+
+  void _clearPointer() {
+    _pointer = null;
+    _down = null;
+    _downOutside = false;
+  }
+
+  bool _touchKeyboardOpening(PointerEvent event) {
+    if (defaultTargetPlatform != TargetPlatform.windows) return false;
+    if (event.kind == PointerDeviceKind.mouse) return false;
+    final focusedAt = _focusedAt;
+    if (focusedAt == null) return false;
+    return DateTime.now().difference(focusedAt) <
+        const Duration(milliseconds: 400);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
-        final focus = FocusManager.instance.primaryFocus;
-        if (focus == null || !focus.hasFocus) return;
-        final box = focus.context?.findRenderObject();
-        if (box is! RenderBox || !box.hasSize) {
-          focus.unfocus();
-          return;
-        }
-        final local = box.globalToLocal(event.position);
-        if (!(Offset.zero & box.size).contains(local)) {
-          focus.unfocus();
+        final outside = _outsideFocusedField(event.position);
+        if (outside == null || _touchKeyboardOpening(event)) return;
+        _pointer = event.pointer;
+        _down = event.position;
+        _downOutside = outside;
+      },
+      onPointerUp: (event) {
+        if (event.pointer != _pointer) return;
+        final down = _down;
+        final startedOutside = _downOutside;
+        _clearPointer();
+        if (!startedOutside || down == null) return;
+        if ((event.position - down).distance > 18) return;
+        if (_touchKeyboardOpening(event)) return;
+        if (_outsideFocusedField(event.position) == true) {
+          FocusManager.instance.primaryFocus?.unfocus();
         }
       },
-      child: child,
+      onPointerCancel: (event) {
+        if (event.pointer == _pointer) _clearPointer();
+      },
+      child: widget.child,
     );
   }
 }

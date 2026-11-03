@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/printing/print_job_coordinator.dart';
-import '../services/printing/printer_status_service.dart';
 import '../theme/pos_theme.dart';
 import 'pos_navigator.dart';
 
@@ -68,12 +67,6 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
         onRetry: () async {
           await coordinator.retryFailed(includeMayHavePrinted: false);
         },
-        onPrinterReady: () {
-          coordinator.onHealthChanged(
-            overlayContext.read<PrinterStatusService>().health,
-          );
-          unawaited(coordinator.retryFailed(includeMayHavePrinted: false));
-        },
       ),
     ).then((dismissAll) {
       if (dismissAll == true) {
@@ -91,72 +84,26 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
 }
 
 class _PrintFailureDialog extends StatefulWidget {
-  const _PrintFailureDialog({
-    required this.event,
-    required this.onRetry,
-    required this.onPrinterReady,
-  });
+  const _PrintFailureDialog({required this.event, required this.onRetry});
 
   final PrintJobFailure event;
   final Future<void> Function() onRetry;
-  final VoidCallback onPrinterReady;
 
   @override
   State<_PrintFailureDialog> createState() => _PrintFailureDialogState();
 }
 
 class _PrintFailureDialogState extends State<_PrintFailureDialog> {
-  bool _resumed = false;
   bool _busy = false;
-  late final PrinterStatusService _printerStatus;
-
-  @override
-  void initState() {
-    super.initState();
-    _printerStatus = context.read<PrinterStatusService>();
-    _printerStatus.addListener(_watchHealth);
-    unawaited(_printerStatus.refresh());
-  }
-
-  @override
-  void dispose() {
-    _printerStatus.removeListener(_watchHealth);
-    super.dispose();
-  }
-
-  void _watchHealth() {
-    if (!mounted || _resumed) return;
-    final health = _printerStatus.health;
-    final paperOut = health.issues.contains('paper_out');
-    final down =
-        health.hasIssue &&
-        (paperOut ||
-            health.issues.contains('offline') ||
-            health.issues.contains('missing') ||
-            health.state.name == 'missing' ||
-            health.state.name == 'error' ||
-            health.state.name == 'none');
-    if (!down) {
-      setState(() => _resumed = true);
-      widget.onPrinterReady();
-      Future<void>.delayed(const Duration(milliseconds: 900), () {
-        if (mounted) Navigator.of(context).pop();
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final paper = widget.event.isPaperOut;
     final missing = widget.event.isMissingPrinter;
-    final title = _resumed
-        ? 'Printing resumed'
-        : (paper
-              ? 'Printer paper roll over'
-              : (missing ? 'No printer selected' : 'KOT printing failed'));
-    final body = _resumed
-        ? 'KOT for ${widget.event.orderNumber} is printing again.'
-        : paper
+    final title = paper
+        ? 'Printer paper roll over'
+        : (missing ? 'No printer selected' : 'KOT printing failed');
+    final body = paper
         ? 'The printer paper roll is finished or not detected.\n\nReplace the roll. Printing continues automatically.'
         : missing
         ? 'Select a receipt printer in Printer setup.\n\nOrder ${widget.event.orderNumber} is saved. KOT prints automatically once a printer is ready.'
@@ -174,15 +121,11 @@ class _PrintFailureDialogState extends State<_PrintFailureDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                _resumed
-                    ? Icons.check_circle_rounded
-                    : (paper
-                          ? Icons.print_disabled_rounded
-                          : Icons.print_disabled_outlined),
+                paper
+                    ? Icons.print_disabled_rounded
+                    : Icons.print_disabled_outlined,
                 size: 44,
-                color: _resumed
-                    ? const Color(0xFF059669)
-                    : Theme.of(context).colorScheme.error,
+                color: Theme.of(context).colorScheme.error,
               ),
               const SizedBox(height: 14),
               Text(
@@ -214,22 +157,21 @@ class _PrintFailureDialogState extends State<_PrintFailureDialog> {
                       child: const Text('Dismiss'),
                     ),
                   ),
-                  if (!_resumed)
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: _busy
-                            ? null
-                            : () async {
-                                setState(() => _busy = true);
-                                try {
-                                  await widget.onRetry();
-                                } finally {
-                                  if (mounted) setState(() => _busy = false);
-                                }
-                              },
-                        child: Text(_busy ? 'Retrying…' : 'Retry now'),
-                      ),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _busy
+                          ? null
+                          : () async {
+                              setState(() => _busy = true);
+                              try {
+                                await widget.onRetry();
+                              } finally {
+                                if (mounted) setState(() => _busy = false);
+                              }
+                            },
+                      child: Text(_busy ? 'Retrying…' : 'Retry now'),
                     ),
+                  ),
                 ],
               ),
             ],

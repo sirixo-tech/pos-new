@@ -7,6 +7,45 @@
 #include <stdexcept>
 #include <flutter/standard_method_codec.h>
 
+namespace {
+
+// Windows 10 TabTip and the Windows 11 touch keyboard. A key press activates
+// that window, and Flutter then drops the text connection, so typed letters
+// never reach the field.
+bool IsTouchKeyboardWindow(HWND hwnd) {
+  if (hwnd == nullptr) return false;
+
+  wchar_t cls[256];
+  if (GetClassName(hwnd, cls, 256) > 0) {
+    if (wcsstr(cls, L"IPTip_Main_Window") != nullptr ||
+        wcsstr(cls, L"TabTip") != nullptr) {
+      return true;
+    }
+  }
+
+  DWORD pid = 0;
+  GetWindowThreadProcessId(hwnd, &pid);
+  if (pid == 0) return false;
+  HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (process == nullptr) return false;
+
+  wchar_t path[MAX_PATH];
+  DWORD size = MAX_PATH;
+  bool match = false;
+  if (QueryFullProcessImageName(process, 0, path, &size)) {
+    const wchar_t* file = path;
+    for (const wchar_t* p = path; *p != L'\0'; ++p) {
+      if (*p == L'\\' || *p == L'/') file = p + 1;
+    }
+    match = _wcsicmp(file, L"TabTip.exe") == 0 ||
+            _wcsicmp(file, L"TextInputHost.exe") == 0;
+  }
+  CloseHandle(process);
+  return match;
+}
+
+}  // namespace
+
 #include "flutter/generated_plugin_registrant.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -77,6 +116,22 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
   if (menu_speech_ && menu_speech_->HandleMessage(message, wparam)) return 0;
+
+  // Keep the Flutter view focused while the touch keyboard is up. Swallowing
+  // this deactivation stops the engine from closing the text field.
+  if (message == WM_ACTIVATE && LOWORD(wparam) == WA_INACTIVE &&
+      flutter_controller_) {
+    HWND next = reinterpret_cast<HWND>(lparam);
+    if (IsTouchKeyboardWindow(next)) {
+      auto* view = flutter_controller_->view();
+      if (view != nullptr) {
+        HWND native = view->GetNativeWindow();
+        if (native != nullptr) SetFocus(native);
+      }
+      return 0;
+    }
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
