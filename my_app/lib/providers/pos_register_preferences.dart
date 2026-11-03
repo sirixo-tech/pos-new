@@ -13,9 +13,8 @@ List<String> visiblePosOrderTypes({
   required bool takeaway,
   required bool delivery,
 }) {
-  final base = serverAllowed.isEmpty
-      ? List<String>.from(posOrderTypes)
-      : List<String>.from(serverAllowed);
+  final base = List<String>.from(serverAllowed);
+  if (base.isEmpty) return const [];
   bool on(String type) => switch (type) {
     'dine_in' => dineIn,
     'takeaway' => takeaway,

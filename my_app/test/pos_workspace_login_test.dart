@@ -19,7 +19,7 @@ class LoginApi extends PosApi {
       serverUrl: session.serverUrl,
       email: 'staff',
       password: 'password',
-    )).profile;
+    )).session!.profile;
     return StaffProfile(
       user: original.user,
       restaurants: original.restaurants,
@@ -36,7 +36,7 @@ class LoginApi extends PosApi {
       serverUrl: session.serverUrl,
       email: 'staff',
       password: 'password',
-    )).profile;
+    )).session!.profile;
   }
 
   @override
@@ -59,13 +59,13 @@ class LoginApi extends PosApi {
   }
 
   @override
-  Future<StaffLoginResult> login({
+  Future<SignInResult> login({
     required String serverUrl,
     required String email,
     required String password,
     int? restaurantId,
     int? branchId,
-  }) async => StaffLoginResult(
+  }) async => SignInResult.session(StaffLoginResult(
     session: PosSession(
       serverUrl: serverUrl,
       token: 'test',
@@ -87,7 +87,7 @@ class LoginApi extends PosApi {
         },
       ],
     }),
-  );
+  ));
 
   @override
   Future<PosBootstrap> bootstrap(PosSession session) async {
@@ -338,13 +338,13 @@ class RestoredOrdersApi extends LoginApi {
 
 class MenuOnlyApi extends LoginApi {
   @override
-  Future<StaffLoginResult> login({
+  Future<SignInResult> login({
     required String serverUrl,
     required String email,
     required String password,
     int? restaurantId,
     int? branchId,
-  }) async => StaffLoginResult(
+  }) async => SignInResult.session(StaffLoginResult(
     session: PosSession(
       serverUrl: serverUrl,
       token: 'test',
@@ -352,7 +352,7 @@ class MenuOnlyApi extends LoginApi {
       branchId: 1,
     ),
     profile: _profile,
-  );
+  ));
 
   StaffProfile get _profile => StaffProfile.fromJson({
     'permissions': ['view_menu'],
@@ -405,13 +405,13 @@ class ForbiddenSwitchApi extends LoginApi {
   });
 
   @override
-  Future<StaffLoginResult> login({
+  Future<SignInResult> login({
     required String serverUrl,
     required String email,
     required String password,
     int? restaurantId,
     int? branchId,
-  }) async => StaffLoginResult(
+  }) async => SignInResult.session(StaffLoginResult(
     session: PosSession(
       serverUrl: serverUrl,
       token: 'test',
@@ -419,7 +419,7 @@ class ForbiddenSwitchApi extends LoginApi {
       branchId: 1,
     ),
     profile: _profile(),
-  );
+  ));
 
   @override
   Future<StaffProfile> fetchMe(PosSession session) async =>

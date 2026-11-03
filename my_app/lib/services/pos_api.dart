@@ -149,11 +149,42 @@ class FirebasePublicConfig {
 }
 
 class PhoneVerifyResult {
-  const PhoneVerifyResult({this.phone, this.phoneToken, this.session});
+  const PhoneVerifyResult({
+    this.phone,
+    this.phoneToken,
+    this.session,
+    this.twoFactor,
+  });
 
   final String? phone;
   final String? phoneToken;
   final StaffLoginResult? session;
+  final TwoFactorChallenge? twoFactor;
+}
+
+/// Sign-in stopped before a token because the account uses an authenticator.
+class TwoFactorChallenge {
+  const TwoFactorChallenge({required this.token, this.expiresIn = 600});
+
+  final String token;
+  final int expiresIn;
+
+  static TwoFactorChallenge? tryParse(Map<String, dynamic> data) {
+    if (data['two_factor_required'] != true) return null;
+    final token = data['two_factor_token']?.toString().trim() ?? '';
+    if (token.isEmpty) return null;
+    final raw = data['expires_in'];
+    final expires = raw is int ? raw : int.tryParse('$raw') ?? 600;
+    return TwoFactorChallenge(token: token, expiresIn: expires);
+  }
+}
+
+class SignInResult {
+  const SignInResult.session(this.session) : challenge = null;
+  const SignInResult.challenge(this.challenge) : session = null;
+
+  final StaffLoginResult? session;
+  final TwoFactorChallenge? challenge;
 }
 
 enum AuthLoginMethod { both, phone, email }
@@ -314,7 +345,7 @@ class PosApi {
         if (branchId != null) 'X-Branch-Id': '$branchId',
       };
 
-  Future<StaffLoginResult> login({
+  Future<SignInResult> login({
     required String serverUrl,
     required String email,
     required String password,
@@ -332,6 +363,7 @@ class PosApi {
           'password': password,
           'token_ability': 'pos',
           'device_name': '${PosAppInfo.displayName} (${posPlatformLabel()})',
+          'supports_two_factor': true,
           if (restaurantId != null) 'restaurant_id': restaurantId,
           if (branchId != null) 'branch_id': branchId,
         }),
@@ -340,6 +372,33 @@ class PosApi {
       throw PosApiException(_networkErrorMessage(e));
     }
 
+    final json = await _decode(response);
+    final data = json['data'] as Map<String, dynamic>? ?? json;
+    return _signInFromAuthData(base, data);
+  }
+
+  Future<StaffLoginResult> confirmTwoFactor({
+    required String serverUrl,
+    required String twoFactorToken,
+    String? code,
+    String? recoveryCode,
+  }) async {
+    final base = _normalizeServerUrl(serverUrl);
+    final http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse('$base/api/v1/auth/two-factor'),
+        headers: _jsonHeaders(),
+        body: jsonEncode({
+          'two_factor_token': twoFactorToken,
+          if (code != null && code.isNotEmpty) 'code': code,
+          if (recoveryCode != null && recoveryCode.isNotEmpty)
+            'recovery_code': recoveryCode,
+        }),
+      );
+    } catch (e) {
+      throw PosApiException(_networkErrorMessage(e));
+    }
     final json = await _decode(response);
     final data = json['data'] as Map<String, dynamic>? ?? json;
     return _sessionFromAuthData(base, data);
@@ -423,6 +482,7 @@ class PosApi {
           'purpose': purpose,
           'token_ability': 'pos',
           'device_name': _deviceName(),
+          if (purpose == 'sign_in') 'supports_two_factor': true,
           if (restaurantId != null) 'restaurant_id': restaurantId,
           if (branchId != null) 'branch_id': branchId,
         }),
@@ -432,6 +492,10 @@ class PosApi {
     }
     final json = await _decode(response);
     final data = json['data'] as Map<String, dynamic>? ?? json;
+    final challenge = TwoFactorChallenge.tryParse(data);
+    if (challenge != null) {
+      return PhoneVerifyResult(twoFactor: challenge);
+    }
     final phoneToken = data['phone_token'] as String?;
     if (phoneToken != null && phoneToken.isNotEmpty) {
       return PhoneVerifyResult(
@@ -485,6 +549,12 @@ class PosApi {
     final json = await _decode(response);
     final data = json['data'] as Map<String, dynamic>? ?? json;
     return _sessionFromAuthData(base, data);
+  }
+
+  SignInResult _signInFromAuthData(String base, Map<String, dynamic> data) {
+    final challenge = TwoFactorChallenge.tryParse(data);
+    if (challenge != null) return SignInResult.challenge(challenge);
+    return SignInResult.session(_sessionFromAuthData(base, data));
   }
 
   StaffLoginResult _sessionFromAuthData(

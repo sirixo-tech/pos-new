@@ -11,6 +11,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_core
   flutter_secure_storage_windows
   flutter_thermal_printer
+  flutter_tts
   screen_retriever_windows
   speech_to_text_windows
   universal_ble

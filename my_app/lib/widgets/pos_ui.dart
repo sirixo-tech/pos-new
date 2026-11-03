@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../config/pos_app_info.dart';
 import '../l10n/pos_l10n.dart';
@@ -917,10 +918,13 @@ class _PosSearchFieldState extends State<PosSearchField> {
           child: Row(
             children: [
               const SizedBox(width: 12),
-              Icon(
-                Icons.search_rounded,
-                size: 20,
-                color: focused ? accent : PosTheme.inkMuted,
+              GestureDetector(
+                onTap: () => _focusNode.requestFocus(),
+                child: Icon(
+                  Icons.search_rounded,
+                  size: 20,
+                  color: focused ? accent : PosTheme.inkMuted,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -2180,6 +2184,20 @@ class _PosKeyboardDismissState extends State<PosKeyboardDismiss> {
     }
     _lastFocus = focus;
     _focusedAt = DateTime.now();
+    _showWindowsTouchKeyboard(focus);
+  }
+
+  void _showWindowsTouchKeyboard(FocusNode focus) {
+    if (defaultTargetPlatform != TargetPlatform.windows) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || FocusManager.instance.primaryFocus != focus) return;
+      final focusContext = focus.context;
+      if (focusContext == null) return;
+      final editable = focusContext.widget is EditableText ||
+          focusContext.findAncestorWidgetOfExactType<EditableText>() != null;
+      if (!editable) return;
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    });
   }
 
   bool? _outsideFocusedField(Offset global) {

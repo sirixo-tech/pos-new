@@ -259,17 +259,21 @@ class _PosCartPanelState extends State<PosCartPanel> {
       (PosController p) => p.discountAmount > 0,
     );
     final serverOrderKey = context.select((PosController p) {
-      final types =
-          p.bootstrap?.restaurant.ordering.activePosOrderTypes ?? posOrderTypes;
-      return types.join(',');
+      final ordering = p.bootstrap?.restaurant.ordering;
+      if (ordering == null) return 'default';
+      return 'server:${ordering.activePosOrderTypes.join(',')}';
     });
     final localGates = context.select(
       (PosRegisterPreferences p) => (p.dineIn, p.takeaway, p.delivery),
     );
     final allowedOrderTypes = visiblePosOrderTypes(
-      serverAllowed: serverOrderKey.isEmpty
+      serverAllowed: serverOrderKey == 'default'
           ? posOrderTypes
-          : serverOrderKey.split(','),
+          : serverOrderKey
+                .substring('server:'.length)
+                .split(',')
+                .where((type) => type.isNotEmpty)
+                .toList(),
       dineIn: localGates.$1,
       takeaway: localGates.$2,
       delivery: localGates.$3,

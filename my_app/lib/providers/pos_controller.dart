@@ -110,6 +110,7 @@ class PosController extends ChangeNotifier {
   int? lastLoginStatusCode;
   Duration? lastLoginRetryAfter;
   Map<String, String> authFieldErrors = const {};
+  TwoFactorChallenge? twoFactorChallenge;
   AuthOptions authOptions = const AuthOptions(
     loginMethod: AuthLoginMethod.both,
     registrationEnabled: true,
@@ -1120,7 +1121,7 @@ class PosController extends ChangeNotifier {
     _beginAuthAttempt();
     try {
       final binding = deviceBinding;
-      StaffLoginResult result;
+      SignInResult result;
       try {
         result = await _api.login(
           serverUrl: url,
@@ -1146,12 +1147,54 @@ class PosController extends ChangeNotifier {
         await PosDeviceBindingStorage.clear();
         deviceBinding = null;
       }
-      await _finishAuth(result, keepSignedIn: keepSignedIn);
+      if (result.challenge != null) {
+        twoFactorChallenge = result.challenge;
+      } else {
+        twoFactorChallenge = null;
+        await _finishAuth(result.session!, keepSignedIn: keepSignedIn);
+      }
     } on PosApiException catch (e) {
       _failAuth(e);
     } catch (e, stack) {
       _failAuthUnknown(e, stack);
     }
+    notifyListeners();
+  }
+
+  Future<void> completeTwoFactor({
+    String? code,
+    String? recoveryCode,
+    bool keepSignedIn = true,
+  }) async {
+    final challenge = twoFactorChallenge;
+    final url = _requireServerUrl();
+    if (challenge == null || url == null) return;
+    _beginAuthAttempt();
+    try {
+      final result = await _api.confirmTwoFactor(
+        serverUrl: url,
+        twoFactorToken: challenge.token,
+        code: code,
+        recoveryCode: recoveryCode,
+      );
+      twoFactorChallenge = null;
+      await _finishAuth(result, keepSignedIn: keepSignedIn);
+    } on PosApiException catch (e) {
+      if (e.fieldErrors.containsKey('two_factor_token')) {
+        twoFactorChallenge = null;
+      }
+      _failAuth(e);
+    } catch (e, stack) {
+      _failAuthUnknown(e, stack);
+    }
+    notifyListeners();
+  }
+
+  void clearTwoFactorChallenge() {
+    if (twoFactorChallenge == null) return;
+    twoFactorChallenge = null;
+    errorMessage = null;
+    authFieldErrors = const {};
     notifyListeners();
   }
 
@@ -1234,11 +1277,16 @@ class PosController extends ChangeNotifier {
         await PosDeviceBindingStorage.clear();
         deviceBinding = null;
       }
-      final sessionResult = result.session;
-      if (sessionResult == null) {
-        throw PosApiException('Sign-in did not return a token.');
+      if (result.twoFactor != null) {
+        twoFactorChallenge = result.twoFactor;
+      } else {
+        twoFactorChallenge = null;
+        final sessionResult = result.session;
+        if (sessionResult == null) {
+          throw PosApiException('Sign-in did not return a token.');
+        }
+        await _finishAuth(sessionResult, keepSignedIn: keepSignedIn);
       }
-      await _finishAuth(sessionResult, keepSignedIn: keepSignedIn);
     } on PosApiException catch (e) {
       _failAuth(e);
     } catch (e, stack) {
@@ -3360,6 +3408,14 @@ class PosController extends ChangeNotifier {
     if (current == null || cart.isEmpty) {
       throw PosApiException(
         PosTranslationStore.instance.text('cartIsEmptyError', 'Cart is empty.'),
+      );
+    }
+    if (!_visibleOrderTypes().contains(orderType)) {
+      throw PosApiException(
+        PosTranslationStore.instance.text(
+          'orderTypeUnavailable',
+          'This order type is turned off for this restaurant.',
+        ),
       );
     }
 

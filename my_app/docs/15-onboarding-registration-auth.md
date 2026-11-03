@@ -280,7 +280,8 @@ Errors: `phone_token` → `Mobile verification expired. Verify your number again
   "email": "owner@serveai.test",
   "password": "password",
   "token_ability": "pos",
-  "device_name": "ServeAI POS (Android)"
+  "device_name": "ServeAI POS (Android)",
+  "supports_two_factor": true
 }
 ```
 
@@ -288,7 +289,29 @@ Wrong credentials → 422 on `email` (`These credentials do not match our record
 
 ### Mobile + code
 
-`POST /auth/phone/send` with `purpose=sign_in`, then `POST /auth/phone/verify` with `purpose=sign_in` and either `phone` + `code` or a Firebase `id_token` (§2).
+`POST /auth/phone/send` with `purpose=sign_in`, then `POST /auth/phone/verify` with `purpose=sign_in` and either `phone` + `code` or a Firebase `id_token` (§2). Send `supports_two_factor: true` here too.
+
+### Two-factor authentication
+
+Users can turn on authenticator-app two-factor authentication in the web profile (super admins may require it). Apps that can show a code prompt send `supports_two_factor: true` on `/auth/login` and phone sign-in. For an account with two-factor enabled the response then has **no token**:
+
+```json
+{ "data": { "two_factor_required": true, "two_factor_token": "…", "expires_in": 600 } }
+```
+
+Ask for the 6-digit authenticator code (or a recovery code), then:
+
+`POST /api/v1/auth/two-factor` — throttle 10/min.
+
+```json
+{ "two_factor_token": "…", "code": "123456" }
+```
+
+or `{ "two_factor_token": "…", "recovery_code": "abcde-12345" }`. Success returns the normal token payload below.
+
+- Wrong code → 422 on `code`; keep the prompt open. After 5 wrong codes the challenge is dropped.
+- Expired / used challenge (10 minutes) → 422 on `two_factor_token`; send the user back to sign-in.
+- **Older app versions** (no `supports_two_factor`) still receive a token while the super-admin setting *Allow older POS app versions without the two-factor code* is on (default). When it is off they get 422 with `code: "two_factor_app_update_required"` and a message asking to update the app — show `message` as-is.
 
 ### Token payload (login, phone sign-in, register)
 

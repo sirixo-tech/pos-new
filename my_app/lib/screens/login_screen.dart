@@ -40,6 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
+  final _twoFactorController = TextEditingController();
   final _nameController = TextEditingController();
   final _restaurantController = TextEditingController();
   final _cityController = TextEditingController();
@@ -55,6 +56,8 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _phoneToken;
   String? _debugOtp;
   bool _firebaseSms = false;
+  bool _awaitingTwoFactor = false;
+  bool _useRecoveryCode = false;
   String? _banner;
   Map<String, String> _fields = const {};
   Timer? _loginCooldownTimer;
@@ -96,6 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.dispose();
     _phoneController.dispose();
     _codeController.dispose();
+    _twoFactorController.dispose();
     _nameController.dispose();
     _restaurantController.dispose();
     _cityController.dispose();
@@ -165,7 +169,9 @@ class _LoginScreenState extends State<LoginScreen> {
         (pos.errorMessage ?? '').toLowerCase().contains('too many');
     if (rateLimited) {
       _startLoginCooldown(pos.lastLoginRetryAfter ?? const Duration(seconds: 61));
-    } else if (_pane == _AuthPane.signIn && _method == _ContactMethod.email) {
+    } else if (_pane == _AuthPane.signIn &&
+        _method == _ContactMethod.email &&
+        !_awaitingTwoFactor) {
       _failedLogins += 1;
       if (_failedLogins >= 5) {
         _failedLogins = 0;
@@ -207,6 +213,61 @@ class _LoginScreenState extends State<LoginScreen> {
     return e164;
   }
 
+  void _openTwoFactor() {
+    _twoFactorController.clear();
+    setState(() {
+      _awaitingTwoFactor = true;
+      _useRecoveryCode = false;
+      _fields = const {};
+      _banner = null;
+    });
+  }
+
+  void _leaveTwoFactor() {
+    context.read<PosController>().clearTwoFactorChallenge();
+    _twoFactorController.clear();
+    setState(() {
+      _awaitingTwoFactor = false;
+      _useRecoveryCode = false;
+      _fields = const {};
+      _banner = null;
+    });
+  }
+
+  Future<void> _submitTwoFactor() async {
+    final entered = _twoFactorController.text.trim();
+    if (_useRecoveryCode) {
+      if (entered.isEmpty) {
+        setState(() => _fields = {'recovery_code': 'Enter a recovery code.'});
+        return;
+      }
+    } else if (!RegExp(r'^\d{6}$').hasMatch(entered)) {
+      setState(() => _fields = {'code': 'Enter the 6-digit authenticator code.'});
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _fields = const {};
+      _banner = null;
+    });
+    final pos = context.read<PosController>();
+    try {
+      await pos.completeTwoFactor(
+        code: _useRecoveryCode ? null : entered,
+        recoveryCode: _useRecoveryCode ? entered : null,
+        keepSignedIn: _keepSignedIn,
+      );
+      if (!mounted) return;
+      final expired = pos.twoFactorChallenge == null && pos.session == null;
+      if (expired) {
+        setState(() => _awaitingTwoFactor = false);
+      }
+      if (pos.errorMessage != null) _applyFailure(pos);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _submitEmail() async {
     if (_loginBlocked) return;
     final email = _emailController.text.trim();
@@ -229,7 +290,9 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await pos.login(email, password, keepSignedIn: _keepSignedIn);
       if (!mounted) return;
-      if (pos.errorMessage != null) {
+      if (pos.twoFactorChallenge != null) {
+        _openTwoFactor();
+      } else if (pos.errorMessage != null) {
         _applyFailure(pos);
       } else {
         _failedLogins = 0;
@@ -320,7 +383,11 @@ class _LoginScreenState extends State<LoginScreen> {
         keepSignedIn: _keepSignedIn,
       );
       if (!mounted) return;
-      if (pos.errorMessage != null) _applyFailure(pos);
+      if (pos.twoFactorChallenge != null) {
+        _openTwoFactor();
+      } else if (pos.errorMessage != null) {
+        _applyFailure(pos);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -648,7 +715,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-              child: _pane == _AuthPane.signIn
+              child: _awaitingTwoFactor
+                  ? _twoFactorBody(pos, compact: compact)
+                  : _pane == _AuthPane.signIn
                   ? _signInBody(pos, options, phoneTaken, compact: compact)
                   : _registerBody(pos, options, phoneTaken, compact: compact),
             ),
@@ -682,6 +751,65 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _twoFactorBody(PosController pos, {required bool compact}) {
+    final error = _fields['code'] ?? _fields['recovery_code'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _WelcomeHeader(
+          title: 'Authenticator code',
+          subtitle: _useRecoveryCode
+              ? 'Enter one of your recovery codes.'
+              : 'Enter the 6-digit code from your authenticator app.',
+          compact: compact,
+        ),
+        SizedBox(height: compact ? 14 : 18),
+        _AuthField(
+          controller: _twoFactorController,
+          hint: _useRecoveryCode ? 'Recovery code' : '6-digit code',
+          icon: Icons.verified_user_outlined,
+          keyboard: _useRecoveryCode ? TextInputType.text : TextInputType.number,
+          error: error,
+          onSubmit: (_) => _submitTwoFactor(),
+          inputFormatters: _useRecoveryCode
+              ? null
+              : [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: _loading
+                ? null
+                : () => setState(() {
+                    _useRecoveryCode = !_useRecoveryCode;
+                    _twoFactorController.clear();
+                    _fields = const {};
+                  }),
+            child: Text(
+              _useRecoveryCode
+                  ? 'Use authenticator code'
+                  : 'Use a recovery code',
+            ),
+          ),
+        ),
+        ..._bannerNotes(pos.authOptions),
+        const SizedBox(height: 8),
+        _OrangeButton(
+          label: 'Verify',
+          loading: _loading,
+          onPressed: _loading ? null : _submitTwoFactor,
+        ),
+        TextButton(
+          onPressed: _loading ? null : _leaveTwoFactor,
+          child: const Text('Back to sign in'),
+        ),
+      ],
     );
   }
 

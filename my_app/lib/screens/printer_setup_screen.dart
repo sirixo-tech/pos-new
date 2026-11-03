@@ -91,6 +91,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   String? _bluetoothError;
   bool _autoPrintKotOnNewOrder = true;
   bool _clearHandoffOnScanPrint = true;
+  bool _showKotFailurePopup = true;
 
   final _networkHostController = TextEditingController();
   final _networkPortController = TextEditingController(
@@ -146,10 +147,12 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   Future<void> _loadScanSettings() async {
     final autoKot = await AutoPrintKotSettings.enabled();
     final handoff = await ScanToPrintSettings.clearHandoffOnScanPrint();
+    final failurePopup = await KotFailurePopupSettings.enabled();
     if (!mounted) return;
     setState(() {
       _autoPrintKotOnNewOrder = autoKot;
       _clearHandoffOnScanPrint = handoff;
+      _showKotFailurePopup = failurePopup;
     });
   }
 
@@ -162,6 +165,18 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
       value
           ? context.l10n.printerAutoPrintKotOnSnack
           : context.l10n.printerAutoPrintKotOffSnack,
+    );
+  }
+
+  Future<void> _setShowKotFailurePopup(bool value) async {
+    setState(() => _showKotFailurePopup = value);
+    await KotFailurePopupSettings.setEnabled(value);
+    if (!mounted) return;
+    showPosSnackBar(
+      context,
+      value
+          ? 'KOT print failures will show a popup'
+          : 'KOT print failures stay queued without a popup',
     );
   }
 
@@ -679,6 +694,16 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
                   soft: soft,
                   enabled: _autoPrintKotOnNewOrder,
                   onChanged: _setAutoPrintKotOnNewOrder,
+                ),
+                const SizedBox(height: 8),
+                _AutoPrintKotOptionsCard(
+                  accent: accent,
+                  soft: soft,
+                  enabled: _showKotFailurePopup,
+                  onChanged: _setShowKotFailurePopup,
+                  title: 'Show KOT print failed popup',
+                  help:
+                      'When off, a failed kitchen ticket stays queued and prints when the printer reconnects, without a popup.',
                 ),
                 const SizedBox(height: 8),
                 _AutoPrintKotOptionsCard(

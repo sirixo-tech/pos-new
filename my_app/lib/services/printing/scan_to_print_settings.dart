@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _autoPrintKotOnNewOrderKey = 'pos_auto_print_kot_on_new_order';
 const _clearHandoffOnScanPrintKey = 'pos_clear_handoff_on_scan_print';
+const _showKotFailurePopupKey = 'pos_show_kot_print_failed_popup';
 
 /// Device preference for scan-to-print (first scan prints immediately).
 class ScanToPrintSettings {
@@ -33,5 +34,34 @@ class AutoPrintKotSettings {
   static Future<void> setEnabled(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_autoPrintKotOnNewOrderKey, value);
+  }
+}
+
+/// Device preference for the KOT print-failed dialog. Missing pref = on,
+/// so installs from before this switch keep the popup.
+class KotFailurePopupSettings {
+  KotFailurePopupSettings._();
+
+  static final List<void Function()> _listeners = [];
+
+  static void addListener(void Function() listener) {
+    _listeners.add(listener);
+  }
+
+  static void removeListener(void Function() listener) {
+    _listeners.remove(listener);
+  }
+
+  static Future<bool> enabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_showKotFailurePopupKey) ?? true;
+  }
+
+  static Future<void> setEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_showKotFailurePopupKey, value);
+    for (final listener in List<void Function()>.of(_listeners)) {
+      listener();
+    }
   }
 }

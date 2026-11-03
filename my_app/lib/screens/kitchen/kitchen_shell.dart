@@ -33,6 +33,13 @@ class _KitchenShellState extends State<KitchenShell> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _kitchenController ??= context.read<KitchenController>();
+    _kitchenController!.setKotScreenVisible(true);
+  }
+
+  @override
+  void dispose() {
+    _kitchenController?.setKotScreenVisible(false);
+    super.dispose();
   }
 
   @override
@@ -52,12 +59,6 @@ class _KitchenShellState extends State<KitchenShell> {
     );
   }
 
-  @override
-  void dispose() {
-    // The register dock uses this same controller. Stopping here makes the
-    // minimized board reload from scratch.
-    super.dispose();
-  }
 
   Future<void> _switchMode(PosWorkMode mode) async {
     final pos = context.read<PosController>();
@@ -199,6 +200,14 @@ class _KitchenShellState extends State<KitchenShell> {
                         PosAppBarThemeButton(
                           accent: Theme.of(context).colorScheme.primary,
                         ),
+                      IconButton(
+                        tooltip: context.posText(
+                          'kitchenSoundSettings',
+                          'Sound settings',
+                        ),
+                        onPressed: () => showKitchenSoundSettingsDialog(context),
+                        icon: const Icon(Icons.volume_up_rounded),
+                      ),
                       IconButton(
                         tooltip: context.posText('kitchenRefresh', 'Refresh'),
                         onPressed: kitchen.refreshing

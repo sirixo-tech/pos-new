@@ -24,6 +24,20 @@ class PosCartSound {
     'accept': 'Short Beep',
   };
 
+  /// Alerts heard on kitchen ticket screens: a pass bell, a doorbell,
+  /// a pager beep, and a three-beep buzzer.
+  static const kitchenTones = <String, String>{
+    'service_bell': 'Service bell (Default)',
+    'ding_dong': 'Ding-dong',
+    'pager_beep': 'Pager beep',
+    'triple_beep': 'Triple beep',
+    'ticket_ding': 'Ticket ding',
+    'expo_bell': 'Order-up bell',
+    'line_call': 'Line call',
+    'soft_bell': 'Soft bell',
+    'priority_pulse': 'Priority pulse',
+  };
+
   static const clickTones = <String, String>{
     'pos-beep': 'Crisp Click (Default)',
     'soft_tap': 'Soft Bubble Pop',
@@ -53,7 +67,7 @@ class PosCartSound {
   bool kitchenAlertEnabled = false;
   String clickTone = 'pos-beep';
   String orderTone = 'new_order';
-  String kitchenTone = 'new_order';
+  String kitchenTone = 'service_bell';
   bool _loaded = false;
   bool _warming = false;
 
@@ -65,10 +79,11 @@ class PosCartSound {
     final prefs = await SharedPreferences.getInstance();
     clickEnabled = prefs.getBool(_clickEnabledKey) ?? true;
     orderAlertEnabled = prefs.getBool(_orderEnabledKey) ?? true;
-    kitchenAlertEnabled = prefs.getBool(_kitchenEnabledKey) ?? false;
+    kitchenAlertEnabled = prefs.getBool(_kitchenEnabledKey) ?? true;
     clickTone = prefs.getString(_clickToneKey) ?? 'pos-beep';
     orderTone = prefs.getString(_orderToneKey) ?? 'new_order';
-    kitchenTone = prefs.getString(_kitchenToneKey) ?? 'new_order';
+    kitchenTone = prefs.getString(_kitchenToneKey) ?? 'service_bell';
+    if (!kitchenTones.containsKey(kitchenTone)) kitchenTone = 'service_bell';
     _loaded = true;
   }
 
@@ -78,7 +93,11 @@ class PosCartSound {
     if (_warming || kIsWeb) return;
     _warming = true;
     try {
-      for (final tone in {...orderTones.keys, ...clickTones.keys}) {
+      for (final tone in {
+        ...orderTones.keys,
+        ...clickTones.keys,
+        ...kitchenTones.keys,
+      }) {
         await _extractTone(tone);
       }
     } finally {
@@ -123,6 +142,11 @@ class PosCartSound {
   }
 
   Future<void> playPreview(String tone) => _playTone(tone, volume: 1.0);
+
+  Future<void> playTone(String tone, {double volume = 1}) {
+    final level = volume.clamp(0.0, 1.0).toDouble();
+    return _playTone(tone, volume: level);
+  }
 
   Future<void> playAddToCart() async {
     await loadSettings();
@@ -328,6 +352,8 @@ class PosCartSound {
   }
 
   Uint8List _synthesizeWav(String tone) {
+    final strikes = _kitchenStrikes(tone);
+    if (strikes != null) return _renderStrikes(strikes);
     const sampleRate = 22050;
     final spec = switch (tone) {
       'modern_chime' => (freqs: [523.0, 784.0, 1046.0], dur: 0.42, decay: 3.2),
@@ -355,6 +381,99 @@ class PosCartSound {
       final release = remain > 0.06 ? 1.0 : math.max(0.0, remain / 0.06);
       sample *= math.exp(-spec.decay * t) * attack * release * 0.72;
       pcm[i] = (sample * 32767).round().clamp(-32767, 32767);
+    }
+    return _wrapWav(pcm, sampleRate);
+  }
+
+  /// Pass-window bell, doorbell, pager beeps, and the expo call.
+  List<_BellStrike>? _kitchenStrikes(String tone) {
+    const metal = [1.0, 2.01, 2.99, 4.18];
+    const soft = [1.0, 2.0, 3.0];
+    const beep = [1.0];
+    return switch (tone) {
+      'service_bell' => const [
+        _BellStrike(880, 0, 0.62, 3.4, metal),
+        _BellStrike(880, 0.24, 0.7, 3.1, metal),
+      ],
+      'ding_dong' => const [
+        _BellStrike(784, 0, 0.55, 2.8, metal),
+        _BellStrike(587, 0.32, 0.7, 2.4, metal),
+      ],
+      'pager_beep' => const [
+        _BellStrike(2093, 0, 0.09, 1, beep, true),
+        _BellStrike(2093, 0.16, 0.09, 1, beep, true),
+      ],
+      'triple_beep' => const [
+        _BellStrike(1760, 0, 0.08, 1, beep, true),
+        _BellStrike(1760, 0.14, 0.08, 1, beep, true),
+        _BellStrike(1760, 0.28, 0.11, 1, beep, true),
+      ],
+      'ticket_ding' => const [
+        _BellStrike(1174, 0, 0.22, 6.5, metal),
+        _BellStrike(1568, 0.13, 0.34, 4.8, metal),
+      ],
+      'expo_bell' => const [
+        _BellStrike(1046, 0, 0.28, 5.5, metal),
+        _BellStrike(1046, 0.12, 0.42, 4.2, metal),
+      ],
+      'line_call' => const [
+        _BellStrike(784, 0, 0.16, 8, metal),
+        _BellStrike(988, 0.15, 0.16, 8, metal),
+        _BellStrike(1175, 0.3, 0.36, 4.2, metal),
+      ],
+      'soft_bell' => const [_BellStrike(659, 0, 0.85, 2.4, soft)],
+      'priority_pulse' => const [
+        _BellStrike(698, 0, 0.12, 12, metal),
+        _BellStrike(698, 0.18, 0.12, 12, metal),
+        _BellStrike(698, 0.36, 0.2, 8, metal),
+      ],
+      _ => null,
+    };
+  }
+
+  Uint8List _renderStrikes(List<_BellStrike> strikes) {
+    const sampleRate = 22050;
+    var end = 0.0;
+    for (final strike in strikes) {
+      end = math.max(end, strike.start + strike.duration);
+    }
+    final count = (sampleRate * end).round();
+    final mix = Float64List(count);
+    for (final strike in strikes) {
+      final start = (strike.start * sampleRate).round();
+      final length = (strike.duration * sampleRate).round();
+      for (var i = 0; i < length && start + i < count; i++) {
+        final t = i / sampleRate;
+        var sample = 0.0;
+        if (strike.beep) {
+          final edgeIn = math.min(1.0, t / 0.002);
+          final remain = strike.duration - t;
+          final edgeOut = remain > 0.004 ? 1.0 : math.max(0.0, remain / 0.004);
+          sample = math.sin(2 * math.pi * strike.frequency * t) * edgeIn * edgeOut;
+        } else {
+          for (var p = 0; p < strike.partials.length; p++) {
+            final amp = 1 / (p + 1);
+            sample +=
+                math.sin(
+                  2 * math.pi * strike.frequency * strike.partials[p] * t,
+                ) *
+                amp;
+          }
+          final attack = math.min(1.0, t / 0.004);
+          sample *= math.exp(-strike.decay * t) * attack;
+        }
+        mix[start + i] += sample;
+      }
+    }
+    var peak = 0.0;
+    for (final sample in mix) {
+      final abs = sample.abs();
+      if (abs > peak) peak = abs;
+    }
+    final gain = peak == 0 ? 0.0 : 0.82 / peak;
+    final pcm = Int16List(count);
+    for (var i = 0; i < count; i++) {
+      pcm[i] = (mix[i] * gain * 32767).round().clamp(-32767, 32767);
     }
     return _wrapWav(pcm, sampleRate);
   }
@@ -392,4 +511,22 @@ class PosCartSound {
   void dispose() {
     _player.dispose();
   }
+}
+
+class _BellStrike {
+  const _BellStrike(
+    this.frequency,
+    this.start,
+    this.duration,
+    this.decay,
+    this.partials, [
+    this.beep = false,
+  ]);
+
+  final double frequency;
+  final double start;
+  final double duration;
+  final double decay;
+  final List<double> partials;
+  final bool beep;
 }

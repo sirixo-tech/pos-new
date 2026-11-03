@@ -10,6 +10,7 @@ import '../../services/customer_display/customer_display_controller.dart';
 import '../../services/customer_display/customer_display_models.dart';
 import '../../services/customer_display/customer_voice_service.dart';
 import '../../services/pos_display_mode.dart';
+import 'token_display_sound_dialog.dart';
 import '../../widgets/pos_ui.dart';
 
 extension _CustomerDisplayTr on BuildContext {
@@ -105,22 +106,9 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
                         onFullscreen: _toggleFullscreen,
                         onLogout: _exitTokenDisplayToPos,
                         voiceEnabled: _voiceService.isEnabled,
-                        onToggleVoice: () async {
-                          final next = !_voiceService.isEnabled;
-                          await _voiceService.setEnabled(next);
-                          if (next) unawaited(_voiceService.testAnnouncement('1'));
-                          if (!context.mounted) return;
-                          setState(() {});
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                next
-                                    ? 'Voice announcements enabled (Testing Token 1)'
-                                    : 'Voice announcements muted',
-                              ),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
+                        onSoundSettings: () async {
+                          await showTokenDisplaySoundDialog(context);
+                          if (mounted) setState(() {});
                         },
                       ),
                       const _InstructionBand(),
@@ -971,7 +959,7 @@ class _TopBar extends StatelessWidget {
     required this.onFullscreen,
     required this.onLogout,
     required this.voiceEnabled,
-    required this.onToggleVoice,
+    required this.onSoundSettings,
   });
 
   final CustomerDisplayState state;
@@ -984,7 +972,7 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onFullscreen;
   final VoidCallback onLogout;
   final bool voiceEnabled;
-  final VoidCallback onToggleVoice;
+  final VoidCallback onSoundSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -1070,7 +1058,7 @@ class _TopBar extends StatelessWidget {
             visible: controlsVisible,
             fullscreen: fullscreen,
             voiceEnabled: isVoiceEnabled,
-            onToggleVoice: onToggleVoice,
+            onSoundSettings: onSoundSettings,
             onSetup: onSetup,
             onFullscreen: onFullscreen,
             onLogout: onLogout,
@@ -1080,7 +1068,7 @@ class _TopBar extends StatelessWidget {
             _CompactDisplayMenu(
               fullscreen: fullscreen,
               voiceEnabled: isVoiceEnabled,
-              onToggleVoice: onToggleVoice,
+              onSoundSettings: onSoundSettings,
               onSetup: onSetup,
               onFullscreen: onFullscreen,
               onLogout: onLogout,
@@ -1199,7 +1187,7 @@ class _HoverControls extends StatelessWidget {
     required this.visible,
     required this.fullscreen,
     required this.voiceEnabled,
-    required this.onToggleVoice,
+    required this.onSoundSettings,
     required this.onSetup,
     required this.onFullscreen,
     required this.onLogout,
@@ -1208,7 +1196,7 @@ class _HoverControls extends StatelessWidget {
   final bool visible;
   final bool fullscreen;
   final bool voiceEnabled;
-  final VoidCallback onToggleVoice;
+  final VoidCallback onSoundSettings;
   final VoidCallback onSetup;
   final VoidCallback onFullscreen;
   final VoidCallback onLogout;
@@ -1240,9 +1228,11 @@ class _HoverControls extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _HoverIconButton(
-                tooltip: voiceEnabled ? 'Mute voice' : 'Enable voice',
-                icon: voiceEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-                onPressed: onToggleVoice,
+                tooltip: 'Sound settings',
+                icon: voiceEnabled
+                    ? Icons.volume_up_rounded
+                    : Icons.volume_off_rounded,
+                onPressed: onSoundSettings,
               ),
               _HoverIconButton(
                 tooltip: fullscreen ? 'Exit fullscreen' : 'Fullscreen',
@@ -1271,7 +1261,7 @@ class _CompactDisplayMenu extends StatelessWidget {
   const _CompactDisplayMenu({
     required this.fullscreen,
     required this.voiceEnabled,
-    required this.onToggleVoice,
+    required this.onSoundSettings,
     required this.onSetup,
     required this.onFullscreen,
     required this.onLogout,
@@ -1279,7 +1269,7 @@ class _CompactDisplayMenu extends StatelessWidget {
 
   final bool fullscreen;
   final bool voiceEnabled;
-  final VoidCallback onToggleVoice;
+  final VoidCallback onSoundSettings;
   final VoidCallback onSetup;
   final VoidCallback onFullscreen;
   final VoidCallback onLogout;
@@ -1292,7 +1282,7 @@ class _CompactDisplayMenu extends StatelessWidget {
       onSelected: (value) {
         switch (value) {
           case 'voice':
-            onToggleVoice();
+            onSoundSettings();
           case 'full':
             onFullscreen();
           case 'setup':
@@ -1304,7 +1294,7 @@ class _CompactDisplayMenu extends StatelessWidget {
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'voice',
-          child: Text(voiceEnabled ? 'Mute voice' : 'Enable voice'),
+          child: const Text('Sound settings'),
         ),
         PopupMenuItem(
           value: 'full',

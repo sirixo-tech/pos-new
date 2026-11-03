@@ -48,6 +48,13 @@ class KitchenController extends ChangeNotifier {
   final Set<int> _knownOrderIds = {};
   bool _soundPrimed = false;
 
+  /// True only while the full KOT screen is open. The register dock does not set this.
+  bool kotScreenVisible = false;
+
+  void setKotScreenVisible(bool visible) {
+    kotScreenVisible = visible;
+  }
+
   int get totalActive => board.totalActive;
 
   int get readyCount => board.ready.length;
@@ -305,7 +312,9 @@ class KitchenController extends ChangeNotifier {
       }
     }
     if (hasNew) {
-      unawaited(PosCartSound.instance.playKitchenNewOrder());
+      if (kotScreenVisible) {
+        unawaited(PosCartSound.instance.playKitchenNewOrder());
+      }
       unawaited(_enqueueNewKotPrints(fresh));
     }
   }

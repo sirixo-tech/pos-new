@@ -110,8 +110,11 @@ class CustomerDisplayController extends ChangeNotifier {
   final Map<String, DateTime> _readyTokenEntryTimes = {};
   final Set<String> _permanentlyExpiredTokens = {};
   final Set<String> _announcedTokens = {};
+  final Set<String> _seenPreparing = {};
   List<CustomerDisplayOrder> _orderedReadyOrders = [];
   bool _persistedStateLoaded = false;
+  bool _boardPrimed = false;
+  String? _loadedDay;
 
   String get _todayKey {
     final now = DateTime.now();
@@ -240,6 +243,26 @@ class CustomerDisplayController extends ChangeNotifier {
       final currentReadyMap = <String, CustomerDisplayOrder>{
         for (final order in freshReady) _orderKey(order): order,
       };
+      if (!_boardPrimed) {
+        for (final order in board.preparing) {
+          final key = _orderKey(order);
+          if (key.isNotEmpty) _seenPreparing.add(key);
+        }
+        for (final order in freshReady) {
+          final key = _orderKey(order);
+          if (key.isNotEmpty) _announcedTokens.add(key);
+        }
+        _boardPrimed = true;
+      } else {
+        var arrived = false;
+        for (final order in board.preparing) {
+          final key = _orderKey(order);
+          if (key.isEmpty || _seenPreparing.contains(key)) continue;
+          _seenPreparing.add(key);
+          arrived = true;
+        }
+        if (arrived) voice.playNewTokenChime();
+      }
 
       for (final order in freshReady) {
         final key = _orderKey(order);
@@ -307,10 +330,26 @@ class CustomerDisplayController extends ChangeNotifier {
   }
 
   Future<void> _loadPersistedState() async {
-    if (_persistedStateLoaded) return;
+    final today = _todayKey;
+    if (_persistedStateLoaded && _loadedDay == today) return;
+    if (_loadedDay != null && _loadedDay != today) {
+      _seenPreparing.clear();
+      _announcedTokens.clear();
+      _permanentlyExpiredTokens.clear();
+      _readyTokenEntryTimes.clear();
+      _orderedReadyOrders = [];
+      _boardPrimed = false;
+    }
+    _loadedDay = today;
     _persistedStateLoaded = true;
     try {
       final prefs = await SharedPreferences.getInstance();
+      final seenPreparing = prefs.getString('${_todayKey}_seen_preparing');
+      if (seenPreparing != null) {
+        _seenPreparing.addAll(
+          (json.decode(seenPreparing) as List).map((e) => e.toString()),
+        );
+      }
       final announced = prefs.getString('${_todayKey}_announced');
       if (announced != null) {
         _announcedTokens.addAll(
@@ -342,6 +381,10 @@ class CustomerDisplayController extends ChangeNotifier {
   Future<void> _persistState() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        '${_todayKey}_seen_preparing',
+        json.encode(_seenPreparing.toList()),
+      );
       await prefs.setString(
         '${_todayKey}_announced',
         json.encode(_announcedTokens.toList()),

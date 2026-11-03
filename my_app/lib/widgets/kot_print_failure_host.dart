@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/printing/print_job_coordinator.dart';
+import '../services/printing/scan_to_print_settings.dart';
 import '../theme/pos_theme.dart';
 import 'pos_navigator.dart';
 
@@ -20,6 +21,19 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
   StreamSubscription<PrintJobFailure>? _sub;
   PrintJobCoordinator? _coordinator;
   bool _modalOpen = false;
+  bool _pumping = false;
+  bool _settingChanged = false;
+
+  @override
+  void initState() {
+    super.initState();
+    KotFailurePopupSettings.addListener(_onPopupSetting);
+  }
+
+  void _onPopupSetting() {
+    _settingChanged = true;
+    _pump();
+  }
 
   @override
   void didChangeDependencies() {
@@ -34,17 +48,34 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
 
   @override
   void dispose() {
+    KotFailurePopupSettings.removeListener(_onPopupSetting);
     unawaited(_sub?.cancel());
     super.dispose();
   }
 
   void _pump() {
-    if (!mounted || _modalOpen) return;
+    if (!mounted || _modalOpen || _pumping) return;
     final coordinator = _coordinator;
     if (coordinator == null) return;
-    final pending = coordinator.pendingKotFailures;
-    if (pending.isEmpty) return;
-    _show(pending.first, coordinator);
+    if (coordinator.pendingKotFailures.isEmpty) return;
+    _pumping = true;
+    unawaited(() async {
+      try {
+        final showPopup = await KotFailurePopupSettings.enabled();
+        if (!mounted || _modalOpen || !showPopup) return;
+        final current = _coordinator;
+        if (current == null) return;
+        final pending = current.pendingKotFailures;
+        if (pending.isEmpty) return;
+        _show(pending.first, current);
+      } finally {
+        _pumping = false;
+        if (_settingChanged && mounted) {
+          _settingChanged = false;
+          _pump();
+        }
+      }
+    }());
   }
 
   void _show(PrintJobFailure event, PrintJobCoordinator coordinator) {

@@ -800,32 +800,37 @@ class PosOrderingSettings {
 
   factory PosOrderingSettings.fromJson(Map<String, dynamic>? json) {
     final data = json ?? const {};
+    final listed = data.containsKey('pos_order_types');
     final rawTypes = (data['pos_order_types'] as List<dynamic>? ?? const [])
-        .whereType<String>()
+        .map((type) => '$type'.trim().toLowerCase())
+        .where((type) => type.isNotEmpty)
+        .map((type) => type == 'pickup' ? 'takeaway' : type)
         .toList();
 
     return PosOrderingSettings(
       enablePickup: data['enable_pickup'] as bool? ?? true,
       enableDelivery: data['enable_delivery'] as bool? ?? true,
       enableDineIn: data['enable_dine_in'] as bool? ?? true,
-      posOrderTypes: rawTypes.isNotEmpty
+      // A missing list is an older server. An empty list means none are on.
+      posOrderTypes: listed
           ? rawTypes
           : const ['dine_in', 'takeaway', 'delivery'],
     );
   }
 
-  bool get allowsPosDelivery {
-    if (!enableDelivery) return false;
-    if (posOrderTypes.isEmpty) return true;
-    return posOrderTypes.contains('delivery');
-  }
+  bool get allowsPosDelivery =>
+      enableDelivery && posOrderTypes.contains('delivery');
 
+  /// Types the web still allows. Each service switch removes its own type.
   List<String> get activePosOrderTypes {
-    final types = posOrderTypes.isEmpty
-        ? const ['dine_in', 'takeaway', 'delivery']
-        : List<String>.from(posOrderTypes);
-    if (allowsPosDelivery) return types;
-    return types.where((type) => type != 'delivery').toList();
+    return posOrderTypes.where((type) {
+      return switch (type) {
+        'dine_in' => enableDineIn,
+        'takeaway' => enablePickup,
+        'delivery' => enableDelivery,
+        _ => true,
+      };
+    }).toList();
   }
 }
 

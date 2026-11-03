@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/pos_l10n.dart';
-import '../services/customer_display/customer_voice_service.dart';
 import '../services/pos_cart_sound.dart';
 import '../theme/pos_theme.dart';
 import 'pos_ui.dart';
@@ -29,10 +28,7 @@ class _PosSoundSettingsDialogState extends State<_PosSoundSettingsDialog> {
   @override
   void initState() {
     super.initState();
-    Future.wait([
-      PosCartSound.instance.loadSettings(),
-      CustomerVoiceService.instance.loadSettings(),
-    ]).then((_) {
+    PosCartSound.instance.loadSettings().then((_) {
       if (mounted) setState(() {});
     });
   }
@@ -64,14 +60,6 @@ class _PosSoundSettingsDialogState extends State<_PosSoundSettingsDialog> {
               accent: accent,
               index: _tab,
               onChanged: (index) => setState(() => _tab = index),
-            ),
-            const SizedBox(height: 12),
-            _CustomerDisplaySoundSwitch(
-              enabled: CustomerVoiceService.instance.isEnabled,
-              onChanged: (value) async {
-                await CustomerVoiceService.instance.setEnabled(value);
-                if (mounted) setState(() {});
-              },
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -118,47 +106,6 @@ class _PosSoundSettingsDialogState extends State<_PosSoundSettingsDialog> {
         onConfirm: () => Navigator.pop(context),
         cancelLabel: l10n.commonClose,
         confirmLabel: l10n.commonDone,
-      ),
-    );
-  }
-}
-
-class _CustomerDisplaySoundSwitch extends StatelessWidget {
-  const _CustomerDisplaySoundSwitch({
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final soft = posAccentSoft(accent);
-    return Material(
-      color: enabled ? soft.bg : PosTheme.surfaceMuted,
-      borderRadius: BorderRadius.circular(12),
-      child: SwitchListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-        title: Text(
-          'Customer display sound',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-            color: enabled ? soft.fg : PosTheme.ink,
-          ),
-        ),
-        subtitle: Text(
-          'Voice and device audio on the customer screen',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: PosTheme.inkMuted,
-          ),
-        ),
-        value: enabled,
-        onChanged: onChanged,
       ),
     );
   }
@@ -438,12 +385,12 @@ class _KitchenSoundSettingsDialogState
 
     return PosDialogShell(
       title: 'Kitchen sound',
-      subtitle: 'Chime when a new ticket lands on this board.',
+      subtitle: 'Service-bell alerts for a new ticket on this board.',
       icon: Icons.soup_kitchen_outlined,
       maxWidth: 440,
       onClose: () => Navigator.pop(context),
       body: SizedBox(
-        height: 400,
+        height: 460,
         child: Column(
           children: [
             Material(
@@ -470,7 +417,7 @@ class _KitchenSoundSettingsDialogState
             Expanded(
               child: ListView(
                 children: [
-                  for (final entry in PosCartSound.orderTones.entries)
+                  for (final entry in PosCartSound.kitchenTones.entries)
                     _ToneTile(
                       title: entry.value,
                       selected: sound.kitchenTone == entry.key,
