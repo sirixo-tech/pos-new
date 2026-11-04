@@ -2,7 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
-/// Query the saved queue directly; discovery and WMI are not connection checks.
+import 'printer_health.dart';
+
+/// Query the saved queue directly. Presence is the plugged-in USB interface.
+/// The spooler offline word is not a cable check, and this call does not open
+/// the printer.
 class WindowsPrinterQueue {
   static const _channel = MethodChannel('pos_main/windows_printer');
   static Future<void> _printChain = Future<void>.value();
@@ -55,5 +59,83 @@ class WindowsPrinterQueue {
     });
     _printChain = run.then<void>((_) {}, onError: (Object _, StackTrace __) {});
     return run;
+  }
+}
+
+/// Keeps one empty USB sample from flipping a printer that was ready.
+///
+/// The first sample is shown as it arrived. After a ready sample, one missing
+/// sample stays ready. The next missing sample is shown. A ready sample is
+/// shown on the check that finds the printer again.
+class WindowsUsbConnectionStability {
+  static final WindowsUsbConnectionStability shared =
+      WindowsUsbConnectionStability();
+
+  String? _name;
+  bool _wasReady = false;
+  int _misses = 0;
+
+  void reset() {
+    _name = null;
+    _wasReady = false;
+    _misses = 0;
+  }
+
+  PrinterHealth apply(PrinterHealth raw) {
+    final name = raw.config?.name ?? '';
+    if (name != _name) {
+      _name = name;
+      _misses = 0;
+      _wasReady = raw.state == PrinterHealthState.ready;
+      return raw;
+    }
+    if (raw.state != PrinterHealthState.missing) {
+      _misses = 0;
+      _wasReady = raw.state == PrinterHealthState.ready;
+      return raw;
+    }
+    if (!_wasReady) return raw;
+    _misses += 1;
+    if (_misses < 2) {
+      return PrinterHealth(
+        state: PrinterHealthState.ready,
+        config: raw.config,
+        message: 'Ready',
+        lastCheckedAt: raw.lastCheckedAt,
+      );
+    }
+    _wasReady = false;
+    _misses = 0;
+    return raw;
+  }
+}
+
+/// Stops the printer-list timer after a scan without owning the plugin.
+class PrinterScanRelease {
+  static Future<void> Function({required bool stopBle, required bool stopUsb})?
+  onStop;
+
+  static Future<void> usbListing({
+    required bool windows,
+    required Future<void> Function() stopUsbOnly,
+  }) async {
+    if (!windows) return;
+    final hook = onStop;
+    if (hook != null) {
+      await hook(stopBle: false, stopUsb: true);
+      return;
+    }
+    await stopUsbOnly();
+  }
+
+  static Future<void> bluetooth({
+    required Future<void> Function() stopBluetooth,
+  }) async {
+    final hook = onStop;
+    if (hook != null) {
+      await hook(stopBle: true, stopUsb: true);
+      return;
+    }
+    await stopBluetooth();
   }
 }

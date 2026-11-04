@@ -1333,21 +1333,22 @@ class _PosToastState extends State<_PosToast>
     final iconBg = widget.error
         ? (PosTheme.isDark ? const Color(0xFF4C0519) : const Color(0xFFFEE2E2))
         : (widget.accent == const Color(0xFF10B981)
-            ? (PosTheme.isDark
-                ? const Color(0xFF064E3B)
-                : const Color(0xFFD1FAE5))
-            : posAccentSoft(widget.accent).bg);
-    final icon = widget.customIcon ??
+              ? (PosTheme.isDark
+                    ? const Color(0xFF064E3B)
+                    : const Color(0xFFD1FAE5))
+              : posAccentSoft(widget.accent).bg);
+    final icon =
+        widget.customIcon ??
         (widget.error
             ? Icons.error_outline_rounded
             : Icons.check_circle_rounded);
     final borderColor = widget.error
         ? const Color(0xFFFECACA)
         : (widget.accent == const Color(0xFF10B981)
-            ? (PosTheme.isDark
-                ? const Color(0xFF065F46)
-                : const Color(0xFFA7F3D0))
-            : PosTheme.border);
+              ? (PosTheme.isDark
+                    ? const Color(0xFF065F46)
+                    : const Color(0xFFA7F3D0))
+              : PosTheme.border);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final toastWidth = screenWidth - 32 < 420 ? screenWidth - 32 : 420.0;
 
@@ -1788,7 +1789,8 @@ Widget posDialogActionFooter({
   return LayoutBuilder(
     builder: (context, constraints) {
       final largeText = MediaQuery.textScalerOf(context).scale(15) > 19;
-      final shouldStack = (!sideBySide && constraints.maxWidth < 400) ||
+      final shouldStack =
+          (!sideBySide && constraints.maxWidth < 400) ||
           (constraints.maxWidth < 240) ||
           largeText;
       if (shouldStack) {
@@ -2159,11 +2161,14 @@ class PosKeyboardDismiss extends StatefulWidget {
 }
 
 class _PosKeyboardDismissState extends State<PosKeyboardDismiss> {
+  static const _touchKeyboard = MethodChannel('pos_main/touch_keyboard');
+
   int? _pointer;
   Offset? _down;
   bool _downOutside = false;
   FocusNode? _lastFocus;
   DateTime? _focusedAt;
+  bool _touchKeyboardOpen = false;
 
   @override
   void initState() {
@@ -2173,31 +2178,60 @@ class _PosKeyboardDismissState extends State<PosKeyboardDismiss> {
 
   @override
   void dispose() {
+    _hideWindowsTouchKeyboard();
     FocusManager.instance.removeListener(_rememberFocus);
     super.dispose();
   }
 
   void _rememberFocus() {
     final focus = FocusManager.instance.primaryFocus;
-    if (focus == null || !focus.hasFocus || identical(focus, _lastFocus)) {
+    if (focus == null || !focus.hasFocus) {
+      _lastFocus = null;
+      _hideWindowsTouchKeyboard();
       return;
     }
+    if (identical(focus, _lastFocus)) return;
     _lastFocus = focus;
     _focusedAt = DateTime.now();
+    if (!_isEditable(focus)) {
+      _hideWindowsTouchKeyboard();
+      return;
+    }
     _showWindowsTouchKeyboard(focus);
+  }
+
+  bool _isEditable(FocusNode focus) {
+    final focusContext = focus.context;
+    if (focusContext == null) return false;
+    return focusContext.widget is EditableText ||
+        focusContext.findAncestorWidgetOfExactType<EditableText>() != null;
   }
 
   void _showWindowsTouchKeyboard(FocusNode focus) {
     if (defaultTargetPlatform != TargetPlatform.windows) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || FocusManager.instance.primaryFocus != focus) return;
-      final focusContext = focus.context;
-      if (focusContext == null) return;
-      final editable = focusContext.widget is EditableText ||
-          focusContext.findAncestorWidgetOfExactType<EditableText>() != null;
-      if (!editable) return;
-      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+      if (!_isEditable(focus)) return;
+      _touchKeyboardOpen = true;
+      // TextInput.show does not start the Windows touch keyboard. A USB
+      // scanner is a keyboard, so Windows will not open it automatically.
+      unawaited(_invokeTouchKeyboard('show'));
     });
+  }
+
+  void _hideWindowsTouchKeyboard() {
+    if (!_touchKeyboardOpen) return;
+    _touchKeyboardOpen = false;
+    if (defaultTargetPlatform != TargetPlatform.windows) return;
+    unawaited(_invokeTouchKeyboard('hide'));
+  }
+
+  Future<void> _invokeTouchKeyboard(String method) async {
+    try {
+      await _touchKeyboard.invokeMethod<void>(method);
+    } on Object {
+      // Desktop builds without this channel keep the field focused.
+    }
   }
 
   bool? _outsideFocusedField(Offset global) {

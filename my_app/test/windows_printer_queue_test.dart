@@ -14,7 +14,12 @@ void main() {
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
-  tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+  setUp(WindowsUsbConnectionStability.shared.reset);
+
+  tearDown(() {
+    messenger.setMockMethodCallHandler(channel, null);
+    PrinterScanRelease.onStop = null;
+  });
 
   test(
     'legacy queue-only Ready cannot bypass physical USB verification',
@@ -157,6 +162,98 @@ void main() {
         ),
       );
       expect(calls, 1);
+    },
+  );
+
+  test('one missed USB sample stays ready and the next is disconnected', () {
+    final stability = WindowsUsbConnectionStability();
+    PrinterHealth sample(PrinterHealthState state, {String name = 'USB'}) {
+      return PrinterHealth(
+        state: state,
+        config: UsbPrinterConfig(name: name),
+        issues: state == PrinterHealthState.missing
+            ? const ['offline']
+            : const [],
+        message: state == PrinterHealthState.ready ? 'Ready' : 'Offline',
+      );
+    }
+
+    expect(
+      stability.apply(sample(PrinterHealthState.missing)).state,
+      PrinterHealthState.missing,
+    );
+    stability.reset();
+    expect(
+      stability.apply(sample(PrinterHealthState.ready)).state,
+      PrinterHealthState.ready,
+    );
+    expect(
+      stability.apply(sample(PrinterHealthState.missing)).state,
+      PrinterHealthState.ready,
+    );
+    expect(
+      stability.apply(sample(PrinterHealthState.missing)).state,
+      PrinterHealthState.missing,
+    );
+    expect(
+      stability.apply(sample(PrinterHealthState.missing)).state,
+      PrinterHealthState.missing,
+    );
+    expect(
+      stability.apply(sample(PrinterHealthState.ready)).state,
+      PrinterHealthState.ready,
+    );
+    expect(
+      stability.apply(sample(PrinterHealthState.missing, name: 'Other')).state,
+      PrinterHealthState.missing,
+    );
+  });
+
+  test(
+    'probe keeps a Windows USB queue ready through one offline sample',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      await UsbPrinterStorage.save(UsbPrinterConfig(name: 'TVSE RP3200 Lite'));
+      var calls = 0;
+      messenger.setMockMethodCallHandler(channel, (_) async {
+        calls += 1;
+        return {
+          'present': true,
+          'offline': calls == 2 || calls == 3,
+          'paperOut': false,
+          'physicalUsbChecked': true,
+        };
+      });
+      expect((await PosReceiptPrinter.probe()).state, PrinterHealthState.ready);
+      expect((await PosReceiptPrinter.probe()).state, PrinterHealthState.ready);
+      final disconnected = await PosReceiptPrinter.probe();
+      expect(disconnected.state, PrinterHealthState.missing);
+      expect(disconnected.issues, contains('offline'));
+      expect((await PosReceiptPrinter.probe()).state, PrinterHealthState.ready);
+    },
+    skip: !Platform.isWindows,
+  );
+
+  test(
+    'Windows USB listing stops USB discovery and leaves Bluetooth scanning',
+    () async {
+      final calls = <String>[];
+      PrinterScanRelease.onStop =
+          ({required bool stopBle, required bool stopUsb}) async {
+            calls.add('$stopBle:$stopUsb');
+          };
+      await PrinterScanRelease.usbListing(
+        windows: false,
+        stopUsbOnly: () async => calls.add('usb-plugin'),
+      );
+      await PrinterScanRelease.usbListing(
+        windows: true,
+        stopUsbOnly: () async => calls.add('usb-plugin'),
+      );
+      await PrinterScanRelease.bluetooth(
+        stopBluetooth: () async => calls.add('bluetooth-plugin'),
+      );
+      expect(calls, ['false:true', 'true:true']);
     },
   );
 }

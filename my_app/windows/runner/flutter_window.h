@@ -10,6 +10,7 @@
 
 #include "win32_window.h"
 #include "menu_speech.h"
+#include "touch_keyboard.h"
 #include "windows_printer.h"
 
 // A window that does nothing but host a Flutter view.
@@ -34,6 +35,7 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<MenuSpeech> menu_speech_;
   std::unique_ptr<WindowsPrinter> windows_printer_;
+  std::unique_ptr<TouchKeyboard> touch_keyboard_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> scanner_status_;
 };
 

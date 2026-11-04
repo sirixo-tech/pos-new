@@ -254,10 +254,36 @@ class PosReceiptPrinter {
   }
 
   static Future<void> stopBluetoothScan() async {
-    try {
-      await _thermal.stopScan();
-    } catch (_) {
-      // Best-effort — scan may already be stopped.
+    await PrinterScanRelease.bluetooth(
+      stopBluetooth: () async {
+        try {
+          await _thermal.stopScan();
+        } catch (_) {
+          // Best-effort — scan may already be stopped.
+        }
+      },
+    );
+  }
+
+  static Future<void> _releasePrinterDiscovery(ConnectionType type) async {
+    if (type == ConnectionType.BLE) {
+      await stopBluetoothScan();
+      return;
+    }
+    if (type == ConnectionType.USB) {
+      await PrinterScanRelease.usbListing(
+        windows: Platform.isWindows,
+        stopUsbOnly: () async {
+          try {
+            await PrinterManager.instance.stopScan(
+              stopBle: false,
+              stopUsb: true,
+            );
+          } catch (_) {
+            // The list already returned. A later scan replaces the timer.
+          }
+        },
+      );
     }
   }
 
@@ -314,12 +340,16 @@ class PosReceiptPrinter {
 
     final config = await UsbPrinterStorage.load();
     if (config == null || config.name.trim().isEmpty) {
+      WindowsUsbConnectionStability.shared.reset();
       return PrinterHealth(
         state: PrinterHealthState.none,
         message: thermalPrinterMissingMessage(),
         lastCheckedAt: checkedAt,
       );
     }
+    final windowsUsb =
+        Platform.isWindows && config.connection == PosPrinterConnection.usb;
+    if (!windowsUsb) WindowsUsbConnectionStability.shared.reset();
 
     if (config.connection == PosPrinterConnection.smartpos) {
       return _probeSmartPos(config, checkedAt);
@@ -397,27 +427,29 @@ class PosReceiptPrinter {
       }
     }
 
-    // The plugin's shared discovery timer can be cancelled by another poll.
-    // Windows can query the saved spooler queue without any discovery scan.
-    if (Platform.isWindows && config.connection == PosPrinterConnection.usb) {
+    // Windows USB presence is the plugged-in interface. One missed sample does
+    // not change a printer that was ready.
+    if (windowsUsb) {
       final spooler = await WindowsPrinterQueue.lookup(config.name);
       final issues = <String>[
         if (!spooler.present) 'missing',
         if (spooler.offline) 'offline',
         if (spooler.paperOut) 'paper_out',
       ];
-      return PrinterHealth(
-        state: !spooler.present || spooler.offline
-            ? PrinterHealthState.missing
-            : spooler.paperOut
-            ? PrinterHealthState.attention
-            : PrinterHealthState.ready,
-        config: config,
-        issues: issues,
-        message: issues.isEmpty
-            ? 'Ready'
-            : PrinterHealth.messageForIssues(issues),
-        lastCheckedAt: checkedAt,
+      return WindowsUsbConnectionStability.shared.apply(
+        PrinterHealth(
+          state: !spooler.present || spooler.offline
+              ? PrinterHealthState.missing
+              : spooler.paperOut
+              ? PrinterHealthState.attention
+              : PrinterHealthState.ready,
+          config: config,
+          issues: issues,
+          message: issues.isEmpty
+              ? 'Ready'
+              : PrinterHealth.messageForIssues(issues),
+          lastCheckedAt: checkedAt,
+        ),
       );
     }
 
@@ -1853,9 +1885,7 @@ class PosReceiptPrinter {
       return await completer.future.timeout(timeout, onTimeout: () => latest);
     } finally {
       await subscription.cancel();
-      if (type == ConnectionType.BLE) {
-        await stopBluetoothScan();
-      }
+      await _releasePrinterDiscovery(type);
     }
   }
 

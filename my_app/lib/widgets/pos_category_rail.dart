@@ -250,15 +250,28 @@ class _CategoryTile extends StatelessWidget {
             ),
           ),
           child: compact
-              ? Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: _categoryNameStyle(
-                    12,
-                    color: isActive ? Colors.white : null,
-                  ),
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _CategoryAvatar(
+                      imageUrl: imageUrl,
+                      icon: icon,
+                      isActive: isActive,
+                      accent: accent,
+                      size: 40,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: _categoryNameStyle(
+                        11,
+                        color: isActive ? Colors.white : null,
+                      ),
+                    ),
+                  ],
                 )
               : Column(
                   mainAxisSize: MainAxisSize.min,

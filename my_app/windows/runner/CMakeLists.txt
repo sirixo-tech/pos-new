@@ -9,6 +9,7 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME} WIN32
   "flutter_window.cpp"
   "menu_speech.cpp"
+  "touch_keyboard.cpp"
   "windows_printer.cpp"
   "scanner_status.cpp"
   "main.cpp"
@@ -37,6 +38,7 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE "shell32.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "sapi.lib" "ole32.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "winspool.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "setupapi.lib")

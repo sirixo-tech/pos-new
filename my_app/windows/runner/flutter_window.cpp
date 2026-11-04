@@ -71,6 +71,8 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   windows_printer_ = std::make_unique<WindowsPrinter>(
       flutter_controller_->engine()->messenger());
+  touch_keyboard_ = std::make_unique<TouchKeyboard>(
+      flutter_controller_->engine()->messenger(), GetHandle());
   scanner_status_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
       flutter_controller_->engine()->messenger(), "pos_main/scanner_status",
       &flutter::StandardMethodCodec::GetInstance());
@@ -102,6 +104,7 @@ bool FlutterWindow::OnCreate() {
 
 void FlutterWindow::OnDestroy() {
   windows_printer_.reset();
+  touch_keyboard_.reset();
   scanner_status_.reset();
   menu_speech_.reset();
   if (flutter_controller_) {
@@ -116,6 +119,11 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
   if (menu_speech_ && menu_speech_->HandleMessage(message, wparam)) return 0;
+  if (message == WM_TIMER && wparam == TouchKeyboard::kTimerId &&
+      touch_keyboard_) {
+    touch_keyboard_->OnTimer();
+    return 0;
+  }
 
   // Keep the Flutter view focused while the touch keyboard is up. Swallowing
   // this deactivation stops the engine from closing the text field.

@@ -33,44 +33,55 @@ std::string Failure(const char* operation, DWORD error) {
       std::to_string(error) + ").";
 }
 
-DWORD Status(HANDLE printer) {
-  DWORD needed = 0;
-  GetPrinterW(printer, 6, nullptr, 0, &needed);
-  if (needed < sizeof(PRINTER_INFO_6)) {
-    throw std::runtime_error(Failure("Printer status check", GetLastError()));
+struct QueuePort {
+  bool exists = false;
+  std::wstring port;
+};
+
+// The spooler keeps this key after the cable is pulled. Reading it does not
+// open the USB interface, so a status poll cannot reset the printer.
+QueuePort ReadQueuePort(const std::wstring& name) {
+  QueuePort queue;
+  const auto path =
+      L"SYSTEM\\CurrentControlSet\\Control\\Print\\Printers\\" + name;
+  HKEY key = nullptr;
+  const LONG opened = RegOpenKeyExW(HKEY_LOCAL_MACHINE, path.c_str(), 0,
+      KEY_READ | KEY_WOW64_64KEY, &key);
+  if (opened == ERROR_FILE_NOT_FOUND || opened == ERROR_PATH_NOT_FOUND) {
+    return queue;
   }
-  std::vector<uint8_t> buffer(needed);
-  if (!GetPrinterW(printer, 6, buffer.data(), needed, &needed)) {
-    throw std::runtime_error(Failure("Printer status check", GetLastError()));
+  if (opened != ERROR_SUCCESS) {
+    throw std::runtime_error(Failure("Open printer queue", opened));
   }
-  return reinterpret_cast<const PRINTER_INFO_6*>(buffer.data())->dwStatus;
+  queue.exists = true;
+  wchar_t port[512]{};
+  DWORD bytes = sizeof(port);
+  DWORD type = 0;
+  if (RegQueryValueExW(key, L"Port", nullptr, &type,
+          reinterpret_cast<LPBYTE>(port), &bytes) == ERROR_SUCCESS &&
+      type == REG_SZ) {
+    queue.port.assign(port);
+  }
+  RegCloseKey(key);
+  return queue;
 }
 
-constexpr DWORD kOffline = PRINTER_STATUS_OFFLINE | PRINTER_STATUS_NOT_AVAILABLE;
+bool IsUsbPort(const std::wstring& port) {
+  return port.size() >= 3 && _wcsnicmp(port.c_str(), L"USB", 3) == 0;
+}
 
-bool UsbPortPresent(HANDLE printer) {
-  DWORD needed = 0;
-  GetPrinterW(printer, 2, nullptr, 0, &needed);
-  if (needed < sizeof(PRINTER_INFO_2W)) {
-    throw std::runtime_error(Failure("Printer port check", GetLastError()));
-  }
-  std::vector<uint8_t> info(needed);
-  if (!GetPrinterW(printer, 2, info.data(), needed, &needed)) {
-    throw std::runtime_error(Failure("Printer port check", GetLastError()));
-  }
-  const auto* port = reinterpret_cast<const PRINTER_INFO_2W*>(info.data())->pPortName;
-  if (!port || _wcsnicmp(port, L"USB", 3) != 0) return true;
+// Match the queue's USB port to a device interface that is plugged in now.
+// An installed queue survives unplugging, so the queue key alone is not enough.
+bool UsbInterfacePresent(const std::wstring& port) {
   wchar_t saved_device_path[2048]{};
   DWORD path_bytes = sizeof(saved_device_path);
-  const auto monitor_key = std::wstring(
-      L"SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors\\USB Monitor\\Ports\\") + port;
-  // The USB monitor stores the exact device interface assigned to this port.
-  // A stale registry mapping is useful only when that interface is present.
+  const auto monitor_key =
+      L"SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors\\USB Monitor\\Ports\\" +
+      port;
   RegGetValueW(HKEY_LOCAL_MACHINE, monitor_key.c_str(), L"Device Path",
-      RRF_RT_REG_SZ, nullptr, saved_device_path, &path_bytes);
+      RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY, nullptr, saved_device_path,
+      &path_bytes);
 
-  // Match the queue's USB port to an active USB printer interface. An installed
-  // spooler queue and its cached status survive physical unplugging.
   const GUID usbprint = {0x28d78fad, 0x5a12, 0x11d1,
       {0xae, 0x5b, 0x00, 0x00, 0xf8, 0x03, 0xa8, 0xc2}};
   const DEVPROPKEY port_property = {{0xeec7b761, 0x6f94, 0x41b1,
@@ -102,17 +113,16 @@ bool UsbPortPresent(HANDLE printer) {
     if (SetupDiGetDeviceInterfacePropertyW(devices, &device, &port_property,
         &type, reinterpret_cast<PBYTE>(device_port), sizeof(device_port),
         nullptr, 0) && type == DEVPROP_TYPE_STRING &&
-        _wcsicmp(port, device_port) == 0) {
+        _wcsicmp(port.c_str(), device_port) == 0) {
       matched = true;
     }
-    // USB monitor versions also expose the port in the interface registry key.
     const HKEY key = SetupDiOpenDeviceInterfaceRegKey(devices, &device, 0, KEY_READ);
     if (key != INVALID_HANDLE_VALUE) {
       DWORD bytes = sizeof(device_port);
       DWORD registry_type = 0;
       if (RegQueryValueExW(key, L"PortName", nullptr, &registry_type,
           reinterpret_cast<PBYTE>(device_port), &bytes) == ERROR_SUCCESS &&
-          registry_type == REG_SZ && _wcsicmp(port, device_port) == 0) {
+          registry_type == REG_SZ && _wcsicmp(port.c_str(), device_port) == 0) {
         matched = true;
       }
       RegCloseKey(key);
@@ -124,6 +134,18 @@ bool UsbPortPresent(HANDLE printer) {
     throw std::runtime_error("Unable to complete USB printer connection check.");
   }
   return matched;
+}
+
+EncodableMap StatusValue(bool present, bool offline, bool checked) {
+  EncodableMap value{
+      {EncodableValue("present"), EncodableValue(present)},
+      {EncodableValue("offline"), EncodableValue(offline)},
+      {EncodableValue("paperOut"), EncodableValue(false)},
+  };
+  if (checked) {
+    value[EncodableValue("physicalUsbChecked")] = EncodableValue(true);
+  }
+  return value;
 }
 }  // namespace
 
@@ -156,43 +178,27 @@ WindowsPrinter::WindowsPrinter(flutter::BinaryMessenger* messenger)
         return;
       }
     }
-    PrinterHandle printer;
     auto wide_name = Wide(*name);
-    if (!OpenPrinterW(wide_name.data(), &printer.value, nullptr)) {
-      const DWORD error = GetLastError();
-      if (!printing && error == ERROR_INVALID_PRINTER_NAME) {
-        result->Success(EncodableValue(EncodableMap{
-            {EncodableValue("present"), EncodableValue(false)},
-            {EncodableValue("offline"), EncodableValue(true)},
-            {EncodableValue("paperOut"), EncodableValue(false)},
-        }));
-      } else {
-        result->Error(printing ? "PRINTER_CONNECT" : "PRINTER_STATUS",
-            Failure("Open printer queue", error));
+    if (!printing) {
+      try {
+        const auto queue = ReadQueuePort(wide_name);
+        if (!queue.exists) {
+          result->Success(EncodableValue(StatusValue(false, true, false)));
+          return;
+        }
+        // The in-box USB driver sets its offline and paper bits when a status
+        // request goes unanswered. Those bits are not the cable. Opening the
+        // queue to read them also resets the USB interface.
+        const bool connected = !IsUsbPort(queue.port) || UsbInterfacePresent(queue.port);
+        result->Success(EncodableValue(StatusValue(true, !connected, true)));
+      } catch (const std::exception& error) {
+        result->Error("PRINTER_STATUS", error.what());
       }
       return;
     }
-    DWORD status;
-    try {
-      status = Status(printer.value);
-      if (!UsbPortPresent(printer.value)) status |= PRINTER_STATUS_OFFLINE;
-    } catch (const std::exception& error) {
-      result->Error(printing ? "PRINTER_CONNECT" : "PRINTER_STATUS", error.what());
-      return;
-    }
-    if (!printing) {
-      result->Success(EncodableValue(EncodableMap{
-          {EncodableValue("present"), EncodableValue(true)},
-          {EncodableValue("physicalUsbChecked"), EncodableValue(true)},
-          {EncodableValue("offline"), EncodableValue((status & kOffline) != 0)},
-          {EncodableValue("paperOut"), EncodableValue((status & PRINTER_STATUS_PAPER_OUT) != 0)},
-      }));
-      return;
-    }
-    if ((status & (kOffline | PRINTER_STATUS_PAPER_OUT)) != 0) {
-      result->Error("PRINTER_CONNECT", (status & PRINTER_STATUS_PAPER_OUT)
-          ? "Printer paper out. Replace the roll."
-          : "Windows reports the printer offline. Check the USB connection.");
+    PrinterHandle printer;
+    if (!OpenPrinterW(wide_name.data(), &printer.value, nullptr)) {
+      result->Error("PRINTER_CONNECT", Failure("Open printer queue", GetLastError()));
       return;
     }
     DOC_INFO_1W document{};
