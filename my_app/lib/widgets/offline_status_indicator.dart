@@ -2,18 +2,65 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/pos_l10n.dart';
+import '../providers/pos_controller.dart';
 import '../services/offline/connectivity_service.dart';
 import '../services/offline/order_sync_service.dart';
 import '../utils/pos_user_facing_error.dart';
+import 'pos_ui.dart';
 
-class OfflineStatusIndicator extends StatelessWidget {
+String describeOrderSyncResult(AppLocalizations l10n, OrderSyncResult result) {
+  return switch (result.stop) {
+    OrderSyncStop.finished => l10n.shellSyncCompleted,
+    OrderSyncStop.idle => l10n.offlineSyncNothingPending,
+    OrderSyncStop.incomplete => l10n.offlineSyncPartial(result.remaining),
+    OrderSyncStop.offline => l10n.errorNetwork,
+    OrderSyncStop.rateLimited =>
+      'The server asked this register to wait. Orders will sync when that wait ends.',
+    OrderSyncStop.notSignedIn => l10n.authNotSignedIn,
+  };
+}
+
+class OfflineStatusIndicator extends StatefulWidget {
   const OfflineStatusIndicator({super.key, this.compact = false});
 
   /// Icon-only chip for narrow app bars.
   final bool compact;
 
   @override
+  State<OfflineStatusIndicator> createState() => _OfflineStatusIndicatorState();
+}
+
+class _OfflineStatusIndicatorState extends State<OfflineStatusIndicator> {
+  Future<void>? _syncing;
+
+  Future<void> _sync() async {
+    final current = _syncing;
+    if (current != null) {
+      await current;
+      return;
+    }
+    final run = _syncOnce();
+    _syncing = run;
+    try {
+      await run;
+    } finally {
+      if (identical(_syncing, run)) _syncing = null;
+    }
+  }
+
+  Future<void> _syncOnce() async {
+    final result = await context.read<PosController>().syncPendingOrders();
+    if (!mounted) return;
+    showPosSnackBar(
+      context,
+      describeOrderSyncResult(context.l10n, result),
+      error: result.isError,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final compact = widget.compact;
     return Consumer2<ConnectivityService, OrderSyncService>(
       builder: (context, connectivity, syncService, _) {
         final isOffline = connectivity.isOffline;
@@ -21,7 +68,7 @@ class OfflineStatusIndicator extends StatelessWidget {
         final failedCount = syncService.failedCount;
         final isSyncing = syncService.isSyncing;
 
-        if (!isOffline && pendingCount == 0) {
+        if (!isOffline && pendingCount == 0 && !isSyncing) {
           return const SizedBox.shrink();
         }
 
@@ -45,65 +92,72 @@ class OfflineStatusIndicator extends StatelessWidget {
         final fg = isOffline
             ? Colors.orange[800]
             : hasFailures
-                ? Colors.red[800]
-                : Colors.blue[800];
+            ? Colors.red[800]
+            : Colors.blue[800];
 
         return Tooltip(
           message: tooltip,
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: compact ? 8 : 12,
-              vertical: compact ? 7 : 6,
-            ),
-            decoration: BoxDecoration(
-              color: isOffline
-                  ? Colors.orange[100]
-                  : hasFailures
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _sync,
+              borderRadius: BorderRadius.circular(compact ? 10 : 20),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 8 : 12,
+                  vertical: compact ? 7 : 6,
+                ),
+                decoration: BoxDecoration(
+                  color: isOffline
+                      ? Colors.orange[100]
+                      : hasFailures
                       ? Colors.red[100]
                       : Colors.blue[100],
-              borderRadius: BorderRadius.circular(compact ? 10 : 20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isSyncing)
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  Icon(
-                    isOffline
-                        ? Icons.cloud_off
-                        : hasFailures
+                  borderRadius: BorderRadius.circular(compact ? 10 : 20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSyncing)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      Icon(
+                        isOffline
+                            ? Icons.cloud_off
+                            : hasFailures
                             ? Icons.sync_problem
                             : Icons.cloud_upload,
-                    size: 16,
-                    color: fg,
-                  ),
-                if (!compact) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: fg,
-                    ),
-                  ),
-                ] else if (pendingCount > 0 || failedCount > 0) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    '${hasFailures ? failedCount : pendingCount}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: fg,
-                    ),
-                  ),
-                ],
-              ],
+                        size: 16,
+                        color: fg,
+                      ),
+                    if (!compact) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: fg,
+                        ),
+                      ),
+                    ] else if (pendingCount > 0 || failedCount > 0) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        '${hasFailures ? failedCount : pendingCount}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: fg,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         );
@@ -155,8 +209,8 @@ class OfflineBanner extends StatelessWidget {
         final message = isOffline
             ? l10n.offlineBanner
             : storedError != null && storedError.trim().isNotEmpty
-                ? '${l10n.offlineSyncFailedBanner(failed)} ${posUserFacingError(storedError)}'
-                : l10n.offlineSyncFailedBanner(failed);
+            ? '${l10n.offlineSyncFailedBanner(failed)} ${posUserFacingError(storedError)}'
+            : l10n.offlineSyncFailedBanner(failed);
 
         return Container(
           width: double.infinity,
@@ -207,8 +261,9 @@ class PendingOrdersBadge extends StatelessWidget {
 
         return Badge(
           label: Text('$count'),
-          backgroundColor:
-              syncService.failedCount > 0 ? Colors.red : Colors.orange,
+          backgroundColor: syncService.failedCount > 0
+              ? Colors.red
+              : Colors.orange,
           child: child,
         );
       },

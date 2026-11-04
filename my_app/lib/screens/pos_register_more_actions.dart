@@ -16,6 +16,7 @@ import '../widgets/pos_ops_bar.dart';
 import '../widgets/pos_shortcuts_help.dart';
 import '../widgets/pos_sound_settings_dialog.dart';
 import '../widgets/pos_system_status_dialog.dart';
+import '../widgets/offline_status_indicator.dart';
 import '../widgets/pos_ui.dart';
 import 'admin/admin_shell.dart';
 import 'customer_display/customer_display_page.dart';
@@ -127,17 +128,13 @@ Future<void> handlePosRegisterMoreAction({
       );
     }
   } else if (value == 'sync') {
-    final before = pos.pendingOrderCount;
-    await pos.syncPendingOrders();
+    final result = await pos.syncPendingOrders();
     if (!context.mounted) return;
-    final remaining = pos.pendingOrderCount;
-    if (before == 0 && remaining == 0) {
-      showPosSnackBar(context, l10n.offlineSyncNothingPending);
-    } else if (remaining > 0) {
-      showPosSnackBar(context, l10n.offlineSyncPartial(remaining), error: true);
-    } else {
-      showPosSnackBar(context, l10n.shellSyncCompleted);
-    }
+    showPosSnackBar(
+      context,
+      describeOrderSyncResult(l10n, result),
+      error: result.isError,
+    );
   } else if (value == 'updates') {
     await openPosUpdateCheckScreen(context);
   } else if (value == 'shortcuts') {

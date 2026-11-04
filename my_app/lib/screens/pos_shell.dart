@@ -2685,10 +2685,9 @@ class PosRegisterAppBar extends StatelessWidget implements PreferredSizeWidget {
                 onPressed: onOpenNotifications,
               ),
             if (!handheld)
-              _HeaderIconButton(
+              _RefreshingMenuButton(
                 tooltip: l10n.shellRefreshMenu,
-                icon: Icons.refresh_rounded,
-                onPressed: () => _refreshMenu(context, pos, l10n),
+                onRefresh: () => _refreshMenu(context, pos, l10n),
               ),
           ],
         ),
@@ -3009,6 +3008,76 @@ class _HelpMenuRow extends StatelessWidget {
 }
 
 /// Flat icon control used inside a [_HeaderSegment].
+class _RefreshingMenuButton extends StatefulWidget {
+  const _RefreshingMenuButton({
+    required this.tooltip,
+    required this.onRefresh,
+  });
+
+  final String tooltip;
+  final Future<void> Function() onRefresh;
+
+  @override
+  State<_RefreshingMenuButton> createState() => _RefreshingMenuButtonState();
+}
+
+class _RefreshingMenuButtonState extends State<_RefreshingMenuButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _spin = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  Future<void> _run() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    _spin.repeat();
+    try {
+      await widget.onRefresh();
+    } finally {
+      if (mounted) {
+        _spin.stop();
+        final progress = _spin.value % 1;
+        if (progress < 0.98) {
+          await _spin.animateTo(
+            1,
+            duration: Duration(
+              milliseconds: ((1 - progress) * 700).round().clamp(120, 700),
+            ),
+          );
+        }
+        if (mounted) {
+          _spin.value = 0;
+          setState(() => _busy = false);
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _HeaderIconButton(
+      tooltip: widget.tooltip,
+      icon: Icons.refresh_rounded,
+      spinTurns: _spin,
+      onPressed: _run,
+    );
+  }
+}
+
 class _HeaderIconButton extends StatelessWidget {
   const _HeaderIconButton({
     required this.tooltip,
@@ -3018,6 +3087,7 @@ class _HeaderIconButton extends StatelessWidget {
     this.badgeCount = 0,
     this.badgeColor,
     this.iconColor,
+    this.spinTurns,
   });
 
   final String tooltip;
@@ -3027,6 +3097,7 @@ class _HeaderIconButton extends StatelessWidget {
   final int badgeCount;
   final Color? badgeColor;
   final Color? iconColor;
+  final Animation<double>? spinTurns;
 
   @override
   Widget build(BuildContext context) {
@@ -3034,6 +3105,7 @@ class _HeaderIconButton extends StatelessWidget {
     final countColor = badgeColor ?? Theme.of(context).colorScheme.primary;
     final badge = badgeCount > 9 ? '9+' : '$badgeCount';
     final showLabel = label != null && label!.trim().isNotEmpty;
+    final turns = spinTurns;
 
     return Tooltip(
       message: tooltip,
@@ -3065,7 +3137,16 @@ class _HeaderIconButton extends StatelessWidget {
                       height: 1.1,
                     ),
                   ),
-                  child: Icon(icon, size: PosTheme.headerPx(18), color: fg),
+                  child: turns == null
+                      ? Icon(icon, size: PosTheme.headerPx(18), color: fg)
+                      : RotationTransition(
+                          turns: turns,
+                          child: Icon(
+                            icon,
+                            size: PosTheme.headerPx(18),
+                            color: fg,
+                          ),
+                        ),
                 ),
                 if (showLabel) ...[
                   SizedBox(width: PosTheme.headerPx(6)),

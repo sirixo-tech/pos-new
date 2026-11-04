@@ -20,9 +20,7 @@ import 'macos_usb_discovery.dart';
 import 'network_printer.dart';
 import 'offline_receipt_builder.dart';
 import 'offline_kot_builder.dart';
-import 'pos_channel_print_policy.dart';
 import 'printer_paper_sensor.dart';
-import 'pos_print_payload_filter.dart';
 import 'print_object_executor.dart';
 import 'report_slip_layout.dart';
 import 'print_skipped.dart';
@@ -881,20 +879,7 @@ class PosReceiptPrinter {
       orderNumber: orderNumber,
       handoff: handoff,
     );
-    final filtered = PosPrintPayloadFilter.forReceipt(
-      _printPayloadFrom(data),
-      PosChannelPrintPolicy.resolve(),
-    );
-    if (filtered == null) {
-      throw const PrintSkipped(
-        'Customer and counter receipts are disabled for POS.',
-      );
-    }
-
-    final executor = PrintObjectExecutor.fromPayload(filtered);
-    final bytes = await executor.buildBytes(
-      PrintObjectExecutor.commandsFromPayload(filtered),
-    );
+    final bytes = await _bytesFromOnlinePayload(data);
     if (bytes.isEmpty) {
       throw const PrintSkipped('Receipt has no printable content.');
     }
@@ -931,19 +916,10 @@ class PosReceiptPrinter {
     }
 
     var printed = 0;
-    final policy = PosChannelPrintPolicy.resolve();
     for (final entry in slips) {
       if (entry is! Map) continue;
-      final slip = Map<String, dynamic>.from(entry);
-      final payload = PosPrintPayloadFilter.forKot(
-        _printPayloadFrom(slip),
-        policy,
-      );
-      if (payload == null) continue;
-
-      final executor = PrintObjectExecutor.fromPayload(payload);
-      final bytes = await executor.buildBytes(
-        PrintObjectExecutor.commandsFromPayload(payload),
+      final bytes = await _bytesFromOnlinePayload(
+        Map<String, dynamic>.from(entry),
       );
       if (bytes.isEmpty) continue;
 
@@ -1067,8 +1043,15 @@ class PosReceiptPrinter {
     await _dispatchPrintBytes(config: config, bytes: builder.build());
   }
 
-  static Map<String, dynamic> _printPayloadFrom(Map<String, dynamic> data) {
-    return PrintObjectExecutor.payloadFrom(data);
+  /// Prints the server print object as returned. Paper and font come from
+  /// that object, then from the saved bootstrap settings.
+  static Future<List<int>> _bytesFromOnlinePayload(
+    Map<String, dynamic> data,
+  ) async {
+    final payload = PrintObjectExecutor.payloadFrom(data);
+    final commands = PrintObjectExecutor.commandsFromPayload(payload);
+    if (commands.isEmpty) return const [];
+    return PrintObjectExecutor.fromPayload(payload).buildBytes(commands);
   }
 
   static Future<void> _dispatchOfflineBytes({
@@ -1610,6 +1593,9 @@ class PosReceiptPrinter {
     return switch (type) {
       'staff' => const ['staff', 'staff_wise', 'staff_sales'],
       'voids' => const ['voids', 'voids_and_cancellations', 'cancellations'],
+      // The same thermal-print endpoint. Shift is tried first; the other
+      // names are only used when the server rejects that type code.
+      'shift' => const ['shift', 'shift_summary', 'shift_report'],
       _ => [type],
     };
   }
@@ -1706,19 +1692,7 @@ class PosReceiptPrinter {
   }) async {
     try {
       final data = await PosApi().fetchReceipt(session, orderId: orderId);
-      final filtered = PosPrintPayloadFilter.forReceipt(
-        _printPayloadFrom(data),
-        PosChannelPrintPolicy.resolve(),
-      );
-      if (filtered == null) {
-        throw const PrintSkipped(
-          'Customer and counter receipts are disabled for POS.',
-        );
-      }
-      final executor = PrintObjectExecutor.fromPayload(filtered);
-      return executor.buildBytes(
-        PrintObjectExecutor.commandsFromPayload(filtered),
-      );
+      return _bytesFromOnlinePayload(data);
     } on PosApiException catch (error) {
       if (error.isPrintingDisabled) {
         throw PrintSkipped(error.message);

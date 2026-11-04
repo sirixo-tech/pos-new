@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cross_file/cross_file.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
@@ -242,6 +243,12 @@ class PosApi {
   static final Map<String, String> _scopedTokens = {};
 
   /// True while the server has asked us to wait after HTTP 429.
+  /// Tests pin or clear the checkout wait. Production uses the server header.
+  @visibleForTesting
+  static void debugSetRateLimitedUntil(DateTime? until) {
+    _rateLimitedUntil = until;
+  }
+
   static bool get isRateLimited {
     final until = _rateLimitedUntil;
     if (until == null) return false;

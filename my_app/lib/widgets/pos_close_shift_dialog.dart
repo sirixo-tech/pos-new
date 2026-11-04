@@ -6,6 +6,7 @@ import '../l10n/pos_l10n.dart';
 import '../models/pos_models.dart';
 import '../providers/pos_controller.dart';
 import '../services/pos_api.dart';
+import '../services/printing/pos_receipt_printer.dart';
 import '../theme/pos_theme.dart';
 import '../utils/format.dart';
 import '../utils/pos_user_facing_error.dart';
@@ -37,6 +38,7 @@ class _PosCloseShiftDialogState extends State<PosCloseShiftDialog> {
   PosShiftCloseSummary? _summary;
   bool _loadingSummary = true;
   bool _closing = false;
+  bool _printing = false;
   String? _summaryError;
 
   @override
@@ -59,8 +61,9 @@ class _PosCloseShiftDialogState extends State<PosCloseShiftDialog> {
       _summaryError = null;
     });
     try {
-      final summary =
-          await context.read<PosController>().fetchShiftCloseSummary();
+      final summary = await context
+          .read<PosController>()
+          .fetchShiftCloseSummary();
       if (!mounted) return;
       _cashController.text = summary.expectedCash.toStringAsFixed(2);
       setState(() {
@@ -90,8 +93,7 @@ class _PosCloseShiftDialogState extends State<PosCloseShiftDialog> {
     }
   }
 
-  double get _countedCash =>
-      double.tryParse(_cashController.text.trim()) ?? 0;
+  double get _countedCash => double.tryParse(_cashController.text.trim()) ?? 0;
 
   double? get _variance {
     final summary = _summary;
@@ -99,14 +101,53 @@ class _PosCloseShiftDialogState extends State<PosCloseShiftDialog> {
     return ((_countedCash - summary.expectedCash) * 100).round() / 100;
   }
 
+  Future<void> _printShiftReport() async {
+    if (_printing || _closing) return;
+    final pos = context.read<PosController>();
+    final session = pos.session;
+    final serverUrl = pos.serverUrl ?? session?.serverUrl;
+    if (!PosReceiptPrinter.isSupported) {
+      showPosSnackBar(
+        context,
+        PosReceiptPrinter.unsupportedMessage,
+        error: true,
+      );
+      return;
+    }
+    if (session == null || serverUrl == null || serverUrl.isEmpty) {
+      showPosSnackBar(context, context.l10n.authNotSignedIn, error: true);
+      return;
+    }
+
+    setState(() => _printing = true);
+    final now = DateTime.now();
+    final today =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    try {
+      await PosReceiptPrinter.printThermalReport(
+        session: session,
+        serverUrl: serverUrl,
+        type: 'shift',
+        dateFrom: today,
+        dateTo: today,
+      );
+      if (!mounted) return;
+      showPosSnackBar(context, context.l10n.reportsSentToPrinter);
+    } catch (e) {
+      if (mounted) showPosErrorSnackBar(context, e);
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+  }
+
   Future<void> _submit() async {
     if (_closing || _loadingSummary || _summary == null) return;
     setState(() => _closing = true);
     try {
       await context.read<PosController>().closeShift(
-            _countedCash,
-            notes: _notesController.text.trim(),
-          );
+        _countedCash,
+        notes: _notesController.text.trim(),
+      );
       if (!mounted) return;
       showPosSnackBar(context, context.l10n.shiftClosedSnack);
       Navigator.of(context).pop(true);
@@ -278,8 +319,10 @@ class _PosCloseShiftDialogState extends State<PosCloseShiftDialog> {
                             filled: true,
                             fillColor: PosTheme.canvas,
                             prefixIcon: Padding(
-                              padding:
-                                  const EdgeInsets.only(left: 14, right: 6),
+                              padding: const EdgeInsets.only(
+                                left: 14,
+                                right: 6,
+                              ),
                               child: Text(
                                 currency,
                                 style: const TextStyle(
@@ -296,13 +339,11 @@ class _PosCloseShiftDialogState extends State<PosCloseShiftDialog> {
                             hintText: '0.00',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide:
-                                  BorderSide(color: PosTheme.border),
+                              borderSide: BorderSide(color: PosTheme.border),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide:
-                                  BorderSide(color: PosTheme.border),
+                              borderSide: BorderSide(color: PosTheme.border),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
@@ -348,13 +389,11 @@ class _PosCloseShiftDialogState extends State<PosCloseShiftDialog> {
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide:
-                                  BorderSide(color: PosTheme.border),
+                              borderSide: BorderSide(color: PosTheme.border),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide:
-                                  BorderSide(color: PosTheme.border),
+                              borderSide: BorderSide(color: PosTheme.border),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
@@ -381,68 +420,108 @@ class _PosCloseShiftDialogState extends State<PosCloseShiftDialog> {
                     ),
                   ),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _closing
-                            ? null
-                            : () => Navigator.pop(context, false),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          foregroundColor: PosTheme.inkMuted,
-                          side: BorderSide(color: PosTheme.border),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                    OutlinedButton.icon(
+                      onPressed: (_printing || _closing)
+                          ? null
+                          : _printShiftReport,
+                      icon: _printing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                              ),
+                            )
+                          : const Icon(Icons.print_outlined, size: 18),
+                      label: const Text('Print shift report'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 46),
+                        foregroundColor: PosTheme.ink,
+                        side: BorderSide(color: PosTheme.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            l10n.commonCancel,
-                            maxLines: 1,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: FilledButton.icon(
-                        onPressed: (_closing ||
-                                _loadingSummary ||
-                                _summary == null)
-                            ? null
-                            : _submit,
-                        icon: _closing
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.2,
-                                  color: Colors.white,
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _closing
+                                ? null
+                                : () => Navigator.pop(context, false),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                              foregroundColor: PosTheme.inkMuted,
+                              side: BorderSide(color: PosTheme.border),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                l10n.commonCancel,
+                                maxLines: 1,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
                                 ),
-                              )
-                            : const Icon(Icons.stop_circle_outlined, size: 18),
-                        label: Text(
-                          _closing ? l10n.shiftClosing : l10n.opsCloseShift,
-                        ),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          backgroundColor: const Color(0xFFE11D48),
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor:
-                              const Color(0xFFE11D48).withValues(alpha: 0.45),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            onPressed:
+                                (_closing ||
+                                    _loadingSummary ||
+                                    _summary == null)
+                                ? null
+                                : _submit,
+                            icon: _closing
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.stop_circle_outlined,
+                                    size: 18,
+                                  ),
+                            label: Text(
+                              _closing ? l10n.shiftClosing : l10n.opsCloseShift,
+                            ),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                              backgroundColor: const Color(0xFFE11D48),
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: const Color(
+                                0xFFE11D48,
+                              ).withValues(alpha: 0.45),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -569,9 +648,7 @@ class _SummaryCard extends StatelessWidget {
           if (summary.tipsTotal > 0) ...[
             const SizedBox(height: 4),
             Text(
-              l10n.shiftTipsOnOrders(
-                formatMoney(summary.tipsTotal, currency),
-              ),
+              l10n.shiftTipsOnOrders(formatMoney(summary.tipsTotal, currency)),
               style: TextStyle(
                 fontSize: 12,
                 color: PosTheme.inkMuted,
@@ -676,10 +753,7 @@ class _MoneyRow extends StatelessWidget {
 }
 
 class _VarianceBanner extends StatelessWidget {
-  const _VarianceBanner({
-    required this.variance,
-    required this.currency,
-  });
+  const _VarianceBanner({required this.variance, required this.currency});
 
   final double variance;
   final String currency;
@@ -689,16 +763,14 @@ class _VarianceBanner extends StatelessWidget {
     final l10n = context.l10n;
     final balanced = variance == 0;
     final over = variance > 0;
-    final tone = balanced
-        ? null
-        : posStatusColors(over ? 'paid' : 'cancelled');
+    final tone = balanced ? null : posStatusColors(over ? 'paid' : 'cancelled');
     final bg = tone?.bg ?? PosTheme.surface;
     final fg = tone?.fg ?? PosTheme.ink;
     final label = balanced
         ? l10n.shiftBalanced
         : over
-            ? l10n.shiftOver
-            : l10n.shiftShort;
+        ? l10n.shiftOver
+        : l10n.shiftShort;
     final amount = '${over ? '+' : ''}${formatMoney(variance, currency)}';
 
     return Container(
@@ -712,10 +784,7 @@ class _VarianceBanner extends StatelessWidget {
         children: [
           Text(
             l10n.shiftVariance,
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: fg,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w800, color: fg),
           ),
           const Spacer(),
           Text(
@@ -733,10 +802,7 @@ class _VarianceBanner extends StatelessWidget {
 }
 
 class _ErrorBlock extends StatelessWidget {
-  const _ErrorBlock({
-    required this.message,
-    required this.onRetry,
-  });
+  const _ErrorBlock({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -758,10 +824,7 @@ class _ErrorBlock extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: tone.fg,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w700, color: tone.fg),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(

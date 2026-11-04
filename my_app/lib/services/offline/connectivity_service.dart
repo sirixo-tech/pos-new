@@ -4,11 +4,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-enum ConnectionStatus {
-  online,
-  offline,
-  checking,
-}
+enum ConnectionStatus { online, offline, checking }
 
 typedef ConnectivityProbe = Future<bool> Function(String serverUrl);
 
@@ -29,6 +25,10 @@ class ConnectivityService extends ChangeNotifier {
   ConnectionStatus get status => _status;
   bool get isOnline => _status == ConnectionStatus.online;
   bool get isOffline => _status == ConnectionStatus.offline;
+
+  /// Tests set reachability without starting the health timer.
+  @visibleForTesting
+  void debugSetStatus(ConnectionStatus value) => _setStatus(value);
 
   Future<void> initialize() async {
     _subscription = Connectivity().onConnectivityChanged.listen(
@@ -126,9 +126,11 @@ class ConnectivityService extends ChangeNotifier {
 
 Future<bool> _probeHealth(String serverUrl) async {
   final uri = Uri.parse('$serverUrl/api/v1/health');
-  final response = await http.get(uri).timeout(
-    const Duration(seconds: 5),
-    onTimeout: () => http.Response('', 408),
-  );
+  final response = await http
+      .get(uri)
+      .timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => http.Response('', 408),
+      );
   return response.statusCode >= 200 && response.statusCode < 500;
 }

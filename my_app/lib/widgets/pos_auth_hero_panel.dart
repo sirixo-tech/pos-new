@@ -133,9 +133,9 @@ class PosAuthHeroPanel extends StatelessWidget {
                         ),
                         child: PosNetworkLogo(
                           imageUrl: logoUrl!,
-                          maxWidth: 200,
-                          maxHeight: 52,
-                          portraitSide: 88,
+                          maxWidth: 300,
+                          maxHeight: 96,
+                          portraitSide: 136,
                           alignment: Alignment.centerLeft,
                           errorWidget: (context, url, error) => Text(
                             fallbackInitials,
@@ -150,8 +150,8 @@ class PosAuthHeroPanel extends StatelessWidget {
                     )
                   else
                     Container(
-                      width: 88,
-                      height: 88,
+                      width: 120,
+                      height: 120,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.16),
@@ -165,7 +165,7 @@ class PosAuthHeroPanel extends StatelessWidget {
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
-                          fontSize: 32,
+                          fontSize: 42,
                           letterSpacing: -0.5,
                         ),
                       ),

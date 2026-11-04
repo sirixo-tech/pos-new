@@ -107,16 +107,35 @@ class PrintObjectExecutor {
     return esc.build();
   }
 
+  /// Bootstrap paper and font, used only when the print object omits them.
+  static String? Function()? paperFallback;
+  static String? Function()? fontFallback;
+
   static PrintObjectExecutor fromPayload(
     Map<String, dynamic> payload, {
     bool? enableCurrencyGlyphs,
   }) {
     final document = payloadFrom(payload);
     return PrintObjectExecutor(
-      paper: _paperFrom(document) ?? '80mm',
-      fontSize: document['font_size']?.toString() ?? 'medium',
+      paper: _paperFrom(document) ?? _fallback(paperFallback) ?? '80mm',
+      fontSize:
+          _nonEmpty(document['font_size']) ??
+          _fallback(fontFallback) ??
+          'medium',
       enableCurrencyGlyphs: enableCurrencyGlyphs,
     );
+  }
+
+  static String? _fallback(String? Function()? read) {
+    final value = read?.call()?.trim();
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  static String? _nonEmpty(Object? value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) return null;
+    return text;
   }
 
   /// Keep enclosing API metadata when commands are wrapped in print_object.
@@ -214,10 +233,14 @@ class PrintObjectExecutor {
     if (data.trim().isEmpty) return;
 
     _applyAlign(esc, _alignFrom(command['align']));
-    final code = QrCode.fromData(data: data, errorCorrectLevel: QrErrorCorrectLevel.M);
+    final code = QrCode.fromData(
+      data: data,
+      errorCorrectLevel: QrErrorCorrectLevel.M,
+    );
     // Reserve four blank modules on each side; use larger dots on wide heads.
     final preferredSize = _typography.paperWidthDots >= 576 ? 6 : 4;
-    final fittingSize = (_typography.paperWidthDots / (code.moduleCount + 8)).floor();
+    final fittingSize = (_typography.paperWidthDots / (code.moduleCount + 8))
+        .floor();
     final moduleSize = preferredSize.clamp(1, fittingSize.clamp(1, 16));
     esc.feed(1);
     esc.qrCode(data, moduleSize: moduleSize);

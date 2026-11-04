@@ -3852,9 +3852,17 @@ class PosController extends ChangeNotifier {
     );
   }
 
-  Future<void> syncPendingOrders() async {
-    await _syncService?.syncPendingOrders(includeFailed: true);
+  Future<OrderSyncResult> syncPendingOrders() async {
+    final service = _syncService;
+    if (service == null) {
+      return const OrderSyncResult(
+        stop: OrderSyncStop.notSignedIn,
+        remaining: 0,
+      );
+    }
+    final result = await service.syncPendingOrders(includeFailed: true);
     notifyListeners();
+    return result;
   }
 
   /// Captain / Waiter: release new cart lines to kitchen (create or append).

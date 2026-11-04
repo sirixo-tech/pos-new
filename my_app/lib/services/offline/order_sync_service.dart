@@ -12,16 +12,55 @@ import 'offline_token_store.dart';
 
 typedef OrderSyncCallback = void Function(PendingOrder order, bool success);
 
+enum OrderSyncStop {
+  finished,
+  idle,
+  incomplete,
+  offline,
+  rateLimited,
+  notSignedIn,
+}
+
+class OrderSyncResult {
+  const OrderSyncResult({
+    required this.stop,
+    required this.remaining,
+    this.uploaded = 0,
+    this.failed = 0,
+  });
+
+  final OrderSyncStop stop;
+  final int remaining;
+  final int uploaded;
+  final int failed;
+
+  bool get isError =>
+      stop == OrderSyncStop.incomplete ||
+      stop == OrderSyncStop.offline ||
+      stop == OrderSyncStop.rateLimited ||
+      stop == OrderSyncStop.notSignedIn;
+}
+
+class _SyncWaiter {
+  _SyncWaiter(this.includeFailed);
+
+  final bool includeFailed;
+  final Completer<OrderSyncResult> completer = Completer<OrderSyncResult>();
+}
+
 class OrderSyncService extends ChangeNotifier {
   OrderSyncService({
     required this.api,
     required this.connectivity,
+    this.enablePolling = true,
   }) {
     connectivity.addListener(_onConnectivityChanged);
   }
 
+  /// The 10-second pass uploads waiting rows. Tests turn this off.
   final PosApi api;
   final ConnectivityService connectivity;
+  final bool enablePolling;
 
   bool _syncing = false;
   int _pendingCount = 0;
@@ -29,6 +68,12 @@ class OrderSyncService extends ChangeNotifier {
   String? _lastError;
   Timer? _syncTimer;
   PosSession? _session;
+  final List<_SyncWaiter> _waiters = [];
+  final List<_SyncWaiter> _attached = [];
+  final Set<String> _attemptedThisWave = {};
+  bool _running = false;
+  bool _runningIncludesFailed = false;
+  bool _disposed = false;
   ConnectionStatus? _lastConnectivityStatus;
   OrderSyncCallback? onOrderSynced;
 
@@ -65,7 +110,8 @@ class OrderSyncService extends ChangeNotifier {
 
   void _onConnectivityChanged() {
     final status = connectivity.status;
-    final wasOffline = _lastConnectivityStatus == ConnectionStatus.offline ||
+    final wasOffline =
+        _lastConnectivityStatus == ConnectionStatus.offline ||
         _lastConnectivityStatus == ConnectionStatus.checking;
     _lastConnectivityStatus = status;
 
@@ -76,6 +122,7 @@ class OrderSyncService extends ChangeNotifier {
 
   void _startSyncTimer() {
     _syncTimer?.cancel();
+    if (!enablePolling) return;
     _syncTimer = Timer.periodic(
       const Duration(seconds: 10),
       (_) => syncPendingOrders(),
@@ -137,33 +184,148 @@ class OrderSyncService extends ChangeNotifier {
     return pending;
   }
 
-  Future<void> syncPendingOrders({bool includeFailed = false}) async {
-    final session = _session;
-    if (session == null || _syncing || !connectivity.isOnline) {
-      return;
+  /// One upload at a time. A second call joins the current pass when that
+  /// pass already covers it, so one tap cannot post the same order twice.
+  /// A broader pass (failed rows) runs afterwards and skips rows already
+  /// attempted in this wave.
+  Future<OrderSyncResult> syncPendingOrders({bool includeFailed = false}) {
+    final waiter = _SyncWaiter(includeFailed);
+    if (_running && (_runningIncludesFailed || !includeFailed)) {
+      _attached.add(waiter);
+      return waiter.completer.future;
     }
-    if (PosApi.isRateLimited) return;
+    _waiters.add(waiter);
+    _kick();
+    return waiter.completer.future;
+  }
+
+  void _kick({bool continueWave = false}) {
+    if (_disposed || _running || _waiters.isEmpty) return;
+    if (!continueWave) _attemptedThisWave.clear();
+    _running = true;
+    final batch = List<_SyncWaiter>.of(_waiters);
+    _waiters.clear();
+    final includeFailed = batch.any((waiter) => waiter.includeFailed);
+    _runningIncludesFailed = includeFailed;
+    unawaited(() async {
+      OrderSyncResult result;
+      try {
+        result = await _execute(includeFailed: includeFailed);
+      } catch (error, stack) {
+        debugPrint('[SYNC] pass failed: $error\n$stack');
+        await _refreshCounts();
+        result = OrderSyncResult(
+          stop: OrderSyncStop.incomplete,
+          remaining: _pendingCount,
+        );
+      }
+      _running = false;
+      final attached = List<_SyncWaiter>.of(_attached);
+      _attached.clear();
+      // Complete after this pass releases the lock. Completing inline can
+      // re-enter sync while this pass still looks active.
+      scheduleMicrotask(() {
+        for (final waiter in [...batch, ...attached]) {
+          if (!waiter.completer.isCompleted) {
+            waiter.completer.complete(result);
+          }
+        }
+        if (!_disposed && _waiters.isNotEmpty) {
+          _kick(continueWave: true);
+        } else {
+          _attemptedThisWave.clear();
+        }
+      });
+    }());
+  }
+
+  Future<OrderSyncResult> _execute({required bool includeFailed}) async {
+    final session = _session;
+    if (session == null) {
+      return const OrderSyncResult(
+        stop: OrderSyncStop.notSignedIn,
+        remaining: 0,
+      );
+    }
+    if (!connectivity.isOnline) {
+      await _refreshCounts();
+      return OrderSyncResult(
+        stop: OrderSyncStop.offline,
+        remaining: _pendingCount,
+      );
+    }
+    if (PosApi.isRateLimited) {
+      await _refreshCounts();
+      return OrderSyncResult(
+        stop: OrderSyncStop.rateLimited,
+        remaining: _pendingCount,
+      );
+    }
 
     _syncing = true;
     notifyListeners();
-
+    var uploaded = 0;
+    var failed = 0;
+    var stoppedEarly = false;
+    var sawOrders = false;
     try {
       await PendingOrderStore.resetOrphanedSyncing(session.branchId);
       final pendingOrders = await PendingOrderStore.getPendingOrders(
         session.branchId,
         includeFailed: includeFailed,
       );
+      sawOrders = pendingOrders.isNotEmpty;
 
       for (final order in pendingOrders) {
-        if (!connectivity.isOnline) break;
+        if (_attemptedThisWave.contains(order.localUuid)) continue;
+        if (!connectivity.isOnline || PosApi.isRateLimited) {
+          stoppedEarly = true;
+          break;
+        }
+        _attemptedThisWave.add(order.localUuid);
         final step = await _syncOrder(order, session);
-        if (step == _SyncStep.retryLater) break;
+        if (step == _SyncStep.synced) uploaded++;
+        if (step == _SyncStep.failed) failed++;
+        if (step == _SyncStep.retryLater) {
+          stoppedEarly = true;
+          break;
+        }
       }
     } finally {
-      _syncing = false;
       await _refreshCounts();
+      _syncing = false;
       notifyListeners();
     }
+
+    if (!sawOrders && _pendingCount == 0) {
+      return const OrderSyncResult(stop: OrderSyncStop.idle, remaining: 0);
+    }
+    if (stoppedEarly && uploaded == 0 && !connectivity.isOnline) {
+      return OrderSyncResult(
+        stop: OrderSyncStop.offline,
+        remaining: _pendingCount,
+      );
+    }
+    if (stoppedEarly && uploaded == 0 && PosApi.isRateLimited) {
+      return OrderSyncResult(
+        stop: OrderSyncStop.rateLimited,
+        remaining: _pendingCount,
+      );
+    }
+    if (_pendingCount == 0) {
+      return OrderSyncResult(
+        stop: OrderSyncStop.finished,
+        remaining: 0,
+        uploaded: uploaded,
+        failed: failed,
+      );
+    }
+    return OrderSyncResult(
+      stop: OrderSyncStop.incomplete,
+      remaining: _pendingCount,
+      uploaded: uploaded,
+      failed: failed,
+    );
   }
 
   Future<_SyncStep> _syncOrder(PendingOrder order, PosSession session) async {
@@ -280,10 +442,7 @@ class OrderSyncService extends ChangeNotifier {
       return _SyncStep.failed;
     } catch (e) {
       final safe = posUserFacingError(e);
-      await PendingOrderStore.markPending(
-        order.localUuid,
-        errorMessage: safe,
-      );
+      await PendingOrderStore.markPending(order.localUuid, errorMessage: safe);
       return _SyncStep.retryLater;
     }
   }
@@ -324,10 +483,7 @@ class OrderSyncService extends ChangeNotifier {
           if (mod is! Map) continue;
           final optionId = mod['modifier_option_id'];
           if (optionId == null) continue;
-          modifiers.add({
-            'modifier_option_id': optionId,
-            'quantity': 1,
-          });
+          modifiers.add({'modifier_option_id': optionId, 'quantity': 1});
         }
       }
       items.add({
@@ -363,8 +519,19 @@ class OrderSyncService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     connectivity.removeListener(_onConnectivityChanged);
     _stopSyncTimer();
+    for (final waiter in [..._waiters, ..._attached]) {
+      if (!waiter.completer.isCompleted) {
+        waiter.completer.complete(
+          const OrderSyncResult(stop: OrderSyncStop.notSignedIn, remaining: 0),
+        );
+      }
+    }
+    _waiters.clear();
+    _attached.clear();
+    _attemptedThisWave.clear();
     super.dispose();
   }
 }

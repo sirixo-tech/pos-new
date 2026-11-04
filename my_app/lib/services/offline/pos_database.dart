@@ -16,7 +16,13 @@ class PosDatabase {
   static Database? _database;
   static Future<Database>? _opening;
 
+  /// In-memory database for sync tests. Production leaves this unset.
+  @visibleForTesting
+  static Database? debugDatabase;
+
   Future<Database> get database async {
+    final forced = debugDatabase;
+    if (forced != null) return forced;
     if (_database != null) return _database!;
     final opening = _opening ??= _initDatabase();
     try {

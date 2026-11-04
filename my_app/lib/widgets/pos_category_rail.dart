@@ -51,10 +51,11 @@ class PosCategoryRail extends StatelessWidget {
     final resolvedNav = navLabel ?? l10n.menuNavLabel;
 
     if (horizontal) {
+      final handheld = usePosHandheldLayout(context);
       return Material(
         color: PosTheme.surface,
         child: Container(
-          height: usePosHandheldLayout(context) ? 60 : 132,
+          height: compact ? 76 : (handheld ? 60 : 132),
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(color: PosTheme.border)),
           ),
@@ -62,7 +63,7 @@ class PosCategoryRail extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.symmetric(
               horizontal: 10,
-              vertical: usePosHandheldLayout(context) ? 6 : 10,
+              vertical: compact ? 6 : (handheld ? 6 : 10),
             ),
             itemCount: categories.length + 1,
             separatorBuilder: (_, _) => const SizedBox(width: 10),
@@ -74,6 +75,7 @@ class PosCategoryRail extends StatelessWidget {
                   accent: primary,
                   onTap: () => _select(null),
                   icon: Icons.apps_rounded,
+                  compact: compact,
                 );
               }
 
@@ -87,6 +89,7 @@ class PosCategoryRail extends StatelessWidget {
                 imageUrl: showImages
                     ? resolveMediaUrl(category.imageUrl, serverUrl: serverUrl)
                     : null,
+                compact: compact,
               );
             },
           ),
@@ -115,7 +118,12 @@ class PosCategoryRail extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(8, compact ? 8 : 10, 8, compact ? 4 : 8),
+              padding: EdgeInsets.fromLTRB(
+                8,
+                compact ? 8 : 10,
+                8,
+                compact ? 4 : 8,
+              ),
               child: Row(
                 children: [
                   Container(
@@ -241,31 +249,40 @@ class _CategoryTile extends StatelessWidget {
                   : Colors.transparent,
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _CategoryAvatar(
-                imageUrl: imageUrl,
-                icon: icon,
-                isActive: isActive,
-                accent: accent,
-                size: usePosHandheldLayout(context)
-                    ? 32
-                    : (compact ? 34 : 52),
-              ),
-              SizedBox(height: compact ? 4 : 8),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: usePosHandheldLayout(context) ? 3 : 2,
-                overflow: TextOverflow.ellipsis,
-                style: _categoryNameStyle(
-                  handheld ? 12 : (compact ? 11 : 13),
-                  color: isActive ? Colors.white : null,
+          child: compact
+              ? Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: _categoryNameStyle(
+                    12,
+                    color: isActive ? Colors.white : null,
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _CategoryAvatar(
+                      imageUrl: imageUrl,
+                      icon: icon,
+                      isActive: isActive,
+                      accent: accent,
+                      size: handheld ? 32 : 52,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      maxLines: handheld ? 3 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: _categoryNameStyle(
+                        handheld ? 12 : 13,
+                        color: isActive ? Colors.white : null,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -281,6 +298,7 @@ class _CategoryChip extends StatelessWidget {
     required this.onTap,
     this.imageUrl,
     this.icon,
+    this.compact = false,
   });
 
   final String label;
@@ -289,10 +307,37 @@ class _CategoryChip extends StatelessWidget {
   final VoidCallback onTap;
   final String? imageUrl;
   final IconData? icon;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final soft = posAccentSoft(accent);
+    if (compact) {
+      return Material(
+        color: isActive ? accent : PosTheme.surfaceMuted,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: double.infinity,
+            constraints: const BoxConstraints(minWidth: 76, maxWidth: 176),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: _categoryNameStyle(
+                12.5,
+                color: isActive ? Colors.white : null,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     if (usePosHandheldLayout(context)) {
       return Material(
         color: isActive ? soft.bg : PosTheme.surfaceMuted,
@@ -343,7 +388,7 @@ class _CategoryChip extends StatelessWidget {
         child: SizedBox(
           width: 112,
           height: 112,
-            child: AnimatedContainer(
+          child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),

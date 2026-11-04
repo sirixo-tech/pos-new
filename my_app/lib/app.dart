@@ -38,6 +38,7 @@ import 'services/pos_cart_sound.dart';
 import 'services/pos_display_mode.dart';
 import 'services/printing/pos_channel_print_policy.dart';
 import 'services/printing/print_job_coordinator.dart';
+import 'services/printing/print_object_executor.dart';
 import 'services/printing/printer_status_service.dart';
 import 'services/scanner_connection_service.dart';
 import 'services/window_close/window_close_guard.dart';
@@ -127,6 +128,10 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
     );
     PosChannelPrintPolicy.lookup = () =>
         PosChannelPrintPolicy.fromBootstrap(_posController.bootstrap);
+    PrintObjectExecutor.paperFallback = () =>
+        _posController.bootstrap?.receiptSettings?.paper;
+    PrintObjectExecutor.fontFallback = () =>
+        _posController.bootstrap?.receiptSettings?.fontSize;
     _printerStatus.addListener(_onPrinterHealth);
 
     _connectivity.initialize();

@@ -3,7 +3,8 @@ import 'print_object_executor.dart';
 
 enum PosPrintDocumentKind { kot, token, receipt, unknown }
 
-/// Drops customer/counter segments when those backend flags are off.
+/// Segment splitter kept for reference. Online KOT and receipt printing no
+/// longer calls this. Those jobs print the server print object as returned.
 class PosPrintPayloadFilter {
   PosPrintPayloadFilter._();
 

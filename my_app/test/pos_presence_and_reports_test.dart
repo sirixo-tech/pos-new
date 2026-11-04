@@ -8,7 +8,7 @@ void main() {
     final values = dayEndReportTypes(
       AppLocalizationsEn(),
     ).map((type) => type.value);
-    expect(values, containsAll(['summary', 'item', 'category', 'tax']));
+    expect(values, containsAll(['summary', 'item', 'category', 'tax', 'shift']));
     expect(values, isNot(contains('staff')));
     expect(values, isNot(contains('voids')));
   });

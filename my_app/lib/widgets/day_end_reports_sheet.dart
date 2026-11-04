@@ -61,6 +61,13 @@ List<DayEndReportType> dayEndReportTypes(AppLocalizations l10n) => [
         description: l10n.reportsTaxSummaryDesc,
         icon: Icons.sell_outlined,
       ),
+      DayEndReportType(
+        value: 'shift',
+        label: 'Shift report',
+        description:
+            'This shift’s sales, payments, and cash, on the same report printer.',
+        icon: Icons.schedule_rounded,
+      ),
     ];
 
 /// Day-end reports for today’s branch sales (side panel on desktop).
