@@ -944,7 +944,7 @@ class PosReceiptPrinter {
     }
     final slips = data['slips'];
     if (slips is! List || slips.isEmpty) {
-      throw StateError('No KOT slips to print.');
+      throw const PrintSkipped('No KOT slips to print.');
     }
 
     var printed = 0;
@@ -960,7 +960,7 @@ class PosReceiptPrinter {
     }
 
     if (printed == 0) {
-      throw StateError('KOT has no printable content.');
+      throw const PrintSkipped('KOT has no printable content.');
     }
 
     return printed;

@@ -20,14 +20,25 @@ bool isPrintingDisabled(Object error) {
   }
   final text = error.toString().toLowerCase();
   if (text.contains('no print object') ||
-      text.contains('no printable content')) {
+      text.contains('no printable content') ||
+      text.contains('no kot slips') ||
+      text.contains('no printable') ||
+      text.contains('no items') ||
+      text.contains('cart is empty') ||
+      text.contains('customer and counter receipts are disabled')) {
     return true;
   }
-  if (text.contains('customer and counter receipts are disabled')) {
+  if (text.contains('nothing to print')) {
     return true;
   }
-  return text.contains('nothing to print') &&
-      text.contains('disabled') &&
+  if ((text.contains('enable kot') || text.contains('kot disabled')) &&
+      (text.contains('receipt') ||
+          text.contains('kitchen') ||
+          text.contains('settings') ||
+          text.contains('items'))) {
+    return true;
+  }
+  return text.contains('disabled') &&
       (text.contains('receipt') ||
           text.contains('kot') ||
           text.contains('kitchen'));

@@ -460,12 +460,18 @@ class PrintJobCoordinator extends ChangeNotifier {
                 paperOut: isPrinterPaperOut(error),
               ),
             );
-            _startHealthWatch();
-            _printerStatus?.markUnreachable(error);
+            final hardwareIssue =
+                isPrinterDisconnected(error) || isPrinterPaperOut(error);
+            if (hardwareIssue) {
+              _startHealthWatch();
+              _printerStatus?.markUnreachable(error);
+            }
             debugPrint(
               '[PRINT] failed ${job.kind.name} ${job.orderNumber} $error',
             );
-            if (job.kind == PrintJobKind.kot && !isKotNotReady(error)) {
+            if (job.kind == PrintJobKind.kot &&
+                !isKotNotReady(error) &&
+                !isPrintingDisabled(error)) {
               _offerKotFailure(
                 PrintJobFailure(
                   kind: job.kind,

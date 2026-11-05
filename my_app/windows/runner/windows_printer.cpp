@@ -71,16 +71,43 @@ bool IsUsbPort(const std::wstring& port) {
 }
 
 // Match the queue's USB port to a device interface that is plugged in now.
-// An installed queue survives unplugging, so the queue key alone is not enough.
-bool UsbInterfacePresent(const std::wstring& port) {
+// Thermal POS printers often use proprietary port monitors or generic drivers.
+// If standard registry keys are missing, we inspect present USBPRINT interfaces
+// and verify the spooler queue state.
+bool UsbInterfacePresent(const std::wstring& port, const std::wstring& printer_name) {
   wchar_t saved_device_path[2048]{};
   DWORD path_bytes = sizeof(saved_device_path);
   const auto monitor_key =
       L"SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors\\USB Monitor\\Ports\\" +
       port;
-  RegGetValueW(HKEY_LOCAL_MACHINE, monitor_key.c_str(), L"Device Path",
+  if (RegGetValueW(HKEY_LOCAL_MACHINE, monitor_key.c_str(), L"Device Path",
       RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY, nullptr, saved_device_path,
-      &path_bytes);
+      &path_bytes) != ERROR_SUCCESS) {
+    saved_device_path[0] = 0;
+  }
+
+  // If not under Microsoft's standard "USB Monitor", check other installed monitors
+  if (saved_device_path[0] == 0) {
+    HKEY monitors_key = nullptr;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+        L"SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors", 0, KEY_READ,
+        &monitors_key) == ERROR_SUCCESS) {
+      wchar_t monitor_name[256]{};
+      DWORD m_idx = 0;
+      while (RegEnumKeyW(monitors_key, m_idx++, monitor_name, 256) == ERROR_SUCCESS) {
+        const std::wstring p_path =
+            L"SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors\\" +
+            std::wstring(monitor_name) + L"\\Ports\\" + port;
+        DWORD bytes = sizeof(saved_device_path);
+        if (RegGetValueW(HKEY_LOCAL_MACHINE, p_path.c_str(), L"Device Path",
+            RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY, nullptr, saved_device_path,
+            &bytes) == ERROR_SUCCESS && saved_device_path[0]) {
+          break;
+        }
+      }
+      RegCloseKey(monitors_key);
+    }
+  }
 
   const GUID usbprint = {0x28d78fad, 0x5a12, 0x11d1,
       {0xae, 0x5b, 0x00, 0x00, 0xf8, 0x03, 0xa8, 0xc2}};
@@ -92,10 +119,12 @@ bool UsbInterfacePresent(const std::wstring& port) {
     throw std::runtime_error("Unable to check physical USB printer connection.");
   }
   bool matched = false;
+  bool any_usb_printer_interface = false;
   SP_DEVICE_INTERFACE_DATA device{};
   device.cbSize = sizeof(device);
   for (DWORD index = 0; SetupDiEnumDeviceInterfaces(devices, nullptr, &usbprint,
       index, &device); ++index) {
+    any_usb_printer_interface = true;
     DWORD detail_bytes = 0;
     SetupDiGetDeviceInterfaceDetailW(devices, &device, nullptr, 0, &detail_bytes, nullptr);
     if (detail_bytes >= sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W)) {
@@ -133,6 +162,36 @@ bool UsbInterfacePresent(const std::wstring& port) {
   if (error != ERROR_NO_MORE_ITEMS) {
     throw std::runtime_error("Unable to complete USB printer connection check.");
   }
+
+  // POS printers often don't store DevicePath under Print Monitors. If a USBPRINT
+  // device interface is present and port matches USB naming, consider it connected.
+  if (!matched && saved_device_path[0] == 0 && any_usb_printer_interface) {
+    matched = true;
+  }
+
+  // Spooler queue fallback check for custom/vendor thermal printer port monitors.
+  if (!matched && !printer_name.empty()) {
+    HANDLE hPrinter = nullptr;
+    PRINTER_DEFAULTSW defaults = { nullptr, nullptr, PRINTER_ACCESS_USE };
+    if (OpenPrinterW(const_cast<LPWSTR>(printer_name.c_str()), &hPrinter, &defaults)) {
+      DWORD needed = 0;
+      GetPrinterW(hPrinter, 2, nullptr, 0, &needed);
+      if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && needed > 0) {
+        std::vector<BYTE> buffer(needed);
+        if (GetPrinterW(hPrinter, 2, buffer.data(), needed, &needed)) {
+          auto* info = reinterpret_cast<PRINTER_INFO_2W*>(buffer.data());
+          const bool is_offline =
+              (info->Status & (PRINTER_STATUS_OFFLINE | PRINTER_STATUS_NOT_AVAILABLE | PRINTER_STATUS_ERROR)) ||
+              (info->Attributes & PRINTER_ATTRIBUTE_WORK_OFFLINE);
+          if (!is_offline) {
+            matched = true;
+          }
+        }
+      }
+      ClosePrinter(hPrinter);
+    }
+  }
+
   return matched;
 }
 
@@ -189,7 +248,7 @@ WindowsPrinter::WindowsPrinter(flutter::BinaryMessenger* messenger)
         // The in-box USB driver sets its offline and paper bits when a status
         // request goes unanswered. Those bits are not the cable. Opening the
         // queue to read them also resets the USB interface.
-        const bool connected = !IsUsbPort(queue.port) || UsbInterfacePresent(queue.port);
+        const bool connected = !IsUsbPort(queue.port) || UsbInterfacePresent(queue.port, wide_name);
         result->Success(EncodableValue(StatusValue(true, !connected, true)));
       } catch (const std::exception& error) {
         result->Error("PRINTER_STATUS", error.what());

@@ -1132,20 +1132,24 @@ class PosController extends ChangeNotifier {
         );
       } on PosApiException catch (e) {
         // Stale pairing from another server/env sends a restaurant_id the
-        // staffer cannot access (403). Retry unbound, then drop the binding.
+        // staffer cannot access (403), or invalid branch/restaurant (404/422). Retry unbound, then drop the binding.
         final boundRestaurantId = binding?.restaurantId;
+        final isModelNotFound = e.statusCode == 404 ||
+            e.message.contains('App\\Models\\Branch') ||
+            e.message.contains('App\\Models\\Restaurant') ||
+            e.message.toLowerCase().contains('no query results for model');
         final shouldRetryUnbound =
-            boundRestaurantId != null &&
-            (e.statusCode == 403 || e.statusCode == 422);
+            (boundRestaurantId != null || binding?.branchId != null) &&
+            (e.statusCode == 403 || e.statusCode == 422 || isModelNotFound);
         if (!shouldRetryUnbound) rethrow;
 
+        await PosDeviceBindingStorage.clear();
+        deviceBinding = null;
         result = await _api.login(
           serverUrl: url,
           email: email.trim(),
           password: password,
         );
-        await PosDeviceBindingStorage.clear();
-        deviceBinding = null;
       }
       if (result.challenge != null) {
         twoFactorChallenge = result.challenge;
@@ -1264,9 +1268,16 @@ class PosController extends ChangeNotifier {
           branchId: binding?.branchId,
         );
       } on PosApiException catch (e) {
+        final isModelNotFound = e.statusCode == 404 ||
+            e.message.contains('App\\Models\\Branch') ||
+            e.message.contains('App\\Models\\Restaurant') ||
+            e.message.toLowerCase().contains('no query results for model');
         final shouldRetry =
-            binding?.restaurantId != null && e.statusCode == 403;
+            (binding?.restaurantId != null || binding?.branchId != null) &&
+            (e.statusCode == 403 || e.statusCode == 422 || isModelNotFound);
         if (!shouldRetry) rethrow;
+        await PosDeviceBindingStorage.clear();
+        deviceBinding = null;
         result = await _api.verifyPhoneCode(
           serverUrl: url,
           phone: phone,
@@ -1274,8 +1285,6 @@ class PosController extends ChangeNotifier {
           idToken: idToken,
           purpose: 'sign_in',
         );
-        await PosDeviceBindingStorage.clear();
-        deviceBinding = null;
       }
       if (result.twoFactor != null) {
         twoFactorChallenge = result.twoFactor;
@@ -1440,13 +1449,21 @@ class PosController extends ChangeNotifier {
       preferredRestaurantId,
       preferredBranchId,
     );
+    final fallbackRestaurantId = profile!.currentRestaurantId ??
+        (profile!.restaurants.isNotEmpty
+            ? profile!.restaurants.first.id
+            : preferredRestaurantId);
+    final resolvedRestaurant = profile!.restaurantOption(
+      keepPreferred ? preferredRestaurantId : fallbackRestaurantId,
+    );
+    final fallbackBranchId = profile!.currentBranchId ??
+        (resolvedRestaurant?.branches.isNotEmpty == true
+            ? resolvedRestaurant!.branches.first.id
+            : preferredBranchId);
+
     session = current.copyWith(
-      restaurantId: keepPreferred
-          ? preferredRestaurantId
-          : (profile!.currentRestaurantId ?? preferredRestaurantId),
-      branchId: keepPreferred
-          ? preferredBranchId
-          : (profile!.currentBranchId ?? preferredBranchId),
+      restaurantId: keepPreferred ? preferredRestaurantId : fallbackRestaurantId,
+      branchId: keepPreferred ? preferredBranchId : fallbackBranchId,
       userId: profile!.user.id,
       userName: profile!.user.name,
       hasPosPin: profile!.user.hasPosPin,
@@ -1679,7 +1696,7 @@ class PosController extends ChangeNotifier {
         );
         session = active;
       } on PosApiException catch (e) {
-        if (e.statusCode != 403) rethrow;
+        if (e.statusCode != 403 && e.statusCode != 404) rethrow;
         session = active;
       }
       await _storage.saveSession(session!);
@@ -1701,7 +1718,7 @@ class PosController extends ChangeNotifier {
         );
         session = active;
       } on PosApiException catch (e) {
-        if (e.statusCode != 403) rethrow;
+        if (e.statusCode != 403 && e.statusCode != 404) rethrow;
         session = active;
       }
       await _storage.saveSession(session!);

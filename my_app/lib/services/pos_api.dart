@@ -54,11 +54,25 @@ class PosApiException implements Exception {
     }
     final text = message.toLowerCase();
     if (text.contains('no print object') ||
-        text.contains('no printable content')) {
+        text.contains('no printable content') ||
+        text.contains('no kot slips') ||
+        text.contains('no printable') ||
+        text.contains('no items') ||
+        text.contains('cart is empty') ||
+        text.contains('customer and counter receipts are disabled')) {
       return true;
     }
-    return text.contains('nothing to print') &&
-        text.contains('disabled') &&
+    if (text.contains('nothing to print')) {
+      return true;
+    }
+    if ((text.contains('enable kot') || text.contains('kot disabled')) &&
+        (text.contains('receipt') ||
+            text.contains('kitchen') ||
+            text.contains('settings') ||
+            text.contains('items'))) {
+      return true;
+    }
+    return text.contains('disabled') &&
         (text.contains('receipt') ||
             text.contains('kot') ||
             text.contains('kitchen'));
@@ -606,15 +620,38 @@ class PosApi {
   }
 
   Future<StaffProfile> fetchMe(PosSession session) async {
-    final response = await _client.get(
-      Uri.parse('${session.authBaseUrl}/me'),
-      headers: _jsonHeaders(
-        token: session.token,
-        restaurantId: session.restaurantId,
-        branchId: session.branchId,
-      ),
-    );
-    final json = await _decode(response);
+    final http.Response response;
+    try {
+      response = await _client.get(
+        Uri.parse('${session.authBaseUrl}/me'),
+        headers: _jsonHeaders(
+          token: session.token,
+          restaurantId: session.restaurantId,
+          branchId: session.branchId,
+        ),
+      );
+    } catch (e) {
+      throw PosApiException(_networkErrorMessage(e));
+    }
+    Map<String, dynamic> json;
+    try {
+      json = await _decode(response);
+    } on PosApiException catch (e) {
+      final isModelNotFound = e.statusCode == 404 ||
+          e.message.contains('App\\Models\\Branch') ||
+          e.message.contains('App\\Models\\Restaurant') ||
+          e.message.toLowerCase().contains('no query results for model');
+      if (isModelNotFound) {
+        // Stale branch or restaurant ID sent in headers — retry /me without them.
+        final retryResponse = await _client.get(
+          Uri.parse('${session.authBaseUrl}/me'),
+          headers: _jsonHeaders(token: session.token),
+        );
+        json = await _decode(retryResponse);
+      } else {
+        rethrow;
+      }
+    }
     final data = json['data'] as Map<String, dynamic>? ?? json;
     return StaffProfile.fromJson(data);
   }

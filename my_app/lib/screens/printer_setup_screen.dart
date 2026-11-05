@@ -622,7 +622,6 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
                         openingDrawer: _openingDrawer,
                         onTestPrint: _testPrint,
                         onOpenDrawer: _openDrawer,
-                        onClear: _clearPrinter,
                       );
                     },
                   ),
@@ -944,7 +943,6 @@ class _SelectedPrinterCard extends StatelessWidget {
     required this.openingDrawer,
     required this.onTestPrint,
     required this.onOpenDrawer,
-    required this.onClear,
     this.health,
     this.checking = false,
   });
@@ -958,7 +956,6 @@ class _SelectedPrinterCard extends StatelessWidget {
   final bool openingDrawer;
   final VoidCallback onTestPrint;
   final VoidCallback onOpenDrawer;
-  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -974,7 +971,7 @@ class _SelectedPrinterCard extends StatelessWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: PosTheme.surface,
         borderRadius: BorderRadius.circular(PosTheme.radiusLg),
@@ -1009,11 +1006,6 @@ class _SelectedPrinterCard extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
-              IconButton(
-                tooltip: context.l10n.commonClear,
-                onPressed: testing || openingDrawer ? null : onClear,
-                icon: const Icon(Icons.close_rounded, size: 18),
               ),
             ],
           ),
