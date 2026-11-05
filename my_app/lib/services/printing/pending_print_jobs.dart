@@ -119,25 +119,50 @@ class PendingPrintJobStore {
     }
   }
 
-  static Future<List<PendingPrintJob>> loadOpen() async {
+  static const Duration maxJobAge = Duration(hours: 2);
+
+  static Future<List<PendingPrintJob>> loadOpen({
+    Duration maxAge = maxJobAge,
+  }) async {
+    final cutoff = DateTime.now().subtract(maxAge).millisecondsSinceEpoch;
     if (kIsWeb) {
       await _loadWeb();
+      _memory.removeWhere(
+        (key, j) => (j.createdAtMs ?? 0) < cutoff,
+      );
+      await _persistWeb();
       return _memory.values
-          .where((j) => j.status == 'pending' || j.status == 'failed')
+          .where(
+            (j) =>
+                (j.status == 'pending' || j.status == 'failed') &&
+                (j.createdAtMs ?? 0) >= cutoff,
+          )
           .toList();
     }
     try {
       final db = await PosDatabase.instance.database;
+      // Clean up stale historical jobs so they never accumulate or re-trigger.
+      await db.delete(
+        'pending_print_jobs',
+        where: 'created_at < ?',
+        whereArgs: [cutoff],
+      );
       final rows = await db.query(
         'pending_print_jobs',
-        where: 'status IN (?, ?)',
-        whereArgs: const ['pending', 'failed'],
+        where: 'status IN (?, ?) AND created_at >= ?',
+        whereArgs: ['pending', 'failed', cutoff],
         orderBy: 'created_at ASC',
       );
       return rows.map(PendingPrintJob.fromRow).toList();
     } catch (e) {
       debugPrint('PendingPrintJobStore.loadOpen failed: $e');
-      return _memory.values.toList();
+      return _memory.values
+          .where(
+            (j) =>
+                (j.status == 'pending' || j.status == 'failed') &&
+                (j.createdAtMs ?? 0) >= cutoff,
+          )
+          .toList();
     }
   }
 

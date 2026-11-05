@@ -5065,9 +5065,24 @@ class PosController extends ChangeNotifier {
         final orderStatus = (order['status']?.toString() ?? '')
             .toLowerCase()
             .trim();
-        if (orderStatus == 'draft') {
+        if (orderStatus == 'draft' ||
+            orderStatus == 'cancelled' ||
+            orderStatus == 'canceled' ||
+            orderStatus == 'completed' ||
+            orderStatus == 'closed' ||
+            orderStatus == 'served' ||
+            orderStatus == 'delivered' ||
+            orderStatus == 'void' ||
+            orderStatus == 'abandoned') {
           continue;
         }
+
+        final createdAt = DateTime.tryParse('${order['created_at'] ?? ''}');
+        if (createdAt != null &&
+            DateTime.now().difference(createdAt).inMinutes > 30) {
+          continue;
+        }
+
         unawaited(
           _printJobs?.enqueueKot(
             orderId: id,

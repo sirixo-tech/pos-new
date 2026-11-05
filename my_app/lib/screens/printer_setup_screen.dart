@@ -536,13 +536,6 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
     }
   }
 
-  Future<void> _clearPrinter() async {
-    await UsbPrinterStorage.save(null);
-    setState(() {
-      _savedConfig = null;
-    });
-  }
-
   bool _isSelected(UsbPrinterDevice printer) {
     final saved = _savedConfig;
     if (saved == null) return false;

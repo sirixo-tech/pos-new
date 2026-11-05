@@ -7,8 +7,18 @@ bool canAutomaticallyFulfillOrder(
   final order = nested is Map ? Map<String, dynamic>.from(nested) : raw;
   final status =
       '${order['status'] ?? order['order_status'] ?? ''}'.toLowerCase();
-  if (const ['cancelled', 'canceled', 'failed', 'expired', 'void']
-      .contains(status)) {
+  if (const [
+    'cancelled',
+    'canceled',
+    'failed',
+    'expired',
+    'void',
+    'completed',
+    'closed',
+    'served',
+    'delivered',
+    'abandoned',
+  ].contains(status)) {
     return false;
   }
 

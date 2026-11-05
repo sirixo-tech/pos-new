@@ -158,24 +158,6 @@ class PrintJobCoordinator extends ChangeNotifier {
         StateError(row.errorMessage ?? ''),
       );
       _failed[job.jobKey] = job;
-      if (job.kind == PrintJobKind.kot) {
-        final err = StateError(row.errorMessage ?? 'KOT printing failed');
-        if (!isKotNotReady(err)) {
-          _offerKotFailure(
-            PrintJobFailure(
-              kind: job.kind,
-              orderNumber: job.orderNumber,
-              orderId: job.orderId,
-              isPaperOut: row.paperOut || isPrinterPaperOut(err),
-              isDisconnected: isPrinterDisconnected(err),
-              error: err,
-              jobKey: job.jobKey,
-              source: job.source,
-              cashier: job.cashier,
-            ),
-          );
-        }
-      }
     }
     if (_failed.isNotEmpty) {
       _startHealthWatch();
@@ -283,6 +265,22 @@ class PrintJobCoordinator extends ChangeNotifier {
   Future<void> _retryFailedOnce({required bool includeMayHavePrinted}) async {
     if (PosApi.isRateLimited) return;
     if (_failed.isEmpty) return;
+
+    // Purge jobs older than 90 minutes so stale historical orders do not loop forever.
+    final now = DateTime.now();
+    final expiredKeys = <String>[];
+    for (final entry in _failed.entries) {
+      if (now.difference(entry.value.queuedAt).inMinutes > 90) {
+        expiredKeys.add(entry.key);
+      }
+    }
+    for (final key in expiredKeys) {
+      _failed.remove(key);
+      ackFailure(key);
+      unawaited(PendingPrintJobStore.markDone(key));
+    }
+    if (_failed.isEmpty) return;
+
     final jobs =
         _failed.values
             .where((job) => includeMayHavePrinted || !job.mayHavePrinted)
