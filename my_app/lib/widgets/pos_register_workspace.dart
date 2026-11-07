@@ -406,7 +406,12 @@ class _MenuScrollBody extends StatelessWidget {
             if (searchQuery.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  padding: EdgeInsets.fromLTRB(
+                    denseColorCards ? 8 : 16,
+                    8,
+                    denseColorCards ? 8 : 16,
+                    12,
+                  ),
                   child: Text(
                     context.l10n.menuSearchResults(searchQuery),
                     style: TextStyle(
@@ -422,14 +427,15 @@ class _MenuScrollBody extends StatelessWidget {
                 child: _CategorySectionHeader(
                   categoryName: categoryTitle,
                   subtitle: categorySubtitle,
+                  dense: denseColorCards,
                 ),
               ),
             if (items.isNotEmpty)
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(
-                  handheld ? 10 : 16,
+                  denseColorCards ? 8 : (handheld ? 10 : 16),
                   4,
-                  handheld ? 10 : 16,
+                  denseColorCards ? 8 : (handheld ? 10 : 16),
                   handheld ? 88 : 24,
                 ),
                 sliver: handheld && paneWidth < 220
@@ -466,8 +472,8 @@ class _MenuScrollBody extends StatelessWidget {
                               : handheld
                               ? handheldMenuCardExtent(context, paneWidth)
                               : null,
-                          mainAxisSpacing: denseColorCards ? 10 : 14,
-                          crossAxisSpacing: denseColorCards ? 10 : 14,
+                          mainAxisSpacing: denseColorCards ? 8 : 14,
+                          crossAxisSpacing: denseColorCards ? 8 : 14,
                           childAspectRatio: posMenuGridChildAspectRatio(
                             paneWidth,
                             compact: true,
@@ -544,8 +550,9 @@ class _PopularSection extends StatelessWidget {
         : const EdgeInsets.fromLTRB(16, 12, 16, 16);
 
     final soft = posAccentSoft(accent);
+    final horizontalPad = dense ? 8.0 : (short ? 12.0 : 16.0);
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, short ? 4 : 8, 16, 4),
+      padding: EdgeInsets.fromLTRB(horizontalPad, short ? 4 : 8, horizontalPad, 4),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: soft.bg,
@@ -644,37 +651,40 @@ class _CategorySectionHeader extends StatelessWidget {
   const _CategorySectionHeader({
     required this.categoryName,
     required this.subtitle,
+    this.dense = false,
   });
 
   final String categoryName;
   final String subtitle;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
+    final horizontalPad = dense ? 8.0 : 12.0;
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        12,
+        horizontalPad,
         4,
-        12,
-        usePosHandheldLayout(context) ? 6 : 12,
+        horizontalPad,
+        usePosHandheldLayout(context) ? 6 : (dense ? 8 : 12),
       ),
       child: Row(
         children: [
           Container(
-            width: usePosHandheldLayout(context) ? 24 : 36,
-            height: usePosHandheldLayout(context) ? 24 : 36,
+            width: dense ? 28 : (usePosHandheldLayout(context) ? 24 : 36),
+            height: dense ? 28 : (usePosHandheldLayout(context) ? 24 : 36),
             decoration: BoxDecoration(
               color: PosTheme.searchFill,
-              borderRadius: BorderRadius.circular(PosTheme.radiusMd),
+              borderRadius: BorderRadius.circular(dense ? 8 : PosTheme.radiusMd),
               border: Border.all(color: PosTheme.border),
             ),
             child: Icon(
               Icons.grid_view_rounded,
-              size: 18,
+              size: dense ? 16 : 18,
               color: PosTheme.inkMuted,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -683,14 +693,17 @@ class _CategorySectionHeader extends StatelessWidget {
                   categoryName,
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: 14,
+                    fontSize: dense ? 13.5 : 14,
                     color: PosTheme.ink,
                   ),
                 ),
                 if (!usePosHandheldLayout(context))
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
+                    style: TextStyle(
+                      fontSize: dense ? 11 : 12,
+                      color: PosTheme.inkMuted,
+                    ),
                   ),
               ],
             ),

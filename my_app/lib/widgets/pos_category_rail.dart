@@ -62,11 +62,11 @@ class PosCategoryRail extends StatelessWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.symmetric(
-              horizontal: 10,
+              horizontal: compact ? 8 : 10,
               vertical: compact ? 6 : (handheld ? 6 : 10),
             ),
             itemCount: categories.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => SizedBox(width: compact ? 8 : 10),
             itemBuilder: (context, index) {
               if (index == 0) {
                 return _CategoryChip(
@@ -336,7 +336,10 @@ class _CategoryChip extends StatelessWidget {
             height: double.infinity,
             constraints: const BoxConstraints(minWidth: 76, maxWidth: 176),
             alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 10 : 14,
+              vertical: 6,
+            ),
             child: Text(
               label,
               textAlign: TextAlign.center,

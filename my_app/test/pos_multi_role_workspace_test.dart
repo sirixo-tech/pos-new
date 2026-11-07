@@ -228,4 +228,46 @@ void main() {
     expect(snapshot.ready.length, 1);
     expect(snapshot.ready.first.token, 'B2');
   });
+
+  test('Token display only staff auto-resolves to Token Display workspace', () async {
+    SharedPreferences.setMockInitialValues({});
+    final pos = PosController()
+      ..session = PosSession(
+        serverUrl: 'https://example.test',
+        token: 'test_token',
+        restaurantId: 1,
+        branchId: 10,
+      )
+      ..profile = StaffProfile.fromJson({
+        'permissions': ['order_board'],
+        'restaurants': [
+          {
+            'id': 1,
+            'name': 'Test Cafe',
+            'branches': [
+              {'id': 10, 'name': 'Main Branch'}
+            ],
+          }
+        ],
+      });
+    addTearDown(pos.dispose);
+
+    expect(pos.canUseTokenDisplay, isTrue);
+    expect(pos.canUseKitchen, isFalse);
+    expect(pos.canUseRegister, isFalse);
+    expect(pos.canUseCaptain, isFalse);
+
+    // Bypasses register bootstrap cleanly without throwing 403
+    await pos.loadBootstrapForTest();
+    expect(pos.bootstrap, isNull);
+
+    // Resolves to PosAppPhase.ready in PosWorkMode.tokenDisplay
+    final phase = await pos.resolvePostBootstrapPhaseForTest();
+    expect(phase, PosAppPhase.ready);
+    expect(pos.workMode, PosWorkMode.tokenDisplay);
+
+    // Persisted to storage for device restart resilience
+    final stored = await PosWorkModeStorage.read(10);
+    expect(stored, PosWorkMode.tokenDisplay);
+  });
 }

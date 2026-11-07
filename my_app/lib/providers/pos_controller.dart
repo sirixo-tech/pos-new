@@ -700,6 +700,13 @@ class PosController extends ChangeNotifier {
         !permissions.contains('access_pos_captain');
   }
 
+  bool get _hasTokenDisplayOnlyAccess {
+    return canUseTokenDisplay &&
+        !canUseRegister &&
+        !canUseCaptain &&
+        !canUseKitchen;
+  }
+
   /// Register POS (tablet) — permission `access_pos`.
   bool get canUseRegister {
     if (profile != null && !profile!.permissions.contains('access_pos')) {
@@ -1559,14 +1566,15 @@ class PosController extends ChangeNotifier {
     bool fromResume = false,
   }) async {
     _syncService?.configure(session);
-    if (!fromResume &&
-        staffProfile.permissions.any(
+    final hasAnyWorkspace = staffProfile.permissions.any(
           (permission) => const [
             'access_pos',
             'access_pos_captain',
             'access_kitchen',
           ].contains(permission),
-        )) {
+        ) ||
+        hasOrderBoardPermission;
+    if (!fromResume && hasAnyWorkspace) {
       bootstrap = null;
       workMode = null;
       _workspaceBeforeLocation = true;
@@ -1727,7 +1735,11 @@ class PosController extends ChangeNotifier {
       await _rememberCurrentLocation();
       _syncService?.configure(session);
 
-      if (canUseRegister || canUseCaptain || _hasKitchenOnlyAccess) {
+      if (canUseRegister ||
+          canUseCaptain ||
+          _hasKitchenOnlyAccess ||
+          _hasTokenDisplayOnlyAccess ||
+          workMode == PosWorkMode.tokenDisplay) {
         await _loadBootstrap();
       }
       final next = await _resolvePostBootstrapPhase();
@@ -1830,15 +1842,6 @@ class PosController extends ChangeNotifier {
     if (!canUseRegister &&
         !canUseCaptain &&
         !canUseKitchen &&
-        (staffAdminCapabilities.canAccessAdmin ||
-            canViewStaffReports ||
-            canUseTokenDisplay)) {
-      workMode = null;
-      return PosAppPhase.modePicker;
-    }
-    if (!canUseRegister &&
-        !canUseCaptain &&
-        !canUseKitchen &&
         !canUseTokenDisplay) {
       errorMessage =
           'Your account does not have Register, Captain, Kitchen, or Token Display access.';
@@ -1918,6 +1921,16 @@ class PosController extends ChangeNotifier {
       } else {
         _startRevisionPolling();
       }
+      notifyListeners();
+      return;
+    }
+
+    if (isTokenDisplayMode) {
+      _stopWaiterPolling();
+      _stopRegisterAlertPolling();
+      _stopNewOrderPolling();
+      _stopPaymentSessionMonitoring();
+      _stopRevisionPolling();
       notifyListeners();
       return;
     }
@@ -4245,12 +4258,27 @@ class PosController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @visibleForTesting
+  Future<void> loadBootstrapForTest() => _loadBootstrap();
+
+  @visibleForTesting
+  Future<PosAppPhase> resolvePostBootstrapPhaseForTest() =>
+      _resolvePostBootstrapPhase();
+
   Future<void> _loadBootstrap() async {
     final current = session;
     if (current == null) {
       throw PosApiException(
         PosTranslationStore.instance.text('authNotSignedIn', 'Not signed in'),
       );
+    }
+
+    // Token-Display-only staff or workspace do not need Register POS bootstrap.
+    // Order board state and tokens are managed directly by CustomerDisplayController.
+    if (workMode == PosWorkMode.tokenDisplay || _hasTokenDisplayOnlyAccess) {
+      bootstrap = null;
+      await _notifyBootstrapChanged();
+      return;
     }
 
     // Kitchen-only staff cannot call the register POS bootstrap endpoint.

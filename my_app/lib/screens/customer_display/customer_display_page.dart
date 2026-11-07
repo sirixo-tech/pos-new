@@ -133,8 +133,11 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
                         ),
                       Expanded(
                         child: Padding(
-                          padding: EdgeInsets.all(
-                            constraints.maxWidth < 900 ? 12 : 18,
+                          padding: EdgeInsets.fromLTRB(
+                            14,
+                            constraints.maxHeight < 600 ? 6 : 10,
+                            14,
+                            constraints.maxHeight < 600 ? 8 : 12,
                           ),
                           child: _OrderHistoryPanel(
                             preparing: state.preparing,
@@ -1019,7 +1022,7 @@ class _TopBar extends StatelessWidget {
     final isVoiceEnabled = voiceEnabled;
 
     return Container(
-      height: compact ? 68 : 76,
+      height: compact ? 56 : 64,
       padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 24),
       decoration: const BoxDecoration(
         color: _DisplayColors.background,
@@ -1028,12 +1031,12 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: compact ? 40 : 44,
-            height: compact ? 40 : 44,
-            padding: const EdgeInsets.all(5),
+            width: compact ? 34 : 38,
+            height: compact ? 34 : 38,
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: const Color(0xFF17171B),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFF2E2E35)),
               boxShadow: const [
                 BoxShadow(
@@ -1044,15 +1047,15 @@ class _TopBar extends StatelessWidget {
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               child: Image.asset(
                 PosAppInfo.emblemAsset,
                 errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.storefront_rounded, color: Colors.white),
+                    const Icon(Icons.storefront_rounded, color: Colors.white, size: 20),
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1065,12 +1068,12 @@ class _TopBar extends StatelessWidget {
                   softWrap: false,
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: compact ? 20 : 24,
+                    fontSize: compact ? 17 : 20,
                     fontWeight: FontWeight.w900,
                     height: 1.1,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   state.branchName,
                   maxLines: 1,
@@ -1078,7 +1081,7 @@ class _TopBar extends StatelessWidget {
                   softWrap: false,
                   style: TextStyle(
                     color: _DisplayColors.muted,
-                    fontSize: compact ? 12 : 14,
+                    fontSize: compact ? 11 : 12.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1499,7 +1502,7 @@ class _OrderHistoryPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 900;
+        final compact = constraints.maxWidth < 720;
         final children = [
           Expanded(
             child: _TokenColumnPanel(
@@ -1526,11 +1529,11 @@ class _OrderHistoryPanel extends StatelessWidget {
         ];
         if (compact) {
           return Column(
-            children: [children[1], const SizedBox(height: 12), children[0]],
+            children: [children[1], const SizedBox(height: 10), children[0]],
           );
         }
         return Row(
-          children: [children[0], const SizedBox(width: 28), children[1]],
+          children: [children[0], const SizedBox(width: 16), children[1]],
         );
       },
     );
@@ -1576,8 +1579,8 @@ class _TokenColumnPanel extends StatelessWidget {
         children: [
           Container(
             padding: EdgeInsets.symmetric(
-              horizontal: compact ? 12 : 24,
-              vertical: compact ? 12 : 22,
+              horizontal: compact ? 12 : 18,
+              vertical: compact ? 8 : 12,
             ),
             decoration: BoxDecoration(
               color: _withAlpha(color, ready ? 0.12 : 0.16),
@@ -1588,33 +1591,35 @@ class _TokenColumnPanel extends StatelessWidget {
             child: Row(
               children: [
                 _HeaderIcon(icon: icon, color: color, compact: compact),
-                SizedBox(width: compact ? 10 : 18),
+                SizedBox(width: compact ? 10 : 14),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        maxLines: compact ? 2 : 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: const Color(0xFFF6F1E8),
-                          fontSize: compact ? 16 : 29,
-                          fontWeight: FontWeight.w900,
-                          height: 1.15,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: const Color(0xFFF6F1E8),
+                            fontSize: compact ? 16 : 21,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
-                      SizedBox(height: compact ? 4 : 9),
+                      const SizedBox(height: 3),
                       Text(
                         subtitle,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: _DisplayColors.muted,
-                          fontSize: compact ? 12 : 17,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
+                          fontSize: compact ? 11 : 12.5,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -1636,16 +1641,34 @@ class _TokenColumnPanel extends StatelessWidget {
                   )
                 : LayoutBuilder(
                     builder: (context, constraints) {
+                      // On any display (including 32" TV), exactly 4 rows in PREPARING
+                      // and 3 rows in READY fit into the available visible height.
+                      final targetRows = ready ? 3 : 4;
+                      final vPad = constraints.maxHeight < 340 ? 8.0 : 12.0;
+                      final hPad = constraints.maxWidth < 340 ? 8.0 : 12.0;
+                      final spacing = constraints.maxHeight < 340 ? 6.0 : 10.0;
+
+                      final totalPad = vPad * 2;
+                      final totalGaps = (targetRows - 1) * spacing;
+                      final usableHeight =
+                          constraints.maxHeight - totalPad - totalGaps;
+                      final rowHeight =
+                          (usableHeight / targetRows).clamp(40.0, 240.0);
+
                       final crossAxisCount = ready
-                          ? (constraints.maxWidth / 220).floor().clamp(2, 4)
-                          : (constraints.maxWidth / 190).floor().clamp(2, 5);
+                          ? (constraints.maxWidth / 150).floor().clamp(2, 3)
+                          : (constraints.maxWidth / 115).floor().clamp(2, 4);
+
                       return GridView.builder(
-                        padding: const EdgeInsets.all(24),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: hPad,
+                          vertical: vPad,
+                        ),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: crossAxisCount,
-                          mainAxisSpacing: 18,
-                          crossAxisSpacing: 18,
-                          childAspectRatio: ready ? 1.05 : 1.30,
+                          mainAxisExtent: rowHeight,
+                          mainAxisSpacing: spacing,
+                          crossAxisSpacing: spacing,
                         ),
                         itemCount: orders.length,
                         itemBuilder: (context, index) {
@@ -1718,7 +1741,7 @@ class _TokenTile extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: const Color(0xFF1A1B20),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(ready ? 12 : 10),
         border: Border.all(
           color: _withAlpha(color, ready ? 0.56 : 0.28),
           width: ready ? 2.0 : 1.2,
@@ -1726,41 +1749,43 @@ class _TokenTile extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: _withAlpha(color, ready ? 0.20 : 0.05),
-            blurRadius: ready ? 20 : 14,
-            offset: const Offset(0, 8),
+            blurRadius: ready ? 14 : 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                context.tr('TOKEN'),
-                style: TextStyle(
-                  color: color,
-                  fontSize: ready ? 14 : 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: ready ? 4.0 : 2.5,
-                ),
+      padding: EdgeInsets.symmetric(
+        horizontal: ready ? 8 : 6,
+        vertical: ready ? 5 : 4,
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              context.tr('TOKEN'),
+              style: TextStyle(
+                color: color,
+                fontSize: ready ? 12 : 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: ready ? 2.5 : 1.5,
               ),
-              SizedBox(height: ready ? 8 : 4),
-              Text(
-                order.token,
-                maxLines: 1,
-                style: TextStyle(
-                  color: const Color(0xFFF6F1E8),
-                  fontSize: ready ? 88 : 64,
-                  height: 1.0,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: ready ? -2.0 : -1.0,
-                ),
+            ),
+            SizedBox(height: ready ? 3 : 2),
+            Text(
+              order.token,
+              maxLines: 1,
+              style: TextStyle(
+                color: const Color(0xFFF6F1E8),
+                fontSize: ready ? 56 : 42,
+                height: 1.0,
+                fontWeight: FontWeight.w900,
+                letterSpacing: ready ? -1.0 : -0.5,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1780,16 +1805,16 @@ class _HeaderIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = compact ? 40.0 : 60.0;
+    final size = compact ? 34.0 : 42.0;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: _withAlpha(color, 0.16),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _withAlpha(color, 0.32)),
       ),
-      child: Icon(icon, color: color, size: compact ? 20 : 28),
+      child: Icon(icon, color: color, size: compact ? 18 : 22),
     );
   }
 }
@@ -1807,19 +1832,19 @@ class _CountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = compact ? 40.0 : 54.0;
+    final size = compact ? 34.0 : 42.0;
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: _withAlpha(color, 0.36),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -1827,7 +1852,7 @@ class _CountBadge extends StatelessWidget {
         count.toString(),
         style: TextStyle(
           color: Colors.white,
-          fontSize: compact ? 16 : 22,
+          fontSize: compact ? 15 : 18,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -1857,34 +1882,34 @@ class _EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 78,
-              height: 78,
+              width: 50,
+              height: 50,
               decoration: BoxDecoration(
                 color: _withAlpha(color, 0.11),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: _withAlpha(color, 0.28)),
               ),
-              child: Icon(icon, color: _withAlpha(color, 0.72), size: 40),
+              child: Icon(icon, color: _withAlpha(color, 0.72), size: 26),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
             Text(
               title,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Color(0xFFB8B6BF),
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 6),
             Text(
               body,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: _DisplayColors.muted,
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                height: 1.3,
               ),
             ),
           ],

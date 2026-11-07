@@ -58,7 +58,7 @@ class CustomerVoiceService {
   FlutterTts? _tts;
   final List<_Cue> _queue = [];
 
-  bool newTokenSoundEnabled = true;
+  bool newTokenSoundEnabled = false;
   String newTokenTone = 'ticket_ding';
   double newTokenVolume = 1;
   bool readyVoiceEnabled = true;
@@ -77,7 +77,7 @@ class CustomerVoiceService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final legacy = prefs.getBool(_legacyEnabledKey);
-      newTokenSoundEnabled = prefs.getBool(_newEnabledKey) ?? legacy ?? true;
+      newTokenSoundEnabled = prefs.getBool(_newEnabledKey) ?? false;
       readyVoiceEnabled = prefs.getBool(_readyEnabledKey) ?? legacy ?? true;
       final tone = prefs.getString(_newToneKey) ?? 'ticket_ding';
       newTokenTone = PosCartSound.kitchenTones.containsKey(tone)
