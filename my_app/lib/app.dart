@@ -19,6 +19,7 @@ import 'providers/pos_idle_lock_controller.dart';
 import 'providers/pos_locale_controller.dart';
 import 'providers/pos_theme_controller.dart';
 import 'screens/context_picker_screen.dart';
+import 'screens/customer_display/customer_display_page.dart';
 import 'screens/kitchen/kitchen_shell.dart';
 import 'screens/lock_screen.dart';
 import 'screens/login_screen.dart';
@@ -414,15 +415,17 @@ class _RootRouterState extends State<_RootRouter> with WidgetsBindingObserver {
         return const TerminalPickerScreen();
       case PosAppPhase.locked:
       case PosAppPhase.ready:
-        if (!pos.canUseRegister && !pos.canUseCaptain && !pos.canUseKitchen) {
+        if (!pos.canUseRegister &&
+            !pos.canUseCaptain &&
+            !pos.canUseKitchen &&
+            !pos.canUseTokenDisplay) {
           return const ModePickerScreen();
-        }
-        if (!pos.canUseRegister && !pos.canUseCaptain && pos.canUseKitchen) {
-          return const KitchenShell();
         }
         if ((pos.workMode == PosWorkMode.register && !pos.canUseRegister) ||
             (pos.workMode == PosWorkMode.waiter && !pos.canUseCaptain) ||
-            (pos.workMode == PosWorkMode.kitchen && !pos.canUseKitchen)) {
+            (pos.workMode == PosWorkMode.kitchen && !pos.canUseKitchen) ||
+            (pos.workMode == PosWorkMode.tokenDisplay &&
+                !pos.canUseTokenDisplay)) {
           return const ModePickerScreen();
         }
         // Keep the shell mounted while locked (PIN overlay is in
@@ -431,6 +434,8 @@ class _RootRouterState extends State<_RootRouter> with WidgetsBindingObserver {
             ? const WaiterShell()
             : pos.workMode == PosWorkMode.kitchen
             ? const KitchenShell()
+            : pos.workMode == PosWorkMode.tokenDisplay
+            ? const CustomerDisplayPage()
             : const PosShell();
       case PosAppPhase.error:
         final accent = Theme.of(context).colorScheme.primary;

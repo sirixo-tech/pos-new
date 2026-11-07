@@ -147,6 +147,7 @@ class _ContextPickerScreenState extends State<ContextPickerScreen> {
     final workspaceName = switch (pos.workMode) {
       PosWorkMode.waiter => 'Waiter / Captain',
       PosWorkMode.kitchen => 'Kitchen Display',
+      PosWorkMode.tokenDisplay => 'Token Display',
       PosWorkMode.register => 'Register POS',
       null => null,
     };

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,26 +27,71 @@ class CustomerDisplayRepository {
   static const _tokenKey = 'customer_display_sync_token';
 
   final http.Client _client;
+  Uri? _workingUri;
+  Map<String, String>? _workingHeaders;
 
   Future<CustomerDisplaySetup> readSetup({
     PosSession? session,
+    StaffProfile? profile,
     PosBootstrap? bootstrap,
     PosTerminalInfo? terminal,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final restaurant = bootstrap?.restaurant;
-    final branch = bootstrap?.branch;
+    final bootstrapRestaurant = bootstrap?.restaurant;
+    final bootstrapBranch = bootstrap?.branch;
+
+    final selectedRestaurantId =
+        session?.restaurantId ?? profile?.currentRestaurantId;
+    final profileRestaurant = selectedRestaurantId != null
+        ? profile?.restaurantOption(selectedRestaurantId)
+        : (profile?.restaurants.isNotEmpty == true
+            ? profile!.restaurants.first
+            : null);
+
+    final restaurantName = _firstNonEmpty([
+      bootstrapRestaurant?.name,
+      profileRestaurant?.name,
+    ]);
+
+    final restaurantSlug = _firstNonEmpty([
+      prefs.getString(_slugKey),
+      profileRestaurant?.slug,
+      _slugFrom(restaurantName),
+    ]);
+
+    final selectedBranchId = int.tryParse(prefs.getString(_branchKey) ?? '') ??
+        session?.branchId ??
+        bootstrapBranch?.id ??
+        profile?.currentBranchId ??
+        0;
+
+    StaffBranchOption? profileBranch;
+    if (profileRestaurant != null) {
+      for (final b in profileRestaurant.branches) {
+        if (b.id == selectedBranchId) {
+          profileBranch = b;
+          break;
+        }
+      }
+      profileBranch ??= profileRestaurant.branches.isNotEmpty
+          ? profileRestaurant.branches.first
+          : null;
+    }
+
+    final branchName = _firstNonEmpty([
+      bootstrapBranch?.name,
+      profileBranch?.name,
+    ]);
+
+    final finalBranchId = selectedBranchId > 0
+        ? selectedBranchId
+        : (profileBranch?.id ?? 0);
+
     return CustomerDisplaySetup(
-      restaurantName: restaurant?.name.trim() ?? '',
-      restaurantSlug: _firstNonEmpty([
-        prefs.getString(_slugKey),
-        _slugFrom(restaurant?.name ?? ''),
-      ]),
-      branchName: branch?.name.trim() ?? '',
-      branchId: int.tryParse(prefs.getString(_branchKey) ?? '') ??
-          session?.branchId ??
-          branch?.id ??
-          0,
+      restaurantName: restaurantName,
+      restaurantSlug: restaurantSlug,
+      branchName: branchName,
+      branchId: finalBranchId,
       terminalCode: _firstNonEmpty([
         prefs.getString(_terminalKey),
         terminal?.code,
@@ -57,12 +103,18 @@ class CustomerDisplayRepository {
     );
   }
 
+  void resetWorkingEndpoint() {
+    _workingUri = null;
+    _workingHeaders = null;
+  }
+
   Future<void> saveSetup({
     required String restaurantSlug,
     required int branchId,
     required String terminalCode,
     required String syncToken,
   }) async {
+    resetWorkingEndpoint();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_slugKey, _slugFrom(restaurantSlug));
     await prefs.setString(_branchKey, branchId.toString());
@@ -76,42 +128,167 @@ class CustomerDisplayRepository {
     required String restaurantSlug,
     required int branchId,
     required String terminalCode,
+    String? boardToken,
+    String? kitchenToken,
   }) async {
     final base = PlatformConfig.normalizeServerUrl(serverUrl);
     final encodedTerminal = Uri.encodeComponent(terminalCode);
+    final targetBranch = branchId > 0 ? branchId : session?.branchId ?? 0;
     final authed = session == null
         ? null
         : _headers(session: session);
+    final boardHeaders = session == null
+        ? null
+        : (boardToken != null && boardToken.trim().isNotEmpty
+            ? {
+                ..._headers(session: session),
+                'Authorization': 'Bearer ${boardToken.trim()}',
+              }
+            : authed);
+    final kitchenHeaders = session == null
+        ? null
+        : (kitchenToken != null && kitchenToken.trim().isNotEmpty
+            ? {
+                ..._headers(session: session),
+                'Authorization': 'Bearer ${kitchenToken.trim()}',
+              }
+            : authed);
+
+    final normalizedSlug = restaurantSlug.trim().isNotEmpty
+        ? _slugFrom(restaurantSlug)
+        : '';
+
+    // Fast path: if a working board endpoint was already discovered, query it directly.
+    if (_workingUri != null) {
+      try {
+        final response = await _client.get(_workingUri!, headers: _workingHeaders);
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          final decoded = _decode(response);
+          return CustomerBoardSnapshot.fromJson(decoded);
+        }
+        // If status >= 300, clear working URI and fall through to re-discover candidates.
+        _workingUri = null;
+        _workingHeaders = null;
+      } catch (_) {
+        _workingUri = null;
+        _workingHeaders = null;
+      }
+    }
+
     final attempts = <Uri, Map<String, String>?>{
-      Uri.parse('$base/api/v1/display/$branchId/$encodedTerminal/bootstrap'):
-          authed,
-      if (session != null)
-        Uri.parse('${session.v1BaseUrl}/pos/recent-orders'): authed,
-      if (session != null) Uri.parse('${session.v1BaseUrl}/board/orders'): authed,
-      Uri.parse(
-        '$base/api/v1/public/${Uri.encodeComponent(_slugFrom(restaurantSlug))}'
-        '/board/$branchId/poll',
-      ): <String, String>{
-        'Accept': 'application/json',
-        'X-Pos-Platform': posPlatformLabel(),
-        'X-Pos-App-Version': PosAppInfo.version,
+      // 1. Primary dedicated Order Board / Token Display endpoints
+      if (normalizedSlug.isNotEmpty && targetBranch > 0)
+        Uri.parse(
+          '$base/api/v1/public/${Uri.encodeComponent(normalizedSlug)}'
+          '/board/$targetBranch/poll',
+        ): <String, String>{
+          'Accept': 'application/json',
+          'X-Pos-Platform': posPlatformLabel(),
+          'X-Pos-App-Version': PosAppInfo.version,
+          if (session != null) 'X-Restaurant-Id': '${session.restaurantId}',
+          if (session != null) 'X-Branch-Id': '${session.branchId}',
+        },
+
+      if (targetBranch > 0) ...{
+        Uri.parse('$base/api/v1/public/board/$targetBranch/poll'): <String, String>{
+          'Accept': 'application/json',
+          'X-Pos-Platform': posPlatformLabel(),
+          'X-Pos-App-Version': PosAppInfo.version,
+          if (session != null) 'X-Restaurant-Id': '${session.restaurantId}',
+          if (session != null) 'X-Branch-Id': '${session.branchId}',
+        },
+        if (session != null)
+          Uri.parse('$base/api/v1/board/$targetBranch/poll'): authed,
       },
+
+      // 2. Authenticated Board Endpoints
+      if (session != null && boardHeaders != null) ...{
+        Uri.parse('${session.v1BaseUrl}/board/orders'): boardHeaders,
+        if (targetBranch > 0) ...{
+          Uri.parse('${session.v1BaseUrl}/board/orders?branch_id=$targetBranch'):
+              boardHeaders,
+          Uri.parse('${session.v1BaseUrl}/board/orders?branch=$targetBranch'):
+              boardHeaders,
+          Uri.parse('${session.v1BaseUrl}/board/$targetBranch/orders'): boardHeaders,
+        },
+        if (session.restaurantId > 0 && targetBranch > 0)
+          Uri.parse(
+            '${session.v1BaseUrl}/board/orders?restaurant_id=${session.restaurantId}&branch_id=$targetBranch',
+          ): boardHeaders,
+        Uri.parse('${session.v1BaseUrl}/order-board/orders'): boardHeaders,
+        if (targetBranch > 0) ...{
+          Uri.parse('${session.v1BaseUrl}/order-board/orders?branch_id=$targetBranch'):
+              boardHeaders,
+          Uri.parse('${session.v1BaseUrl}/order-board/$targetBranch/orders'):
+              boardHeaders,
+        },
+        Uri.parse('${session.v1BaseUrl}/token-display/orders'): boardHeaders,
+        if (targetBranch > 0)
+          Uri.parse('${session.v1BaseUrl}/token-display/$targetBranch/orders'):
+              boardHeaders,
+      },
+      if (session != null && authed != null && boardHeaders != authed) ...{
+        Uri.parse('${session.v1BaseUrl}/board/orders'): authed,
+        if (targetBranch > 0) ...{
+          Uri.parse('${session.v1BaseUrl}/board/orders?branch_id=$targetBranch'):
+              authed,
+          Uri.parse('${session.v1BaseUrl}/board/$targetBranch/orders'): authed,
+        },
+      },
+
+      // 3. Kitchen orders (when kitchen token or kitchen access is available)
+      if (session != null && kitchenHeaders != null) ...{
+        Uri.parse('${session.v1BaseUrl}/kitchen/orders'): kitchenHeaders,
+        if (targetBranch > 0)
+          Uri.parse('${session.v1BaseUrl}/kitchen/orders?branch_id=$targetBranch'):
+              kitchenHeaders,
+      },
+      if (session != null && authed != null && kitchenHeaders != authed) ...{
+        Uri.parse('${session.v1BaseUrl}/kitchen/orders'): authed,
+        if (targetBranch > 0)
+          Uri.parse('${session.v1BaseUrl}/kitchen/orders?branch_id=$targetBranch'):
+              authed,
+      },
+
+      // 4. Fallback to POS recent/open orders if permitted
+      if (session != null) ...{
+        Uri.parse('${session.v1BaseUrl}/pos/recent-orders'): authed,
+        Uri.parse('${session.v1BaseUrl}/pos/open-orders'): authed,
+      },
+
+      // 5. Paired Display Terminal bootstrap
+      if (targetBranch > 0 && terminalCode.trim().isNotEmpty)
+        Uri.parse('$base/api/v1/display/$targetBranch/$encodedTerminal/bootstrap'):
+            authed,
     };
 
     Object? lastError;
+    final failedDiagnostics = <String>[];
     for (final entry in attempts.entries) {
       try {
         final response = await _client.get(entry.key, headers: entry.value);
-        if (response.statusCode == 401 ||
-            response.statusCode == 403 ||
-            response.statusCode == 404 ||
-            response.statusCode == 405) {
-          continue;
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          final queryPart = entry.key.hasQuery ? '?${entry.key.query}' : '';
+          debugPrint(
+            '[CustomerDisplayRepository] poll connected via ${entry.key.path}$queryPart',
+          );
+          _workingUri = entry.key;
+          _workingHeaders = entry.value;
+          final decoded = _decode(response);
+          return CustomerBoardSnapshot.fromJson(decoded);
         }
-        return CustomerBoardSnapshot.fromJson(_decode(response));
+        lastError = 'HTTP ${response.statusCode} from ${entry.key.path}';
+        final queryPart = entry.key.hasQuery ? '?${entry.key.query}' : '';
+        failedDiagnostics.add(
+          'poll attempt ${entry.key.path}$queryPart returned ${response.statusCode}: ${response.body}',
+        );
       } catch (error) {
         lastError = error;
+        failedDiagnostics.add('poll attempt ${entry.key.path} failed: $error');
       }
+    }
+    for (final diag in failedDiagnostics) {
+      debugPrint('[CustomerDisplayRepository] $diag');
     }
     throw CustomerDisplayException(
       lastError?.toString() ??
@@ -159,9 +336,15 @@ class CustomerDisplayRepository {
     Map<String, dynamic> body;
     try {
       final decoded = jsonDecode(response.body);
-      body = decoded is Map<String, dynamic>
-          ? decoded
-          : Map<String, dynamic>.from(decoded as Map);
+      if (decoded is List) {
+        body = {'data': decoded};
+      } else if (decoded is Map<String, dynamic>) {
+        body = decoded;
+      } else if (decoded is Map) {
+        body = Map<String, dynamic>.from(decoded);
+      } else {
+        body = <String, dynamic>{};
+      }
     } catch (_) {
       throw CustomerDisplayException(
         'Invalid server response (${response.statusCode}).',

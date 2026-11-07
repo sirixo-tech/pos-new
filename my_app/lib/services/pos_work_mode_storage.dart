@@ -1,10 +1,11 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Staff work mode on this device: register, waiter/captain, or kitchen KOT view.
+/// Staff work mode on this device: register, waiter/captain, kitchen KOT view, or token display.
 enum PosWorkMode {
   register,
   waiter,
   kitchen,
+  tokenDisplay,
 }
 
 /// Persists work mode per branch (mirrors terminal code storage).
@@ -18,6 +19,7 @@ class PosWorkModeStorage {
       'register' => PosWorkMode.register,
       'waiter' => PosWorkMode.waiter,
       'kitchen' => PosWorkMode.kitchen,
+      'token_display' || 'tokendisplay' => PosWorkMode.tokenDisplay,
       _ => null,
     };
   }
@@ -27,6 +29,7 @@ class PosWorkModeStorage {
     final value = switch (mode) {
       PosWorkMode.waiter => 'waiter',
       PosWorkMode.kitchen => 'kitchen',
+      PosWorkMode.tokenDisplay => 'token_display',
       PosWorkMode.register => 'register',
     };
     await prefs.setString(_key(branchId), value);

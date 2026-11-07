@@ -90,16 +90,22 @@ class CustomerDisplayController extends ChangeNotifier {
     required this.serverUrl,
     required this.voice,
     this.session,
+    this.profile,
     this.bootstrap,
     this.terminal,
+    this.ensureBoardToken,
+    this.ensureKitchenToken,
     CustomerDisplayRepository? repository,
   }) : _repository = repository ?? CustomerDisplayRepository();
 
   final String serverUrl;
   final CustomerVoiceService voice;
-  final PosSession? session;
-  final PosBootstrap? bootstrap;
-  final PosTerminalInfo? terminal;
+  PosSession? session;
+  StaffProfile? profile;
+  PosBootstrap? bootstrap;
+  PosTerminalInfo? terminal;
+  Future<String> Function()? ensureBoardToken;
+  Future<String> Function()? ensureKitchenToken;
   final CustomerDisplayRepository _repository;
 
   CustomerDisplayState state = const CustomerDisplayState();
@@ -107,6 +113,7 @@ class CustomerDisplayController extends ChangeNotifier {
   bool _cartMode = false;
   int? _routeBranchId;
   String? _routeTerminalCode;
+  int _consecutivePollFailures = 0;
   final Map<String, DateTime> _readyTokenEntryTimes = {};
   final Set<String> _permanentlyExpiredTokens = {};
   final Set<String> _announcedTokens = {};
@@ -119,6 +126,42 @@ class CustomerDisplayController extends ChangeNotifier {
   String get _todayKey {
     final now = DateTime.now();
     return 'cust_board_${now.year}_${now.month}_${now.day}';
+  }
+
+  void updateDependencies({
+    PosSession? session,
+    StaffProfile? profile,
+    PosBootstrap? bootstrap,
+    PosTerminalInfo? terminal,
+    Future<String> Function()? ensureBoardToken,
+    Future<String> Function()? ensureKitchenToken,
+  }) {
+    bool changed = false;
+    if (this.session != session) {
+      this.session = session;
+      changed = true;
+    }
+    if (this.profile != profile) {
+      this.profile = profile;
+      changed = true;
+    }
+    if (this.bootstrap != bootstrap) {
+      this.bootstrap = bootstrap;
+      changed = true;
+    }
+    if (this.terminal != terminal) {
+      this.terminal = terminal;
+      changed = true;
+    }
+    if (ensureBoardToken != null) {
+      this.ensureBoardToken = ensureBoardToken;
+    }
+    if (ensureKitchenToken != null) {
+      this.ensureKitchenToken = ensureKitchenToken;
+    }
+    if (changed) {
+      unawaited(_load());
+    }
   }
 
   Future<void> showOrderBoard() async {
@@ -172,11 +215,15 @@ class CustomerDisplayController extends ChangeNotifier {
     await refresh();
   }
 
-  Future<void> refresh() => _poll();
+  Future<void> refresh() {
+    _consecutivePollFailures = 0;
+    return _poll();
+  }
 
   Future<void> _load() async {
     final setup = await _repository.readSetup(
       session: session,
+      profile: profile,
       bootstrap: bootstrap,
       terminal: terminal,
     );
@@ -192,7 +239,10 @@ class CustomerDisplayController extends ChangeNotifier {
       showPrices: setup.showPrices,
     );
     notifyListeners();
-    if (state.needsSetup || state.terminalCode.trim().isEmpty) {
+    final setupMissing = _cartMode
+        ? (state.needsSetup || state.terminalCode.trim().isEmpty)
+        : (session == null && state.needsSetup);
+    if (setupMissing) {
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Customer display setup is missing.',
@@ -214,6 +264,7 @@ class CustomerDisplayController extends ChangeNotifier {
           terminalCode: state.terminalCode,
           syncToken: state.syncToken,
         );
+        _consecutivePollFailures = 0;
         state = state.copyWith(
           isLoading: false,
           cart: cart,
@@ -227,13 +278,30 @@ class CustomerDisplayController extends ChangeNotifier {
         return;
       }
 
+      String? boardToken;
+      if (ensureBoardToken != null) {
+        try {
+          boardToken = await ensureBoardToken!();
+        } catch (_) {}
+      }
+
+      String? kitchenToken;
+      if (ensureKitchenToken != null) {
+        try {
+          kitchenToken = await ensureKitchenToken!();
+        } catch (_) {}
+      }
+
       final board = await _repository.pollBoard(
         serverUrl: serverUrl,
         session: session,
         restaurantSlug: state.restaurantSlug,
         branchId: state.branchId,
         terminalCode: state.terminalCode,
+        boardToken: boardToken,
+        kitchenToken: kitchenToken,
       );
+      _consecutivePollFailures = 0;
       await _loadPersistedState();
       final now = DateTime.now();
       final freshReady = board.ready.where((order) {
@@ -305,22 +373,29 @@ class CustomerDisplayController extends ChangeNotifier {
 
       state = state.copyWith(
         isLoading: false,
+        restaurantName: board.restaurantName ?? state.restaurantName,
+        branchName: board.branchName ?? state.branchName,
+        terminalCode: board.terminalCode ?? state.terminalCode,
         preparing: board.preparing,
         ready: _orderedReadyOrders,
         history: board.history,
-        cart: board.cart,
         lastUpdated: DateTime.now(),
         clearError: true,
       );
       notifyListeners();
     } catch (error) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: error is CustomerDisplayException
-            ? error.message
-            : 'Customer display is waiting for the server.',
-      );
-      notifyListeners();
+      _consecutivePollFailures++;
+      final shouldShowError =
+          _consecutivePollFailures >= 3 || state.lastUpdated == null;
+      if (shouldShowError) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: error is CustomerDisplayException
+              ? error.message
+              : 'Customer display is waiting for the server.',
+        );
+        notifyListeners();
+      }
     }
   }
 

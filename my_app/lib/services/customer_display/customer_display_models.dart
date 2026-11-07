@@ -42,19 +42,37 @@ class CustomerDisplaySetup {
 
 class CustomerBoardSnapshot {
   const CustomerBoardSnapshot({
+    this.restaurantName,
+    this.branchName,
+    this.terminalCode,
     this.preparing = const [],
     this.ready = const [],
     this.history = const [],
     this.cart = const CustomerCart(active: false),
   });
 
+  final String? restaurantName;
+  final String? branchName;
+  final String? terminalCode;
   final List<CustomerDisplayOrder> preparing;
   final List<CustomerDisplayOrder> ready;
   final List<CustomerDisplayOrder> history;
   final CustomerCart cart;
 
   factory CustomerBoardSnapshot.fromJson(Map<String, dynamic> json) {
-    final data = _asMap(json['data']).isNotEmpty ? _asMap(json['data']) : json;
+    final rawData = json['data'];
+    final Map<String, dynamic> data;
+    final List<dynamic> rawList;
+    if (rawData is Map) {
+      data = Map<String, dynamic>.from(rawData);
+      rawList = const [];
+    } else if (rawData is List) {
+      data = json;
+      rawList = rawData;
+    } else {
+      data = _asMap(json['data']).isNotEmpty ? _asMap(json['data']) : json;
+      rawList = const [];
+    }
     final statusGroups = _asMap(
       data['orders_by_status'] ?? data['ordersByStatus'] ?? data['statuses'],
     );
@@ -104,7 +122,19 @@ class CustomerBoardSnapshot {
           data['recentOrders'] ??
           const [],
     );
-    final allOrders = _ordersFrom(data['orders'] ?? data['items'] ?? const []);
+    final allOrders = _ordersFrom(
+      data['orders'] ?? data['items'] ?? (rawList.isNotEmpty ? rawList : const []),
+    );
+
+    final restaurantName = _nullableText(
+      _firstValue(data, const ['restaurant_name', 'restaurantName', 'restaurant']),
+    );
+    final branchName = _nullableText(
+      _firstValue(data, const ['branch_name', 'branchName', 'branch']),
+    );
+    final terminalCode = _nullableText(
+      _firstValue(data, const ['terminal_code', 'terminalCode', 'terminal']),
+    );
 
     if (allOrders.isEmpty && historyFromApi.isEmpty) {
       final history = <CustomerDisplayOrder>[
@@ -112,6 +142,9 @@ class CustomerBoardSnapshot {
         ...preparingOrders,
       ];
       return CustomerBoardSnapshot(
+        restaurantName: restaurantName,
+        branchName: branchName,
+        terminalCode: terminalCode,
         preparing: preparingOrders.where((order) => !order.isHidden).toList(),
         ready: readyOrders.where((order) => !order.isHidden).toList(),
         history: history,
@@ -121,6 +154,9 @@ class CustomerBoardSnapshot {
 
     final mergedOrders = _dedupeOrders([...allOrders, ...historyFromApi]);
     return CustomerBoardSnapshot(
+      restaurantName: restaurantName,
+      branchName: branchName,
+      terminalCode: terminalCode,
       preparing: _dedupeOrders([
         ...preparingOrders,
         ...mergedOrders.where((order) => order.isPreparing),
@@ -178,6 +214,7 @@ class CustomerDisplayOrder {
       'accepted',
       'in_progress',
       'started',
+      'pending',
     }.contains(_normalizedStatus);
   }
 
@@ -195,6 +232,9 @@ class CustomerDisplayOrder {
       status.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
 
   factory CustomerDisplayOrder.fromJson(Map<String, dynamic> json) {
+    final nested = json['order'] is Map
+        ? Map<String, dynamic>.from(json['order'] as Map)
+        : null;
     final tokenValue =
         json['token'] ??
         json['token_no'] ??
@@ -204,15 +244,27 @@ class CustomerDisplayOrder {
         json['ticket_token'] ??
         json['ticketToken'] ??
         json['number'] ??
+        nested?['token'] ??
+        nested?['token_no'] ??
+        nested?['tokenNumber'] ??
+        nested?['token_number'] ??
         '-';
     return CustomerDisplayOrder(
-      id: (json['id'] ?? json['order_id'] ?? json['uuid'] ?? tokenValue)
+      id: (json['id'] ??
+              json['order_id'] ??
+              json['uuid'] ??
+              nested?['id'] ??
+              nested?['order_id'] ??
+              tokenValue)
           .toString(),
       orderNumber:
           (json['order_number'] ??
                   json['orderNumber'] ??
                   json['code'] ??
                   json['number'] ??
+                  nested?['order_number'] ??
+                  nested?['orderNumber'] ??
+                  nested?['code'] ??
                   '-')
               .toString(),
       token: tokenValue.toString(),
@@ -222,6 +274,11 @@ class CustomerDisplayOrder {
                   json['kitchenStatus'] ??
                   json['display_status'] ??
                   json['displayStatus'] ??
+                  json['order_status'] ??
+                  json['orderStatus'] ??
+                  nested?['status'] ??
+                  nested?['kitchen_status'] ??
+                  nested?['order_status'] ??
                   '')
               .toString(),
       items: _cartItemsFrom(
@@ -448,7 +505,14 @@ List<CustomerDisplayOrder> _ordersFrom(dynamic value) {
   if (value is! List) return const [];
   return value
       .whereType<Map>()
-      .map((item) => CustomerDisplayOrder.fromJson(Map.from(item)))
+      .map((item) {
+        try {
+          return CustomerDisplayOrder.fromJson(Map<String, dynamic>.from(item));
+        } catch (_) {
+          return null;
+        }
+      })
+      .whereType<CustomerDisplayOrder>()
       .toList();
 }
 

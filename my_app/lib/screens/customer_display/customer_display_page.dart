@@ -45,8 +45,11 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
       serverUrl: pos.serverUrl ?? '',
       voice: _voiceService,
       session: pos.session,
+      profile: pos.profile,
       bootstrap: pos.bootstrap,
       terminal: pos.selectedTerminal,
+      ensureBoardToken: pos.ensureBoardApiToken,
+      ensureKitchenToken: pos.ensureKitchenApiToken,
     );
     _controller.addListener(_onControllerTick);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -79,6 +82,15 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
 
   @override
   Widget build(BuildContext context) {
+    final pos = context.watch<PosController>();
+    _controller.updateDependencies(
+      session: pos.session,
+      profile: pos.profile,
+      bootstrap: pos.bootstrap,
+      terminal: pos.selectedTerminal,
+      ensureBoardToken: pos.ensureBoardApiToken,
+      ensureKitchenToken: pos.ensureKitchenApiToken,
+    );
     final state = _controller.state;
 
     return MouseRegion(
@@ -102,7 +114,9 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
                             _controlsVisible || constraints.maxWidth < 900,
                         fullscreen: _fullscreen,
                         onKitchenDisplay: _returnToKitchenDisplay,
-                        onSetup: () => _showSetupSheet(context, state),
+                        onSetup: pos.session == null
+                            ? () => _showSetupSheet(context, state)
+                            : null,
                         onFullscreen: _toggleFullscreen,
                         onLogout: _exitTokenDisplayToPos,
                         voiceEnabled: _voiceService.isEnabled,
@@ -150,12 +164,24 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
 
   void _exitTokenDisplayToPos() {
     if (!mounted) return;
-    Navigator.of(context).maybePop();
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final pos = context.read<PosController>();
+    unawaited(pos.clearWorkModeAndPick());
   }
 
   void _returnToKitchenDisplay() {
     if (!mounted) return;
-    Navigator.of(context).maybePop();
+    final pos = context.read<PosController>();
+    if (pos.canUseKitchen) {
+      unawaited(pos.switchWorkMode(PosWorkMode.kitchen));
+      return;
+    }
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _showSetupSheet(
@@ -230,8 +256,11 @@ class _CustomerCartDisplayPageState extends State<CustomerCartDisplayPage> {
       serverUrl: pos.serverUrl ?? '',
       voice: _voiceService,
       session: pos.session,
+      profile: pos.profile,
       bootstrap: pos.bootstrap,
       terminal: pos.selectedTerminal,
+      ensureBoardToken: pos.ensureBoardApiToken,
+      ensureKitchenToken: pos.ensureKitchenApiToken,
     );
     _controller.addListener(() {
       if (mounted) setState(() {});
@@ -281,6 +310,15 @@ class _CustomerCartDisplayPageState extends State<CustomerCartDisplayPage> {
 
   @override
   Widget build(BuildContext context) {
+    final pos = context.watch<PosController>();
+    _controller.updateDependencies(
+      session: pos.session,
+      profile: pos.profile,
+      bootstrap: pos.bootstrap,
+      terminal: pos.selectedTerminal,
+      ensureBoardToken: pos.ensureBoardApiToken,
+      ensureKitchenToken: pos.ensureKitchenApiToken,
+    );
     final state = _controller.state;
     final size = MediaQuery.sizeOf(context);
     final compact = size.width < 760;
@@ -955,7 +993,7 @@ class _TopBar extends StatelessWidget {
     required this.controlsVisible,
     required this.fullscreen,
     required this.onKitchenDisplay,
-    required this.onSetup,
+    this.onSetup,
     required this.onFullscreen,
     required this.onLogout,
     required this.voiceEnabled,
@@ -968,7 +1006,7 @@ class _TopBar extends StatelessWidget {
   final bool controlsVisible;
   final bool fullscreen;
   final VoidCallback onKitchenDisplay;
-  final VoidCallback onSetup;
+  final VoidCallback? onSetup;
   final VoidCallback onFullscreen;
   final VoidCallback onLogout;
   final bool voiceEnabled;
@@ -1188,7 +1226,7 @@ class _HoverControls extends StatelessWidget {
     required this.fullscreen,
     required this.voiceEnabled,
     required this.onSoundSettings,
-    required this.onSetup,
+    this.onSetup,
     required this.onFullscreen,
     required this.onLogout,
   });
@@ -1197,7 +1235,7 @@ class _HoverControls extends StatelessWidget {
   final bool fullscreen;
   final bool voiceEnabled;
   final VoidCallback onSoundSettings;
-  final VoidCallback onSetup;
+  final VoidCallback? onSetup;
   final VoidCallback onFullscreen;
   final VoidCallback onLogout;
 
@@ -1239,11 +1277,12 @@ class _HoverControls extends StatelessWidget {
                 icon: fullscreen ? Icons.fullscreen_exit : Icons.open_in_full,
                 onPressed: onFullscreen,
               ),
-              _HoverIconButton(
-                tooltip: context.tr('Display setup'),
-                icon: Icons.tune,
-                onPressed: onSetup,
-              ),
+              if (onSetup != null)
+                _HoverIconButton(
+                  tooltip: context.tr('Display setup'),
+                  icon: Icons.tune,
+                  onPressed: onSetup!,
+                ),
               _HoverIconButton(
                 tooltip: context.tr('Exit Token Display'),
                 icon: Icons.arrow_back_rounded,
@@ -1262,7 +1301,7 @@ class _CompactDisplayMenu extends StatelessWidget {
     required this.fullscreen,
     required this.voiceEnabled,
     required this.onSoundSettings,
-    required this.onSetup,
+    this.onSetup,
     required this.onFullscreen,
     required this.onLogout,
   });
@@ -1270,7 +1309,7 @@ class _CompactDisplayMenu extends StatelessWidget {
   final bool fullscreen;
   final bool voiceEnabled;
   final VoidCallback onSoundSettings;
-  final VoidCallback onSetup;
+  final VoidCallback? onSetup;
   final VoidCallback onFullscreen;
   final VoidCallback onLogout;
 
@@ -1286,7 +1325,7 @@ class _CompactDisplayMenu extends StatelessWidget {
           case 'full':
             onFullscreen();
           case 'setup':
-            onSetup();
+            onSetup?.call();
           case 'exit':
             onLogout();
         }
@@ -1300,7 +1339,8 @@ class _CompactDisplayMenu extends StatelessWidget {
           value: 'full',
           child: Text(fullscreen ? 'Exit fullscreen' : 'Fullscreen'),
         ),
-        const PopupMenuItem(value: 'setup', child: Text('Display setup')),
+        if (onSetup != null)
+          const PopupMenuItem(value: 'setup', child: Text('Display setup')),
         const PopupMenuItem(value: 'exit', child: Text('Exit token display')),
       ],
       child: Container(

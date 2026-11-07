@@ -66,10 +66,16 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
     if (!mounted || _autoSelecting) return;
     final pos = context.read<PosController>();
     if (pos.choosingWorkspaceBeforeLocation || pos.errorMessage != null) return;
+    if (pos.hasOrderBoardPermission ||
+        pos.staffAdminCapabilities.canAccessAdmin ||
+        pos.canViewStaffReports) {
+      return;
+    }
     final allowed = <PosWorkMode>[
       if (pos.canUseRegister) PosWorkMode.register,
       if (pos.canUseCaptain) PosWorkMode.waiter,
       if (pos.canUseKitchen) PosWorkMode.kitchen,
+      if (pos.hasOrderBoardPermission) PosWorkMode.tokenDisplay,
     ];
     if (allowed.length != 1) return;
     _autoSelecting = true;
@@ -102,6 +108,8 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
     final showRegister = pos.canUseRegister;
     final showCaptain = pos.canUseCaptain;
     final showKitchen = pos.canUseKitchen;
+    final showTokenDisplay =
+        pos.hasOrderBoardPermission || pos.canUseTokenDisplay;
 
     Widget modeTile({
       required String title,
@@ -194,6 +202,19 @@ class _ModePickerScreenState extends State<ModePickerScreen> {
                 icon: CupertinoIcons.person_2,
                 onTap: () => _select(PosWorkMode.waiter),
               ),
+            if (showTokenDisplay) ...[
+              if (showRegister || showKitchen || showCaptain)
+                const SizedBox(height: 8),
+              modeTile(
+                title: context.posText(
+                  'modePickerTokenDisplayTitle',
+                  'Token Display',
+                ),
+                subtitle: 'Live order board and calling display',
+                icon: Icons.tv_rounded,
+                onTap: () => _select(PosWorkMode.tokenDisplay),
+              ),
+            ],
             if (pos.staffAdminCapabilities.canAccessAdmin) ...[
               const SizedBox(height: 8),
               modeTile(

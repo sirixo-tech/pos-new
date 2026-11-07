@@ -690,6 +690,8 @@ class PosController extends ChangeNotifier {
 
   bool get isKitchenMode => workMode == PosWorkMode.kitchen;
 
+  bool get isTokenDisplayMode => workMode == PosWorkMode.tokenDisplay;
+
   bool get _hasKitchenOnlyAccess {
     final permissions = profile?.permissions;
     return permissions != null &&
@@ -734,6 +736,42 @@ class PosController extends ChangeNotifier {
     }
     return profile?.permissions.contains('access_kitchen') ?? false;
   }
+
+  /// Whether the current staff role has explicit order board / token display permission.
+  bool get hasOrderBoardPermission {
+    const candidates = [
+      'access_order_board',
+      'order_board',
+      'view_order_board',
+      'manage_order_board',
+      'access_board',
+      'board',
+      'view_board',
+      'manage_board',
+      'access_token_display',
+      'token_display',
+      'view_token_display',
+      'access_customer_display',
+      'customer_display',
+      'access_order_display',
+      'order_display',
+      'order_calling',
+      'token_calling',
+    ];
+    final perms = (profile?.permissions ?? bootstrap?.permissions ?? const <String>[])
+        .map((p) => p.trim().toLowerCase().replaceAll('-', '_'))
+        .toSet();
+    for (final cand in candidates) {
+      if (perms.contains(cand) || perms.contains(cand.replaceAll('_', ' '))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Token display / Order board display.
+  bool get canUseTokenDisplay =>
+      hasOrderBoardPermission || canUseKitchen || canUseRegister;
 
   int get _allowedWorkModeCount =>
       (canUseRegister ? 1 : 0) +
@@ -879,7 +917,7 @@ class PosController extends ChangeNotifier {
       case 'unpair':
         return caps.canManageSettings == true;
       case 'token_display':
-        return canUseKitchen;
+        return canUseTokenDisplay;
       case 'open_shift':
       case 'close_shift':
         // Current servers grant view_shifts. Older ones used manage_shifts.
@@ -929,13 +967,48 @@ class PosController extends ChangeNotifier {
       PosWorkMode.register => canUseRegister,
       PosWorkMode.waiter => canUseCaptain,
       PosWorkMode.kitchen => canUseKitchen,
+      PosWorkMode.tokenDisplay => canUseTokenDisplay,
     };
   }
 
   String? _kitchenTokenSessionKey;
+  String? _boardApiToken;
+  String? _boardTokenSessionKey;
+
+  Future<String> ensureBoardApiToken() async {
+    if (!canUseKitchen && !canUseTokenDisplay) {
+      throw StateError('Kitchen or Token Display access is not permitted.');
+    }
+    final current = session;
+    if (current == null) {
+      throw StateError('Not signed in.');
+    }
+    final key =
+        '${current.serverUrl}|${current.restaurantId}|${current.branchId}|${current.token}|board';
+    final cached = _boardTokenSessionKey == key ? _boardApiToken : null;
+    if (cached != null && cached.isNotEmpty) {
+      return cached;
+    }
+    for (final ability in const ['board', 'order_board', 'token_display', 'kitchen']) {
+      try {
+        final token = await _api.issueScopedToken(current, ability: ability);
+        if (identical(session, current)) {
+          _boardApiToken = token;
+          _boardTokenSessionKey = key;
+        }
+        debugPrint('[TokenDisplay] Minted scoped token for ability "$ability"');
+        return token;
+      } catch (e) {
+        debugPrint('[TokenDisplay] Scoped token ability "$ability" rejected: $e');
+      }
+    }
+    return current.token;
+  }
 
   Future<String> ensureKitchenApiToken() async {
-    if (!canUseKitchen) throw StateError('Kitchen access is not permitted.');
+    if (!canUseKitchen && !canUseTokenDisplay) {
+      throw StateError('Kitchen or Token Display access is not permitted.');
+    }
     final current = session;
     if (current == null) {
       throw StateError('Not signed in.');
@@ -946,12 +1019,17 @@ class PosController extends ChangeNotifier {
     if (cached != null && cached.isNotEmpty) {
       return cached;
     }
-    final token = await _api.issueScopedToken(current, ability: 'kitchen');
-    if (identical(session, current)) {
-      _kitchenApiToken = token;
-      _kitchenTokenSessionKey = key;
+    try {
+      final token = await _api.issueScopedToken(current, ability: 'kitchen');
+      if (identical(session, current)) {
+        _kitchenApiToken = token;
+        _kitchenTokenSessionKey = key;
+      }
+      return token;
+    } catch (_) {
+      // Fallback to active staff session token if scoped token creation fails.
+      return current.token;
     }
-    return token;
   }
 
   Future<void> initialize() async {
@@ -1735,6 +1813,7 @@ class PosController extends ChangeNotifier {
         final name = switch (selected) {
           PosWorkMode.waiter => 'Waiter / Captain',
           PosWorkMode.kitchen => 'Kitchen Display',
+          PosWorkMode.tokenDisplay => 'Token Display',
           PosWorkMode.register => 'Register POS',
         };
         errorMessage =
@@ -1751,13 +1830,18 @@ class PosController extends ChangeNotifier {
     if (!canUseRegister &&
         !canUseCaptain &&
         !canUseKitchen &&
-        (staffAdminCapabilities.canAccessAdmin || canViewStaffReports)) {
+        (staffAdminCapabilities.canAccessAdmin ||
+            canViewStaffReports ||
+            canUseTokenDisplay)) {
       workMode = null;
       return PosAppPhase.modePicker;
     }
-    if (!canUseRegister && !canUseCaptain && !canUseKitchen) {
+    if (!canUseRegister &&
+        !canUseCaptain &&
+        !canUseKitchen &&
+        !canUseTokenDisplay) {
       errorMessage =
-          'Your account does not have Register, Captain, or Kitchen access.';
+          'Your account does not have Register, Captain, Kitchen, or Token Display access.';
       return PosAppPhase.error;
     }
 
@@ -1772,8 +1856,11 @@ class PosController extends ChangeNotifier {
         if (canUseRegister) PosWorkMode.register,
         if (canUseCaptain) PosWorkMode.waiter,
         if (canUseKitchen) PosWorkMode.kitchen,
+        if (hasOrderBoardPermission) PosWorkMode.tokenDisplay,
       ];
-      if (allowed.length == 1) {
+      if (allowed.length == 1 &&
+          !staffAdminCapabilities.canAccessAdmin &&
+          !canViewStaffReports) {
         workMode = allowed.first;
         await PosWorkModeStorage.write(current.branchId, workMode!);
         return _resolveWorkModePhase(workMode!);
@@ -1790,8 +1877,13 @@ class PosController extends ChangeNotifier {
     return switch (mode) {
       PosWorkMode.waiter => _enterWaiterReadyPhase(),
       PosWorkMode.kitchen => _enterKitchenReadyPhase(),
+      PosWorkMode.tokenDisplay => _enterTokenDisplayReadyPhase(),
       PosWorkMode.register => _resolveTerminalPhase(),
     };
+  }
+
+  Future<PosAppPhase> _enterTokenDisplayReadyPhase() async {
+    return PosAppPhase.ready;
   }
 
   Future<PosAppPhase> _enterKitchenReadyPhase() async {
@@ -1885,7 +1977,9 @@ class PosController extends ChangeNotifier {
     }
     await PosWorkModeStorage.write(current.branchId, mode);
 
-    if (mode == PosWorkMode.waiter || mode == PosWorkMode.kitchen) {
+    if (mode == PosWorkMode.waiter ||
+        mode == PosWorkMode.kitchen ||
+        mode == PosWorkMode.tokenDisplay) {
       phase = PosAppPhase.ready;
       await _onEnteredReady();
       notifyListeners();
@@ -1923,7 +2017,7 @@ class PosController extends ChangeNotifier {
       return;
     }
 
-    if (mode == PosWorkMode.kitchen) {
+    if (mode == PosWorkMode.kitchen || mode == PosWorkMode.tokenDisplay) {
       _stopWaiterPolling();
       _stopRegisterAlertPolling();
       if (phase != PosAppPhase.ready) {
@@ -1954,8 +2048,6 @@ class PosController extends ChangeNotifier {
   Future<void> clearWorkModeAndPick() async {
     final current = session;
     if (current == null) return;
-    // Only staff with both modes should see the picker.
-    if (!canChooseWorkMode) return;
     await PosWorkModeStorage.clear(current.branchId);
     workMode = null;
     _stopWaiterPolling();

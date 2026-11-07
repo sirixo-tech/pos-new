@@ -202,6 +202,14 @@ class _KitchenShellState extends State<KitchenShell> {
                         ),
                       IconButton(
                         tooltip: context.posText(
+                          'kitchenTokenDisplay',
+                          'Token display',
+                        ),
+                        onPressed: () => _switchMode(PosWorkMode.tokenDisplay),
+                        icon: const Icon(Icons.tv_rounded),
+                      ),
+                      IconButton(
+                        tooltip: context.posText(
                           'kitchenSoundSettings',
                           'Sound settings',
                         ),
@@ -257,6 +265,8 @@ class _KitchenShellState extends State<KitchenShell> {
                               await showKotFilterOrderDialog(context);
                             case 'fullscreen':
                               await PosDisplayMode.toggle();
+                            case 'token_display':
+                              await _switchMode(PosWorkMode.tokenDisplay);
                             case 'register':
                               if (pos.canUseRegister) {
                                 await _switchMode(PosWorkMode.register);
@@ -326,6 +336,15 @@ class _KitchenShellState extends State<KitchenShell> {
                                 ),
                               ),
                             ),
+                          PopupMenuItem(
+                            value: 'token_display',
+                            child: Text(
+                              context.posText(
+                                'kitchenTokenDisplay',
+                                'Token display',
+                              ),
+                            ),
+                          ),
                           PopupMenuItem(
                             value: 'sounds',
                             child: Text(
