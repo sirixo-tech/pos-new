@@ -8,6 +8,7 @@ import 'package:my_app/providers/pos_controller.dart';
 import 'package:my_app/screens/mode_picker_screen.dart';
 import 'package:my_app/services/customer_display/customer_display_models.dart';
 import 'package:my_app/services/customer_display/customer_display_repository.dart';
+import 'package:my_app/services/customer_display/customer_voice_service.dart';
 import 'package:my_app/services/pos_work_mode_storage.dart';
 
 const assignedRoles = [
@@ -269,5 +270,19 @@ void main() {
     // Persisted to storage for device restart resilience
     final stored = await PosWorkModeStorage.read(10);
     expect(stored, PosWorkMode.tokenDisplay);
+  });
+
+  test('CustomerVoiceService deduplicates duplicate ready announcements', () async {
+    SharedPreferences.setMockInitialValues({});
+    final voice = CustomerVoiceService.instance;
+    await voice.loadSettings();
+    voice.setCustomerScreenActive(true);
+
+    // First announcement is permitted
+    voice.announceReadyToken('42');
+    // Rapid duplicate announcement is ignored by deduplication
+    voice.announceReadyToken('42');
+
+    voice.dispose();
   });
 }

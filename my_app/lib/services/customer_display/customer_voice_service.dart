@@ -57,6 +57,8 @@ class CustomerVoiceService {
   int _generation = 0;
   FlutterTts? _tts;
   final List<_Cue> _queue = [];
+  String? _currentlySpeakingToken;
+  final Map<String, DateTime> _recentlyAnnouncedTokens = {};
 
   bool newTokenSoundEnabled = false;
   String newTokenTone = 'ticket_ding';
@@ -171,7 +173,15 @@ class CustomerVoiceService {
   void announceReadyToken(Object token) {
     final tokenStr = token.toString().trim();
     if (tokenStr.isEmpty || !_screenActive || !readyVoiceEnabled) return;
+    final now = DateTime.now();
+    _recentlyAnnouncedTokens.removeWhere(
+      (_, timestamp) => now.difference(timestamp) > const Duration(seconds: 45),
+    );
+    if (_recentlyAnnouncedTokens.containsKey(tokenStr)) return;
+    if (_currentlySpeakingToken == tokenStr) return;
     if (_queue.any((cue) => cue is _Speak && cue.token == tokenStr)) return;
+
+    _recentlyAnnouncedTokens[tokenStr] = now;
     _queue.add(_Speak(tokenStr));
     unawaited(_processNext());
   }
@@ -204,30 +214,35 @@ class CustomerVoiceService {
           );
         }
       } else if (cue is _Speak && readyVoiceEnabled) {
-        final phrase = tokenReadyPhrase(cue.token, languageCode);
-        for (var pass = 0; pass < readyRepeats; pass++) {
-          if (!_screenActive ||
-              !readyVoiceEnabled ||
-              generation != _generation) {
-            break;
-          }
-          final spoke = await _speak(
-            phrase,
-            volume: readyVolume,
-            speed: speechSpeed,
-            pitch: speechPitch,
-            language: languageCode,
-          );
-          if (!spoke) {
-            await PosCartSound.instance.playTone(
-              'expo_bell',
+        _currentlySpeakingToken = cue.token;
+        try {
+          final phrase = tokenReadyPhrase(cue.token, languageCode);
+          for (var pass = 0; pass < readyRepeats; pass++) {
+            if (!_screenActive ||
+                !readyVoiceEnabled ||
+                generation != _generation) {
+              break;
+            }
+            final spoke = await _speak(
+              phrase,
               volume: readyVolume,
+              speed: speechSpeed,
+              pitch: speechPitch,
+              language: languageCode,
             );
-            break;
+            if (!spoke) {
+              await PosCartSound.instance.playTone(
+                'expo_bell',
+                volume: readyVolume,
+              );
+              break;
+            }
+            if (pass + 1 < readyRepeats) {
+              await Future<void>.delayed(const Duration(milliseconds: 450));
+            }
           }
-          if (pass + 1 < readyRepeats) {
-            await Future<void>.delayed(const Duration(milliseconds: 450));
-          }
+        } finally {
+          _currentlySpeakingToken = null;
         }
       }
     } catch (error) {
@@ -374,6 +389,8 @@ class CustomerVoiceService {
     _generation++;
     _queue.clear();
     _processing = false;
+    _currentlySpeakingToken = null;
+    _recentlyAnnouncedTokens.clear();
     unawaited(stopSystemVoice());
     unawaited(_tts?.stop());
   }

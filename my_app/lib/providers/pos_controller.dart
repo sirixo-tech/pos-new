@@ -996,29 +996,38 @@ class PosController extends ChangeNotifier {
     if (cached != null && cached.isNotEmpty) {
       return cached;
     }
-    for (final ability in const ['board', 'order_board', 'token_display', 'kitchen']) {
+    final candidateAbilities = [
+      'board',
+      'order_board',
+      'token_display',
+      if (canUseKitchen) 'kitchen',
+    ];
+    for (final ability in candidateAbilities) {
       try {
         final token = await _api.issueScopedToken(current, ability: ability);
         if (identical(session, current)) {
           _boardApiToken = token;
           _boardTokenSessionKey = key;
         }
-        debugPrint('[TokenDisplay] Minted scoped token for ability "$ability"');
         return token;
-      } catch (e) {
-        debugPrint('[TokenDisplay] Scoped token ability "$ability" rejected: $e');
+      } catch (_) {
+        // If the backend rejects the scoped ability, continue to fallback.
       }
+    }
+    if (identical(session, current)) {
+      _boardApiToken = current.token;
+      _boardTokenSessionKey = key;
     }
     return current.token;
   }
 
   Future<String> ensureKitchenApiToken() async {
-    if (!canUseKitchen && !canUseTokenDisplay) {
-      throw StateError('Kitchen or Token Display access is not permitted.');
-    }
     final current = session;
     if (current == null) {
       throw StateError('Not signed in.');
+    }
+    if (!canUseKitchen) {
+      return current.token;
     }
     final key =
         '${current.serverUrl}|${current.restaurantId}|${current.branchId}|${current.token}';
@@ -1035,6 +1044,10 @@ class PosController extends ChangeNotifier {
       return token;
     } catch (_) {
       // Fallback to active staff session token if scoped token creation fails.
+      if (identical(session, current)) {
+        _kitchenApiToken = current.token;
+        _kitchenTokenSessionKey = key;
+      }
       return current.token;
     }
   }

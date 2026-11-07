@@ -121,6 +121,7 @@ class CustomerDisplayController extends ChangeNotifier {
   List<CustomerDisplayOrder> _orderedReadyOrders = [];
   bool _persistedStateLoaded = false;
   bool _boardPrimed = false;
+  bool _isPolling = false;
   String? _loadedDay;
 
   String get _todayKey {
@@ -136,30 +137,22 @@ class CustomerDisplayController extends ChangeNotifier {
     Future<String> Function()? ensureBoardToken,
     Future<String> Function()? ensureKitchenToken,
   }) {
-    bool changed = false;
-    if (this.session != session) {
-      this.session = session;
-      changed = true;
-    }
-    if (this.profile != profile) {
-      this.profile = profile;
-      changed = true;
-    }
-    if (this.bootstrap != bootstrap) {
-      this.bootstrap = bootstrap;
-      changed = true;
-    }
-    if (this.terminal != terminal) {
-      this.terminal = terminal;
-      changed = true;
-    }
+    final locationChanged =
+        this.session?.restaurantId != session?.restaurantId ||
+        this.session?.branchId != session?.branchId ||
+        this.session?.serverUrl != session?.serverUrl ||
+        this.terminal?.code != terminal?.code;
+    this.session = session;
+    this.profile = profile;
+    this.bootstrap = bootstrap;
+    this.terminal = terminal;
     if (ensureBoardToken != null) {
       this.ensureBoardToken = ensureBoardToken;
     }
     if (ensureKitchenToken != null) {
       this.ensureKitchenToken = ensureKitchenToken;
     }
-    if (changed) {
+    if (locationChanged) {
       unawaited(_load());
     }
   }
@@ -256,6 +249,8 @@ class CustomerDisplayController extends ChangeNotifier {
   }
 
   Future<void> _poll() async {
+    if (_isPolling) return;
+    _isPolling = true;
     try {
       if (_cartMode) {
         final cart = await _repository.pollCart(
@@ -337,14 +332,16 @@ class CustomerDisplayController extends ChangeNotifier {
         if (!_readyTokenEntryTimes.containsKey(key)) {
           _readyTokenEntryTimes[key] = now;
           _orderedReadyOrders.insert(0, order);
-          if (!_announcedTokens.contains(key)) {
+          final displayToken = order.token.trim().isNotEmpty
+              ? order.token.trim()
+              : order.orderNumber.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '');
+          final tokenKey = 'tok:$displayToken';
+          if (displayToken.isNotEmpty &&
+              !_announcedTokens.contains(key) &&
+              !_announcedTokens.contains(tokenKey)) {
             _announcedTokens.add(key);
-            final displayToken = order.token.trim().isNotEmpty
-                ? order.token.trim()
-                : order.orderNumber.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '');
-            if (displayToken.isNotEmpty) {
-              voice.announceReadyToken(displayToken);
-            }
+            _announcedTokens.add(tokenKey);
+            voice.announceReadyToken(displayToken);
           }
         }
       }
@@ -396,6 +393,8 @@ class CustomerDisplayController extends ChangeNotifier {
         );
         notifyListeners();
       }
+    } finally {
+      _isPolling = false;
     }
   }
 
@@ -481,6 +480,7 @@ class CustomerDisplayController extends ChangeNotifier {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _isPolling = false;
     super.dispose();
   }
 }
