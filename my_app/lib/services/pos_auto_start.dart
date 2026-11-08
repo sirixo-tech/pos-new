@@ -81,26 +81,35 @@ class PosAutoStart {
     try {
       if (Platform.isWindows) {
         final exe = Platform.resolvedExecutable;
-        if (enabled) {
-          await Process.run('reg', [
-            'add',
-            r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run',
-            '/v',
-            'SelfxPOS',
-            '/t',
-            'REG_SZ',
-            '/d',
-            '"$exe"',
-            '/f',
-          ]);
-        } else {
-          await Process.run('reg', [
-            'delete',
-            r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run',
-            '/v',
-            'SelfxPOS',
-            '/f',
-          ]);
+        if (exe.toLowerCase().endsWith('.exe')) {
+          if (enabled) {
+            await Process.run('reg', [
+              'add',
+              r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run',
+              '/v',
+              'SELFX POS',
+              '/t',
+              'REG_SZ',
+              '/d',
+              '"$exe"',
+              '/f',
+            ]);
+          } else {
+            await Process.run('reg', [
+              'delete',
+              r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run',
+              '/v',
+              'SELFX POS',
+              '/f',
+            ]);
+            await Process.run('reg', [
+              'delete',
+              r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run',
+              '/v',
+              'SelfxPOS',
+              '/f',
+            ]);
+          }
         }
       }
     } catch (e) {
