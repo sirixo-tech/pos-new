@@ -5,6 +5,7 @@ import '../providers/pos_controller.dart';
 import '../config/pos_app_info.dart';
 import '../l10n/pos_l10n.dart';
 import '../models/pos_models.dart';
+import '../services/pos_auto_start.dart';
 import '../services/pos_display_mode.dart';
 import '../utils/marketplace_platform_ui.dart';
 import 'pos_more_menu.dart';
@@ -267,6 +268,14 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
             icon: Icons.link_off_rounded,
             label: l10n.shellClearPairing,
           ),
+        PosMoreMenuItem(
+          id: 'auto_start',
+          icon: Icons.power_settings_new_rounded,
+          label: context.posText('posAutoStartLabel', 'Auto-start on boot'),
+          subtitle: PosAutoStart.isEnabled
+              ? context.posText('commonEnabled', 'Enabled')
+              : context.posText('commonDisabled', 'Disabled'),
+        ),
         PosMoreMenuItem(
           id: 'about',
           icon: Icons.info_outline_rounded,

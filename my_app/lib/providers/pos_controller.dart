@@ -956,6 +956,7 @@ class PosController extends ChangeNotifier {
       case 'help':
       case 'about':
       case 'auto_lock':
+      case 'auto_start':
       case 'fullscreen':
       case 'logout':
         return true;

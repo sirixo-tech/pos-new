@@ -34,6 +34,7 @@ import 'screens/terminal_picker_screen.dart';
 import 'screens/waiter/waiter_shell.dart';
 import 'services/offline/offline.dart';
 import 'services/pos_api.dart';
+import 'services/pos_auto_start.dart';
 import 'services/customer_display/customer_voice_service.dart';
 import 'services/pos_cart_sound.dart';
 import 'services/pos_display_mode.dart';
@@ -111,6 +112,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
     _localeController = PosLocaleController()..load();
     _themeController = PosThemeController()..load();
     _idleLockController = PosIdleLockController()..load();
+    unawaited(PosAutoStart.initialize());
 
     _posController = PosController(
       api: _api,

@@ -7,6 +7,7 @@ import android.media.AudioManager
 import android.media.RingtoneManager
 import android.media.ToneGenerator
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -215,6 +216,48 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "ensurePermissions" -> ensureBluetoothPermissions(result)
                 "isRadioOn" -> result.success(isBluetoothRadioOn())
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "pos_main/auto_start",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isSupported" -> result.success(true)
+                "isEnabled" -> {
+                    val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                    val enabled = if (prefs.contains("flutter.pos_auto_start_enabled")) {
+                        prefs.getBoolean("flutter.pos_auto_start_enabled", true)
+                    } else {
+                        true
+                    }
+                    result.success(enabled)
+                }
+                "setEnabled" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: true
+                    try {
+                        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                        prefs.edit().putBoolean("flutter.pos_auto_start_enabled", enabled).apply()
+
+                        val component = ComponentName(this, BootReceiver::class.java)
+                        val state = if (enabled) {
+                            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                        } else {
+                            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                        }
+                        packageManager.setComponentEnabledSetting(
+                            component,
+                            state,
+                            PackageManager.DONT_KILL_APP
+                        )
+                        result.success(true)
+                    } catch (e: Throwable) {
+                        Log.e("MainActivity", "Failed to update BootReceiver component setting: ${e.message}", e)
+                        result.success(false)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

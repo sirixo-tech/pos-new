@@ -8,6 +8,7 @@ import '../widgets/cart_quick_pay_layout_dialog.dart';
 import '../widgets/pos_local_register_settings.dart';
 import '../widgets/pos_appearance_picker.dart';
 import '../widgets/pos_auto_lock_picker.dart';
+import '../widgets/pos_auto_start_picker.dart';
 import '../widgets/pos_catalog_layout_picker.dart';
 import '../widgets/pos_close_shift_dialog.dart';
 import '../widgets/pos_language_switcher.dart';
@@ -170,6 +171,8 @@ Future<void> handlePosRegisterMoreAction({
     if (context.mounted) await showPosAboutSheet(context);
   } else if (value == 'auto_lock') {
     await showPosAutoLockPicker(context);
+  } else if (value == 'auto_start') {
+    await showPosAutoStartPicker(context);
   } else if (value == 'fullscreen') {
     if (PosDisplayMode.supportsToggle) {
       final enabled = await PosDisplayMode.toggle();

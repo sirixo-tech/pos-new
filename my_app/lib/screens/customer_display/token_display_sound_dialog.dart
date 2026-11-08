@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/pos_l10n.dart';
 import '../../services/customer_display/customer_voice_service.dart';
+import '../../services/pos_auto_start.dart';
 import '../../services/pos_cart_sound.dart';
 import '../../theme/pos_theme.dart';
 import '../../widgets/pos_ui.dart';
@@ -44,13 +45,13 @@ class _TokenDisplaySoundDialogState extends State<_TokenDisplaySoundDialog> {
     final voice = _voice;
 
     return PosDialogShell(
-      title: 'Token display sound',
-      subtitle: 'Plays only while this token display is open.',
-      icon: Icons.campaign_outlined,
+      title: 'Token display settings',
+      subtitle: 'Audio announcements and device startup options.',
+      icon: Icons.tune_rounded,
       maxWidth: 480,
       onClose: () => Navigator.pop(context),
       body: SizedBox(
-        height: 520,
+        height: 560,
         child: _ready
             ? ListView(
                 children: [
@@ -197,6 +198,28 @@ class _TokenDisplaySoundDialogState extends State<_TokenDisplaySoundDialog> {
                       icon: const Icon(Icons.play_arrow_rounded),
                       label: const Text('Preview “Token number 4 ready”'),
                     ),
+                  ),
+                  const SizedBox(height: 18),
+                  _sectionTitle('Device startup'),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Automatically open the app when the TV or display device is powered on or restarted.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.35,
+                      color: PosTheme.inkMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _switchTile(
+                    soft: soft,
+                    title: 'Auto-start on boot',
+                    value: PosAutoStart.isEnabled,
+                    onChanged: (value) async {
+                      await PosAutoStart.setEnabled(value);
+                      if (mounted) setState(() {});
+                    },
                   ),
                 ],
               )

@@ -6,10 +6,12 @@ import '../../providers/kitchen_controller.dart';
 import '../../providers/pos_controller.dart';
 import '../../providers/pos_locale_controller.dart';
 import '../../services/kot_reset_time.dart';
+import '../../services/pos_auto_start.dart';
 import '../../services/pos_display_mode.dart';
 import '../../theme/pos_theme.dart';
 import '../../widgets/pos_app_update_ui.dart';
 import '../../widgets/pos_appearance_picker.dart';
+import '../../widgets/pos_auto_start_picker.dart';
 import '../../widgets/pos_language_switcher.dart';
 import '../../widgets/pos_sound_settings_dialog.dart';
 import '../../widgets/pos_ui.dart';
@@ -285,6 +287,11 @@ class _KitchenShellState extends State<KitchenShell> {
                               if (mounted) {
                                 await openPosUpdateCheckScreen(context);
                               }
+                            case 'auto_start':
+                              if (mounted) {
+                                await showPosAutoStartPicker(context);
+                                if (mounted) setState(() {});
+                              }
                             case 'logout':
                               await pos.logout();
                           }
@@ -363,6 +370,12 @@ class _KitchenShellState extends State<KitchenShell> {
                           PopupMenuItem(
                             value: 'updates',
                             child: Text(context.l10n.shellCheckForUpdates),
+                          ),
+                          PopupMenuItem(
+                            value: 'auto_start',
+                            child: Text(
+                              '${context.posText('posAutoStartLabel', 'Auto-start on boot')} · ${PosAutoStart.isEnabled ? context.posText('commonEnabled', 'Enabled') : context.posText('commonDisabled', 'Disabled')}',
+                            ),
                           ),
                           PopupMenuItem(
                             value: 'logout',

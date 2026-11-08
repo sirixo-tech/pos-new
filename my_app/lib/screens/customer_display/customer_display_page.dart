@@ -1269,7 +1269,7 @@ class _HoverControls extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _HoverIconButton(
-                tooltip: 'Sound settings',
+                tooltip: 'Sound & startup settings',
                 icon: voiceEnabled
                     ? Icons.volume_up_rounded
                     : Icons.volume_off_rounded,
@@ -1336,7 +1336,7 @@ class _CompactDisplayMenu extends StatelessWidget {
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'voice',
-          child: const Text('Sound settings'),
+          child: const Text('Sound & startup settings'),
         ),
         PopupMenuItem(
           value: 'full',

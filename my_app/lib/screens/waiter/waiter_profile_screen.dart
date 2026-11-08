@@ -6,9 +6,11 @@ import '../../providers/pos_controller.dart';
 import '../../providers/pos_idle_lock_controller.dart';
 import '../../providers/pos_theme_controller.dart';
 import '../../screens/admin/admin_shell.dart';
+import '../../services/pos_auto_start.dart';
 import '../../theme/pos_theme.dart';
 import '../../widgets/pos_appearance_picker.dart';
 import '../../widgets/pos_auto_lock_picker.dart';
+import '../../widgets/pos_auto_start_picker.dart';
 import '../../widgets/pos_language_switcher.dart';
 import '../../widgets/pos_ui.dart';
 
@@ -158,6 +160,19 @@ class WaiterProfileScreen extends StatelessWidget {
                 );
               },
             ),
+          ValueListenableBuilder<bool>(
+            valueListenable: PosAutoStart.notifier,
+            builder: (context, enabled, _) {
+              return _ActionTile(
+                icon: Icons.power_settings_new_rounded,
+                title: context.posText('posAutoStartLabel', 'Auto-start on boot'),
+                subtitle: enabled
+                    ? context.posText('commonEnabled', 'Enabled')
+                    : context.posText('commonDisabled', 'Disabled'),
+                onTap: () => showPosAutoStartPicker(context),
+              );
+            },
+          ),
           Builder(
             builder: (context) {
               final mode = context.select((PosThemeController c) => c.mode);
