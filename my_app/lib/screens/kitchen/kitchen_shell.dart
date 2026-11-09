@@ -193,7 +193,6 @@ class _KitchenShellState extends State<KitchenShell> {
                           ],
                         ),
                       ),
-                      if (!narrow) const KitchenKotFilterTuneButton(),
                       if (showLanguage && !narrow)
                         IconButton(
                           tooltip: context.l10n.shellLanguage,
@@ -341,11 +340,6 @@ class _KitchenShellState extends State<KitchenShell> {
                                   title: context.l10n.shellLanguage,
                                 ),
                               _buildMenuItem(
-                                value: 'filters',
-                                icon: Icons.filter_list_rounded,
-                                title: context.posText('kitchenFilters', 'Filters'),
-                              ),
-                              _buildMenuItem(
                                 value: 'fullscreen',
                                 icon: Icons.fullscreen_rounded,
                                 title: context.posText('kitchenFullscreen', 'Fullscreen'),
@@ -378,6 +372,19 @@ class _KitchenShellState extends State<KitchenShell> {
                             ),
                             const PopupMenuDivider(height: 1),
                             _buildMenuSectionHeader('KITCHEN SETTINGS'),
+                            _buildMenuItem(
+                              value: 'filters',
+                              icon: Icons.tune_rounded,
+                              iconColor: const Color(0xFF6366F1),
+                              title: context.posText(
+                                'kotRearrangeFilters',
+                                'Rearrange KOT filters',
+                              ),
+                              subtitle: context.posText(
+                                'kotRearrangeFiltersSubtitle',
+                                'Order channels & quick filters',
+                              ),
+                            ),
                             _buildMenuItem(
                               value: 'sounds',
                               icon: Icons.notifications_active_outlined,
