@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/pos_app_info.dart';
 import '../../l10n/pos_l10n.dart';
 import '../../providers/kitchen_controller.dart';
 import '../../providers/pos_controller.dart';
@@ -8,6 +9,7 @@ import '../../providers/pos_locale_controller.dart';
 import '../../services/kot_reset_time.dart';
 import '../../services/pos_auto_start.dart';
 import '../../services/pos_display_mode.dart';
+import '../../services/printing/scan_to_print_settings.dart';
 import '../../theme/pos_theme.dart';
 import '../../widgets/pos_app_update_ui.dart';
 import '../../widgets/pos_appearance_picker.dart';
@@ -254,8 +256,27 @@ class _KitchenShellState extends State<KitchenShell> {
                         ),
                       PopupMenuButton<String>(
                         tooltip: context.posText(
-                          'kitchenSwitchMode',
-                          'Switch mode',
+                          'kitchenMenuTooltip',
+                          'Kitchen options',
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: PosTheme.border),
+                        ),
+                        elevation: 14,
+                        shadowColor: Colors.black.withValues(alpha: 0.16),
+                        color: PosTheme.surface,
+                        constraints: const BoxConstraints(minWidth: 280, maxWidth: 320),
+                        padding: EdgeInsets.zero,
+                        icon: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: PosTheme.surfaceMuted,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: PosTheme.border),
+                          ),
+                          child: const Icon(Icons.more_vert_rounded, size: 20),
                         ),
                         onSelected: (value) async {
                           if (!mounted) return;
@@ -285,6 +306,7 @@ class _KitchenShellState extends State<KitchenShell> {
                             case 'printer_settings':
                               if (mounted) {
                                 await showKitchenPrinterSettingsDialog(context);
+                                if (mounted) setState(() {});
                               }
                             case 'kot_reset':
                               if (mounted) await _pickKotResetTime();
@@ -301,102 +323,121 @@ class _KitchenShellState extends State<KitchenShell> {
                               await pos.logout();
                           }
                         },
-                        itemBuilder: (context) => [
-                          if (narrow) ...[
-                            PopupMenuItem(
-                              value: 'appearance',
-                              child: Text(context.l10n.appearancePickerTitle),
-                            ),
-                            if (showLanguage)
-                              PopupMenuItem(
-                                value: 'language',
-                                child: Text(context.l10n.shellLanguage),
+                        itemBuilder: (context) {
+                          final printingOn = PosPrintingSettings.isEnabled;
+                          final autoStartOn = PosAutoStart.isEnabled;
+                          return [
+                            if (narrow) ...[
+                              _buildMenuSectionHeader('DISPLAY'),
+                              _buildMenuItem(
+                                value: 'appearance',
+                                icon: Icons.palette_outlined,
+                                title: context.l10n.appearancePickerTitle,
                               ),
-                            PopupMenuItem(
-                              value: 'filters',
-                              child: Text(
-                                context.posText('kitchenFilters', 'Filters'),
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'fullscreen',
-                              child: Text(
-                                context.posText(
-                                  'kitchenFullscreen',
-                                  'Fullscreen',
+                              if (showLanguage)
+                                _buildMenuItem(
+                                  value: 'language',
+                                  icon: Icons.language_rounded,
+                                  title: context.l10n.shellLanguage,
                                 ),
+                              _buildMenuItem(
+                                value: 'filters',
+                                icon: Icons.filter_list_rounded,
+                                title: context.posText('kitchenFilters', 'Filters'),
+                              ),
+                              _buildMenuItem(
+                                value: 'fullscreen',
+                                icon: Icons.fullscreen_rounded,
+                                title: context.posText('kitchenFullscreen', 'Fullscreen'),
+                              ),
+                              const PopupMenuDivider(height: 1),
+                            ],
+                            _buildMenuSectionHeader('WORKSPACES'),
+                            if (pos.canUseRegister)
+                              _buildMenuItem(
+                                value: 'register',
+                                icon: Icons.point_of_sale_rounded,
+                                iconColor: const Color(0xFF2563EB),
+                                title: context.posText('kitchenSwitchRegister', 'Register POS'),
+                                subtitle: 'Billing, orders & register',
+                              ),
+                            if (pos.canUseCaptain)
+                              _buildMenuItem(
+                                value: 'waiter',
+                                icon: Icons.room_service_rounded,
+                                iconColor: const Color(0xFFEA580C),
+                                title: context.posText('kitchenSwitchWaiter', 'Waiter / Captain'),
+                                subtitle: 'Table orders & captain',
+                              ),
+                            _buildMenuItem(
+                              value: 'token_display',
+                              icon: Icons.tv_rounded,
+                              iconColor: const Color(0xFF7C3AED),
+                              title: context.posText('kitchenTokenDisplay', 'Token display'),
+                              subtitle: 'Customer token board',
+                            ),
+                            const PopupMenuDivider(height: 1),
+                            _buildMenuSectionHeader('KITCHEN SETTINGS'),
+                            _buildMenuItem(
+                              value: 'sounds',
+                              icon: Icons.notifications_active_outlined,
+                              iconColor: const Color(0xFF0D9488),
+                              title: context.posText('kitchenSoundSettings', 'Sound settings'),
+                              subtitle: 'New ticket chimes & volume',
+                            ),
+                            _buildMenuItem(
+                              value: 'printer_settings',
+                              icon: printingOn ? Icons.print_outlined : Icons.eco_rounded,
+                              iconColor: printingOn ? const Color(0xFF0284C7) : const Color(0xFF059669),
+                              title: context.posText('kitchenPrinterSettings', 'Printer & tickets'),
+                              subtitle: printingOn ? 'Printing active' : 'Paperless Mode',
+                              trailing: _menuPill(
+                                text: printingOn ? 'ACTIVE' : 'PAPERLESS',
+                                color: printingOn ? const Color(0xFF0284C7) : const Color(0xFF059669),
+                                bg: printingOn ? const Color(0xFFE0F2FE) : const Color(0xFFD1FAE5),
                               ),
                             ),
-                          ],
-                          if (pos.canUseRegister)
-                            PopupMenuItem(
-                              value: 'register',
-                              child: Text(
-                                context.posText(
-                                  'kitchenSwitchRegister',
-                                  'Register POS',
-                                ),
+                            _buildMenuItem(
+                              value: 'kot_reset',
+                              icon: Icons.cleaning_services_outlined,
+                              iconColor: const Color(0xFFD97706),
+                              title: context.posText('kitchenKotFlush', 'KOT flush'),
+                              subtitle: KotResetTimeSettings.label(kitchen.kotResetTime),
+                              trailing: _menuPill(
+                                text: KotResetTimeSettings.label(kitchen.kotResetTime),
+                                color: const Color(0xFFD97706),
+                                bg: const Color(0xFFFEF3C7),
                               ),
                             ),
-                          if (pos.canUseCaptain)
-                            PopupMenuItem(
-                              value: 'waiter',
-                              child: Text(
-                                context.posText(
-                                  'kitchenSwitchWaiter',
-                                  'Waiter / Captain',
-                                ),
+                            const PopupMenuDivider(height: 1),
+                            _buildMenuSectionHeader('DEVICE & SYSTEM'),
+                            _buildMenuItem(
+                              value: 'auto_start',
+                              icon: Icons.power_settings_new_rounded,
+                              iconColor: autoStartOn ? const Color(0xFF16A34A) : PosTheme.inkMuted,
+                              title: context.posText('posAutoStartLabel', 'Auto-start on boot'),
+                              subtitle: autoStartOn ? 'Launches on power on' : 'Disabled',
+                              trailing: _menuPill(
+                                text: autoStartOn ? 'ON' : 'OFF',
+                                color: autoStartOn ? const Color(0xFF16A34A) : PosTheme.inkMuted,
+                                bg: autoStartOn ? const Color(0xFFDCFCE7) : PosTheme.surfaceMuted,
                               ),
                             ),
-                          PopupMenuItem(
-                            value: 'token_display',
-                            child: Text(
-                              context.posText(
-                                'kitchenTokenDisplay',
-                                'Token display',
-                              ),
+                            _buildMenuItem(
+                              value: 'updates',
+                              icon: Icons.system_update_alt_rounded,
+                              iconColor: const Color(0xFF4F46E5),
+                              title: context.l10n.shellCheckForUpdates,
+                              subtitle: 'Version ${PosAppInfo.versionLabel}',
                             ),
-                          ),
-                          PopupMenuItem(
-                            value: 'sounds',
-                            child: Text(
-                              context.posText(
-                                'kitchenSoundSettings',
-                                'Sound settings',
-                              ),
+                            _buildMenuItem(
+                              value: 'logout',
+                              icon: Icons.logout_rounded,
+                              title: context.l10n.commonSignOut,
+                              destructive: true,
                             ),
-                          ),
-                          PopupMenuItem(
-                            value: 'printer_settings',
-                            child: Text(
-                              context.posText(
-                                'kitchenPrinterSettings',
-                                'Printer & ticket settings',
-                              ),
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: 'kot_reset',
-                            child: Text(
-                              '${context.posText('kitchenKotFlush', 'KOT flush')} · ${KotResetTimeSettings.label(kitchen.kotResetTime)}',
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: 'updates',
-                            child: Text(context.l10n.shellCheckForUpdates),
-                          ),
-                          PopupMenuItem(
-                            value: 'auto_start',
-                            child: Text(
-                              '${context.posText('posAutoStartLabel', 'Auto-start on boot')} · ${PosAutoStart.isEnabled ? context.posText('commonEnabled', 'Enabled') : context.posText('commonDisabled', 'Disabled')}',
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: 'logout',
-                            child: Text(context.l10n.commonSignOut),
-                          ),
-                        ],
-                        icon: const Icon(Icons.more_vert_rounded),
+                          ];
+                        },
                       ),
                       if (canGoBack)
                         IconButton(
@@ -462,6 +503,112 @@ class _KitchenShellState extends State<KitchenShell> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _buildMenuItem({
+    required String value,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    Widget? trailing,
+    bool destructive = false,
+    Color? iconColor,
+  }) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final errorColor = Theme.of(context).colorScheme.error;
+    final fg = destructive ? errorColor : (iconColor ?? accent);
+    final bg = destructive
+        ? errorColor.withValues(alpha: 0.1)
+        : (iconColor != null
+            ? iconColor.withValues(alpha: 0.12)
+            : posAccentSoft(accent).bg);
+
+    return PopupMenuItem<String>(
+      value: value,
+      height: subtitle != null ? 52 : 44,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 17, color: fg),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: destructive ? errorColor : PosTheme.ink,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: PosTheme.inkMuted,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (trailing != null) trailing,
+        ],
+      ),
+    );
+  }
+
+  PopupMenuEntry<String> _buildMenuSectionHeader(String title) {
+    return PopupMenuItem<String>(
+      enabled: false,
+      height: 28,
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+          color: PosTheme.inkFaint,
+        ),
+      ),
+    );
+  }
+
+  Widget _menuPill({
+    required String text,
+    required Color color,
+    required Color bg,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
       ),
     );
   }

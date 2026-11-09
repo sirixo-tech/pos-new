@@ -77,12 +77,64 @@ class _KitchenPrinterSettingsDialogState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (!_printingEnabled) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.eco_rounded,
+                            color: Color(0xFF059669),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              context.posText(
+                                'kitchenPaperlessBanner',
+                                'Paperless Mode Active: Tickets appear on this board without attempting physical printing or showing printer error popups.',
+                              ),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF065F46),
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   _switchCard(
                     soft: soft,
+                    icon: _printingEnabled
+                        ? Icons.print_rounded
+                        : Icons.eco_rounded,
                     title: context.posText(
                       'kitchenPrintingEnabled',
                       'Printing on this screen',
                     ),
+                    badge: _printingEnabled
+                        ? _statusPill(
+                            'ACTIVE',
+                            const Color(0xFF0284C7),
+                            const Color(0xFFE0F2FE),
+                          )
+                        : _statusPill(
+                            'PAPERLESS',
+                            const Color(0xFF059669),
+                            const Color(0xFFD1FAE5),
+                          ),
                     subtitle: _printingEnabled
                         ? context.posText(
                             'kitchenPrintingEnabledHelp',
@@ -108,6 +160,7 @@ class _KitchenPrinterSettingsDialogState
                   const SizedBox(height: 10),
                   _switchCard(
                     soft: soft,
+                    icon: Icons.receipt_long_rounded,
                     enabled: _printingEnabled,
                     title: context.posText(
                       'kitchenAutoKot',
@@ -133,6 +186,7 @@ class _KitchenPrinterSettingsDialogState
                   const SizedBox(height: 10),
                   _switchCard(
                     soft: soft,
+                    icon: Icons.notifications_active_outlined,
                     enabled: _printingEnabled,
                     title: context.posText(
                       'kitchenFailurePopup',
@@ -191,41 +245,106 @@ class _KitchenPrinterSettingsDialogState
 
   Widget _switchCard({
     required ({Color bg, Color fg}) soft,
+    required IconData icon,
     required String title,
     required String subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
+    Widget? badge,
     bool enabled = true,
   }) {
     final active = enabled && value;
     return Material(
       color: active ? soft.bg : PosTheme.surfaceMuted,
       borderRadius: BorderRadius.circular(12),
-      child: SwitchListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-            color: active
-                ? soft.fg
-                : (enabled ? PosTheme.ink : PosTheme.inkFaint),
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.3,
-              color: enabled ? PosTheme.inkMuted : PosTheme.inkFaint,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: active
+                    ? Colors.white.withValues(alpha: 0.25)
+                    : PosTheme.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: active
+                      ? Colors.white.withValues(alpha: 0.35)
+                      : PosTheme.border,
+                ),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: active
+                    ? soft.fg
+                    : (enabled ? PosTheme.inkMuted : PosTheme.inkFaint),
+              ),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13.5,
+                            color: active
+                                ? soft.fg
+                                : (enabled ? PosTheme.ink : PosTheme.inkFaint),
+                          ),
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 8),
+                        badge,
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.3,
+                      color: enabled ? PosTheme.inkMuted : PosTheme.inkFaint,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Switch(
+              value: value,
+              onChanged: enabled ? onChanged : null,
+            ),
+          ],
         ),
-        value: value,
-        onChanged: enabled ? onChanged : null,
+      ),
+    );
+  }
+
+  Widget _statusPill(String text, Color color, Color bg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
       ),
     );
   }

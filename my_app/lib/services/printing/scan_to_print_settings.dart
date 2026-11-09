@@ -14,6 +14,8 @@ const _printingEnabledKey = 'pos_printing_enabled';
 class PosPrintingSettings {
   PosPrintingSettings._();
 
+  static bool _enabled = true;
+  static bool get isEnabled => _enabled;
   static final List<void Function()> _listeners = [];
 
   static void addListener(void Function() listener) {
@@ -26,10 +28,12 @@ class PosPrintingSettings {
 
   static Future<bool> enabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_printingEnabledKey) ?? true;
+    _enabled = prefs.getBool(_printingEnabledKey) ?? true;
+    return _enabled;
   }
 
   static Future<void> setEnabled(bool value) async {
+    _enabled = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_printingEnabledKey, value);
     for (final listener in List<void Function()>.of(_listeners)) {
