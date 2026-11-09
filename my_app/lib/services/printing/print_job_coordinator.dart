@@ -176,6 +176,9 @@ class PrintJobCoordinator extends ChangeNotifier {
     final number = orderNumber.trim();
     if (number.isEmpty && orderId <= 0) return;
 
+    // If printing is disabled on this device (paperless mode), bypass immediately.
+    if (!await PosPrintingSettings.enabled()) return;
+
     // This register's switch decides automatic tickets, including a sale
     // taken at the counter. The backend KOT switch must not force a print.
     if (!await AutoPrintKotSettings.enabled()) return;
@@ -205,6 +208,7 @@ class PrintJobCoordinator extends ChangeNotifier {
     String? orderNumber,
   }) async {
     if (!PosReceiptPrinter.isSupported) return;
+    if (!await PosPrintingSettings.enabled()) return;
     if (!PosChannelPrintPolicy.resolve().printsAnyReceiptJob) {
       debugPrint(
         '[PRINT] skip receipt — customer and counter receipts are off for POS',
@@ -410,6 +414,14 @@ class PrintJobCoordinator extends ChangeNotifier {
           break;
         }
         final job = _queue.removeFirst();
+        if (!await PosPrintingSettings.enabled()) {
+          _completed.add(job.jobKey);
+          _failed.remove(job.jobKey);
+          ackFailure(job.jobKey);
+          await PendingPrintJobStore.markDone(job.jobKey);
+          _remember(job.jobKey);
+          continue;
+        }
         try {
           if (job.kind == PrintJobKind.kot) {
             await _printKot(job);
@@ -470,19 +482,21 @@ class PrintJobCoordinator extends ChangeNotifier {
             if (job.kind == PrintJobKind.kot &&
                 !isKotNotReady(error) &&
                 !isPrintingDisabled(error)) {
-              _offerKotFailure(
-                PrintJobFailure(
-                  kind: job.kind,
-                  orderNumber: job.orderNumber,
-                  orderId: job.orderId,
-                  isPaperOut: isPrinterPaperOut(error),
-                  isDisconnected: isPrinterDisconnected(error),
-                  error: error,
-                  jobKey: job.jobKey,
-                  source: job.source,
-                  cashier: job.cashier,
-                ),
-              );
+              if (await KotFailurePopupSettings.enabled()) {
+                _offerKotFailure(
+                  PrintJobFailure(
+                    kind: job.kind,
+                    orderNumber: job.orderNumber,
+                    orderId: job.orderId,
+                    isPaperOut: isPrinterPaperOut(error),
+                    isDisconnected: isPrinterDisconnected(error),
+                    error: error,
+                    jobKey: job.jobKey,
+                    source: job.source,
+                    cashier: job.cashier,
+                  ),
+                );
+              }
             }
             notifyListeners();
           }

@@ -3,6 +3,40 @@ import 'package:shared_preferences/shared_preferences.dart';
 const _autoPrintKotOnNewOrderKey = 'pos_auto_print_kot_on_new_order';
 const _clearHandoffOnScanPrintKey = 'pos_clear_handoff_on_scan_print';
 const _showKotFailurePopupKey = 'pos_show_kot_print_failed_popup';
+const _printingEnabledKey = 'pos_printing_enabled';
+
+/// Device-level preference for whether physical printing is active on this device.
+///
+/// When true (default), printing proceeds normally using configured printers.
+/// When false (paperless mode), all background print jobs (receipts and KOTs)
+/// are cleanly skipped with zero error popups, allowing restaurants with no printers
+/// to operate purely digitally via KDS and Token Displays.
+class PosPrintingSettings {
+  PosPrintingSettings._();
+
+  static final List<void Function()> _listeners = [];
+
+  static void addListener(void Function() listener) {
+    _listeners.add(listener);
+  }
+
+  static void removeListener(void Function() listener) {
+    _listeners.remove(listener);
+  }
+
+  static Future<bool> enabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_printingEnabledKey) ?? true;
+  }
+
+  static Future<void> setEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_printingEnabledKey, value);
+    for (final listener in List<void Function()>.of(_listeners)) {
+      listener();
+    }
+  }
+}
 
 /// Device preference for scan-to-print (first scan prints immediately).
 class ScanToPrintSettings {

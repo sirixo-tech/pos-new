@@ -89,6 +89,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   String? _deviceName;
   String? _usbError;
   String? _bluetoothError;
+  bool _printingEnabled = true;
   bool _autoPrintKotOnNewOrder = true;
   bool _clearHandoffOnScanPrint = true;
   bool _showKotFailurePopup = true;
@@ -145,15 +146,29 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   }
 
   Future<void> _loadScanSettings() async {
+    final printing = await PosPrintingSettings.enabled();
     final autoKot = await AutoPrintKotSettings.enabled();
     final handoff = await ScanToPrintSettings.clearHandoffOnScanPrint();
     final failurePopup = await KotFailurePopupSettings.enabled();
     if (!mounted) return;
     setState(() {
+      _printingEnabled = printing;
       _autoPrintKotOnNewOrder = autoKot;
       _clearHandoffOnScanPrint = handoff;
       _showKotFailurePopup = failurePopup;
     });
+  }
+
+  Future<void> _setPrintingEnabled(bool value) async {
+    setState(() => _printingEnabled = value);
+    await PosPrintingSettings.setEnabled(value);
+    if (!mounted) return;
+    showPosSnackBar(
+      context,
+      value
+          ? 'Printing enabled on this device'
+          : 'Paperless Mode enabled (no physical printing or error popups)',
+    );
   }
 
   Future<void> _setAutoPrintKotOnNewOrder(bool value) async {
@@ -677,6 +692,17 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
                 Text(
                   'Printing options',
                   style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 8),
+                _AutoPrintKotOptionsCard(
+                  accent: accent,
+                  soft: soft,
+                  enabled: _printingEnabled,
+                  onChanged: _setPrintingEnabled,
+                  title: 'Printing on this device',
+                  help: _printingEnabled
+                      ? 'Physical printing is active. Receipts and kitchen tickets will print.'
+                      : 'Paperless Mode active. Orders are managed digitally via KDS and Token Display without physical printers or error alerts.',
                 ),
                 const SizedBox(height: 8),
                 _ScanToPrintOptionsCard(accent: accent, soft: soft),

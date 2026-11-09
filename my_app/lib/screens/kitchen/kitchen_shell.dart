@@ -18,6 +18,7 @@ import '../../widgets/pos_ui.dart';
 import '../pos_update_check_screen.dart';
 import 'kitchen_board_screen.dart';
 import 'kitchen_channel_filter.dart';
+import 'kitchen_printer_settings_dialog.dart';
 import 'kot_filter_order_dialog.dart';
 
 /// Kitchen / KOT display shell for wall-mounted tablets.
@@ -281,6 +282,10 @@ class _KitchenShellState extends State<KitchenShell> {
                               if (mounted) {
                                 await showKitchenSoundSettingsDialog(context);
                               }
+                            case 'printer_settings':
+                              if (mounted) {
+                                await showKitchenPrinterSettingsDialog(context);
+                              }
                             case 'kot_reset':
                               if (mounted) await _pickKotResetTime();
                             case 'updates':
@@ -358,6 +363,15 @@ class _KitchenShellState extends State<KitchenShell> {
                               context.posText(
                                 'kitchenSoundSettings',
                                 'Sound settings',
+                              ),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'printer_settings',
+                            child: Text(
+                              context.posText(
+                                'kitchenPrinterSettings',
+                                'Printer & ticket settings',
                               ),
                             ),
                           ),

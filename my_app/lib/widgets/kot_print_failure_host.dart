@@ -27,6 +27,7 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
   @override
   void initState() {
     super.initState();
+    PosPrintingSettings.addListener(_onPopupSetting);
     KotFailurePopupSettings.addListener(_onPopupSetting);
   }
 
@@ -48,6 +49,7 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
 
   @override
   void dispose() {
+    PosPrintingSettings.removeListener(_onPopupSetting);
     KotFailurePopupSettings.removeListener(_onPopupSetting);
     unawaited(_sub?.cancel());
     super.dispose();
@@ -61,8 +63,14 @@ class _KotPrintFailureHostState extends State<KotPrintFailureHost> {
     _pumping = true;
     unawaited(() async {
       try {
+        final printingEnabled = await PosPrintingSettings.enabled();
         final showPopup = await KotFailurePopupSettings.enabled();
-        if (!mounted || _modalOpen || !showPopup) return;
+        if (!mounted || _modalOpen || !printingEnabled || !showPopup) {
+          if (!printingEnabled) {
+            coordinator.ackAllFailures();
+          }
+          return;
+        }
         final current = _coordinator;
         if (current == null) return;
         final pending = current.pendingKotFailures;

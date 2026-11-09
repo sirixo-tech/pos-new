@@ -28,7 +28,10 @@ bool isPrintingDisabled(Object error) {
       text.contains('customer and counter receipts are disabled')) {
     return true;
   }
-  if (text.contains('nothing to print')) {
+  if (text.contains('nothing to print') ||
+      text.contains('paperless') ||
+      text.contains('printing is disabled') ||
+      text.contains('printing disabled')) {
     return true;
   }
   if ((text.contains('enable kot') || text.contains('kot disabled')) &&
