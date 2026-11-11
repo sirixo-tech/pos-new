@@ -36,6 +36,9 @@ import '../utils/media_url.dart';
 import '../utils/outside_schedule.dart';
 import '../utils/order_barcode_scan.dart';
 import '../utils/pos_layout.dart';
+import '../services/scale/scale_link.dart';
+import '../widgets/pos_weighing_station.dart';
+import '../widgets/weighed_item_sheet.dart';
 import '../widgets/cash_register_sheet.dart';
 import '../widgets/collect_payment_sheet.dart';
 import '../widgets/day_end_reports_sheet.dart';
@@ -577,6 +580,10 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
       if (!ok || !mounted) return;
     }
 
+    if (item.soldByWeight) {
+      await showWeighedItemSheet(context, pos: pos, item: item);
+      return;
+    }
     if (item.hasOptions) {
       await ModifierSheet.show(context, item);
       return;
@@ -1125,6 +1132,13 @@ class _PosShellState extends State<PosShell> with WidgetsBindingObserver {
   }) async {
     final pos = context.read<PosController>();
     if (!orderOnly) {
+      final weighed = pos.takeWeighedLabel(payload);
+      if (weighed.handled) {
+        if (weighed.error != null && mounted) {
+          showPosSnackBar(context, weighed.error!, error: true);
+        }
+        return true;
+      }
       final match = pos.matchBarcode(payload);
       if (match != null) {
         return _addScannedItem(pos, match);
@@ -1820,10 +1834,16 @@ class _SearchStripState extends State<_SearchStrip> {
         vertical: usePosHandheldLayout(context) ? 6 : 10,
       ),
       child: ListenableBuilder(
-        listenable: PaymentSessionManager.instance,
+        listenable: Listenable.merge([
+          PaymentSessionManager.instance,
+          ScaleLink.instance,
+        ]),
         builder: (context, _) {
           final held = _pendingHeldQr();
-          return PosSearchField(
+          final weighingOn = context.select<PosController, bool>(
+            (pos) => pos.bootstrap?.restaurant.weighing.enabled == true,
+          );
+          final search = PosSearchField(
             controller: widget.controller,
             focusNode: widget.focusNode,
             onChanged: _onQueryChanged,
@@ -1843,6 +1863,15 @@ class _SearchStripState extends State<_SearchStrip> {
                 : () => widget.onHeldQr!(held),
             heldQrLabel: held == null ? null : 'Pending UPI QR',
           );
+          if (!weighingOn) return search;
+          final connected = ScaleLink.instance.connected;
+          return Row(
+            children: [
+              Expanded(child: search),
+              const SizedBox(width: 8),
+              _WeighButton(connected: connected),
+            ],
+          );
         },
       ),
     );
@@ -1859,6 +1888,61 @@ class _SearchStripState extends State<_SearchStrip> {
       latest = session;
     }
     return latest;
+  }
+}
+
+class _WeighButton extends StatelessWidget {
+  const _WeighButton({required this.connected});
+
+  final bool connected;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = PosTheme.accent;
+    return Tooltip(
+      message: connected ? 'Weighing station, scale connected' : 'Weighing station',
+      child: Material(
+        color: connected ? accent.withValues(alpha: 0.08) : PosTheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => showPosWeighingStation(context),
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: PosTheme.border.withValues(alpha: 0.95)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.scale_outlined, size: 16, color: accent),
+                const SizedBox(width: 6),
+                Text(
+                  'Weight',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: PosTheme.ink,
+                  ),
+                ),
+                if (connected) ...[
+                  const SizedBox(width: 6),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Color(0xFF16A34A),
+                      shape: BoxShape.circle,
+                    ),
+                    child: SizedBox(width: 6, height: 6),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

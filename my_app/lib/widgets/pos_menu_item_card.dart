@@ -92,6 +92,11 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
     return minPrice;
   }
 
+  String _priceText() {
+    final money = formatMoney(_minDisplayPrice(), widget.currency);
+    return widget.item.soldByWeight ? '$money/kg' : money;
+  }
+
   @override
   Widget build(BuildContext context) {
     final primary = widget.accent ?? Theme.of(context).colorScheme.primary;
@@ -448,7 +453,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                                 size: 12,
                               ),
                             Text(
-                              '${widget.item.variants.isNotEmpty ? '${context.l10n.menuFrom} ' : ''}${formatMoney(_minDisplayPrice(), widget.currency)}',
+                              '${widget.item.variants.isNotEmpty ? '${context.l10n.menuFrom} ' : ''}${_priceText()}',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -644,7 +649,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                   ],
                   Expanded(
                     child: Text(
-                      '${widget.item.variants.isNotEmpty ? '${context.l10n.menuFrom} ' : ''}${formatMoney(_minDisplayPrice(), widget.currency)}',
+                      '${widget.item.variants.isNotEmpty ? '${context.l10n.menuFrom} ' : ''}${_priceText()}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -942,11 +947,8 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                                 Expanded(
                                   child: Text(
                                     showFromPrice
-                                        ? '${context.l10n.menuFrom} ${formatMoney(_minDisplayPrice(), widget.currency)}'
-                                        : formatMoney(
-                                            _minDisplayPrice(),
-                                            widget.currency,
-                                          ),
+                                        ? '${context.l10n.menuFrom} ${_priceText()}'
+                                        : _priceText(),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -1151,10 +1153,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                formatMoney(
-                                  _minDisplayPrice(),
-                                  widget.currency,
-                                ),
+                                _priceText(),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: priceStyle,
@@ -1170,10 +1169,7 @@ class _PosMenuItemCardState extends State<PosMenuItemCard> {
                                     style: fromLabelStyle,
                                   ),
                                 TextSpan(
-                                  text: formatMoney(
-                                    _minDisplayPrice(),
-                                    widget.currency,
-                                  ),
+                                  text: _priceText(),
                                   style: priceStyle,
                                 ),
                               ],

@@ -79,6 +79,8 @@ class OfflinePrintAdapter {
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             total: item.total,
+            weightKg: item.weightKg,
+            unitRate: item.unitRate,
             variantName: item.variantName,
             modifiers: [
               for (final mod in item.modifiers)
@@ -130,14 +132,19 @@ class OfflinePrintAdapter {
             })
             .toList();
 
+        final weight = map['weight'];
         return OfflinePrintItem(
           name: (map['name'] as String?)?.trim().isNotEmpty == true
               ? map['name'] as String
               : 'Item',
           variantName: map['variant_name'] as String?,
-          quantity: qty,
+          quantity: weight is num ? 1 : qty,
           unitPrice: unitPrice,
           total: lineTotal,
+          weightKg: weight is num ? weight.toDouble() : null,
+          unitRate: map['unit_rate'] is num
+              ? (map['unit_rate'] as num).toDouble()
+              : null,
           modifiers: modifiers,
           kitchenId: (map['kitchen_id'] as num?)?.toInt(),
           kitchenName: map['kitchen_name'] as String?,

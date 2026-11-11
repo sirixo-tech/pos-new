@@ -1,5 +1,6 @@
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -44,6 +45,10 @@ class AdminMenuItemEditResult {
     required this.modifierIds,
     this.categoryId,
     this.imageFile,
+    this.soldBy = 'unit',
+    this.pluCode,
+    this.minWeight,
+    this.maxWeight,
   });
 
   final String name;
@@ -53,6 +58,10 @@ class AdminMenuItemEditResult {
   final List<int> modifierIds;
   final int? categoryId;
   final XFile? imageFile;
+  final String soldBy;
+  final String? pluCode;
+  final double? minWeight;
+  final double? maxWeight;
 }
 
 Future<AdminMenuCategoryEditResult?> showAdminMenuCategoryEditDialog(
@@ -669,9 +678,13 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _descCtrl;
   late final TextEditingController _priceCtrl;
+  late final TextEditingController _pluCtrl;
+  late final TextEditingController _minWeightCtrl;
+  late final TextEditingController _maxWeightCtrl;
   late int? _categoryId;
   late List<int> _slotIds;
   late List<int> _modifierIds;
+  late bool _soldByWeight;
   XFile? _pickedImage;
   bool _pickingImage = false;
 
@@ -686,6 +699,14 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
     _priceCtrl = TextEditingController(
       text: item != null ? item.price.toStringAsFixed(2) : '',
     );
+    _pluCtrl = TextEditingController(text: item?.pluCode ?? '');
+    _minWeightCtrl = TextEditingController(
+      text: item?.minWeight?.toString() ?? '',
+    );
+    _maxWeightCtrl = TextEditingController(
+      text: item?.maxWeight?.toString() ?? '',
+    );
+    _soldByWeight = item?.soldBy == 'weight';
     _categoryId =
         widget.initialCategoryId ??
         (widget.categories.isNotEmpty ? widget.categories.first.id : null);
@@ -706,6 +727,9 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
     _nameCtrl.dispose();
     _descCtrl.dispose();
     _priceCtrl.dispose();
+    _pluCtrl.dispose();
+    _minWeightCtrl.dispose();
+    _maxWeightCtrl.dispose();
     super.dispose();
   }
 
@@ -790,13 +814,52 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
       );
       return;
     }
-    if (price == null) {
+    if (price == null || price < 0) {
       showPosSnackBar(
         context,
         context.posText('adminEnterValidPrice', 'Enter a valid price'),
         error: true,
       );
       return;
+    }
+    String? plu;
+    double? minWeight;
+    double? maxWeight;
+    if (_soldByWeight) {
+      final pluText = _pluCtrl.text.trim();
+      if (pluText.isNotEmpty && !RegExp(r'^\d{1,6}$').hasMatch(pluText)) {
+        showPosSnackBar(
+          context,
+          'PLU code must be 1 to 6 digits.',
+          error: true,
+        );
+        return;
+      }
+      plu = pluText.isEmpty ? null : pluText;
+      final minText = _minWeightCtrl.text.trim();
+      final maxText = _maxWeightCtrl.text.trim();
+      if (minText.isNotEmpty) {
+        minWeight = double.tryParse(minText);
+        if (minWeight == null || minWeight < 0) {
+          showPosSnackBar(context, 'Enter a valid minimum weight.', error: true);
+          return;
+        }
+      }
+      if (maxText.isNotEmpty) {
+        maxWeight = double.tryParse(maxText);
+        if (maxWeight == null || maxWeight < 0) {
+          showPosSnackBar(context, 'Enter a valid maximum weight.', error: true);
+          return;
+        }
+      }
+      if (minWeight != null && maxWeight != null && minWeight > maxWeight) {
+        showPosSnackBar(
+          context,
+          'Minimum weight cannot be above the maximum.',
+          error: true,
+        );
+        return;
+      }
     }
     if (_isCreate && _categoryId == null) {
       showPosSnackBar(
@@ -816,6 +879,10 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
         modifierIds: _modifierIds,
         categoryId: _categoryId,
         imageFile: _pickedImage,
+        soldBy: _soldByWeight ? 'weight' : 'unit',
+        pluCode: plu,
+        minWeight: minWeight,
+        maxWeight: maxWeight,
       ),
     );
   }
@@ -870,10 +937,74 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
             textCapitalization: TextCapitalization.sentences,
           ),
           const SizedBox(height: 12),
+          Text(
+            'Sold by',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: PosTheme.ink,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<bool>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: false, label: Text('Unit')),
+              ButtonSegment(value: true, label: Text('Weight (per kg)')),
+            ],
+            selected: {_soldByWeight},
+            onSelectionChanged: (value) =>
+                setState(() => _soldByWeight = value.first),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'For fish, meat, and other loose items. Staff enter the weight or scan a scale label at the POS. Weighed items are POS-only and hidden from the storefront and kiosk.',
+            style: TextStyle(color: PosTheme.inkMuted, fontSize: 12, height: 1.35),
+          ),
+          if (_soldByWeight) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _pluCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'PLU code',
+                helperText: 'Short numeric item code printed inside the scale barcode.',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _minWeightCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                    decoration: const InputDecoration(labelText: 'Min weight (kg)'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _maxWeightCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                    decoration: const InputDecoration(labelText: 'Max weight (kg)'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
           TextField(
             controller: _priceCtrl,
             decoration: InputDecoration(
-              labelText: context.posText('adminPrice', 'Price'),
+              labelText: _soldByWeight
+                  ? 'Rate per kg'
+                  : context.posText('adminPrice', 'Price'),
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),

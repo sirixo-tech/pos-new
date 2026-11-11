@@ -263,15 +263,20 @@ class ReceiptTemplateRenderer {
       final unitPrice = item.unitPrice > 0
           ? item.unitPrice
           : (item.quantity > 0 ? item.total / item.quantity : item.total);
+      final qtyLabel = item.weightKg != null
+          ? '${item.weightKg!.toStringAsFixed(3)} kg'
+          : '${item.quantity}x';
       esc.row(
-        '${item.quantity}x ${item.name}',
+        '$qtyLabel ${item.name}',
         formatMoneyThermal(item.total, currency, showSymbol: showSymbol),
       );
       if (variant != null && variant.isNotEmpty) {
         esc.text('  $variant');
       }
       esc.text(
-        '  @ ${formatMoneyThermal(unitPrice, currency, showSymbol: showSymbol)} each',
+        item.weightKg != null
+            ? '  @ ${formatMoneyThermal(item.unitRate ?? unitPrice, currency, showSymbol: showSymbol)}/kg'
+            : '  @ ${formatMoneyThermal(unitPrice, currency, showSymbol: showSymbol)} each',
       );
       if (block.showModifiers) {
         for (final mod in item.modifiers) {

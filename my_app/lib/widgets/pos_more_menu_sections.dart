@@ -200,6 +200,14 @@ List<PosMoreMenuSection> buildPosMoreMenuSections({
           label: 'Order types',
           subtitle: 'Show or hide Dine in, Takeaway, Delivery',
         ),
+        if (context.read<PosController>().staffAdminCapabilities.canManageSettings ==
+            true)
+          PosMoreMenuItem(
+            id: 'weighing',
+            icon: Icons.scale_rounded,
+            label: 'Weighing scale & labels',
+            subtitle: 'Prefix, sticker size, and what the barcode carries',
+          ),
         PosMoreMenuItem(
           id: 'sounds',
           icon: Icons.volume_up_outlined,

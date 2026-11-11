@@ -1,5 +1,6 @@
 import '../config/pos_app_info.dart';
 import '../utils/json_parse.dart';
+import '../utils/weighed_barcode.dart';
 import '../utils/menu_localization.dart';
 import '../utils/order_charges_calculator.dart';
 import '../utils/tax_calculator.dart';
@@ -423,6 +424,11 @@ class MenuItem {
     this.itemType,
     this.barcode,
     this.sku,
+    this.soldBy = 'unit',
+    this.weightUnit = 'kg',
+    this.pluCode,
+    this.minWeight,
+    this.maxWeight,
     this.orderTypeSurcharges,
     this.isAvailable = true,
     this.isOrderable = true,
@@ -442,6 +448,15 @@ class MenuItem {
   final String? itemType;
   final String? barcode;
   final String? sku;
+
+  /// `unit` or `weight`. Weighed items are priced per kg.
+  final String soldBy;
+  final String weightUnit;
+  final String? pluCode;
+  final double? minWeight;
+  final double? maxWeight;
+
+  bool get soldByWeight => soldBy == 'weight';
   final Map<String, dynamic>? orderTypeSurcharges;
   final Map<String, Map<String, String>> translations;
 
@@ -487,6 +502,7 @@ class MenuItem {
     if (name.toLowerCase().contains(q)) return true;
     if (barcode != null && barcode!.toLowerCase().contains(q)) return true;
     if (sku != null && sku!.toLowerCase().contains(q)) return true;
+    if (pluCode != null && pluCode!.toLowerCase().contains(q)) return true;
     for (final fields in translations.values) {
       final translated = fields['name']?.toLowerCase();
       if (translated != null && translated.contains(q)) return true;
@@ -520,6 +536,15 @@ class MenuItem {
       itemType: json['item_type'] as String?,
       barcode: _codeText(json['barcode']),
       sku: _codeText(json['sku']),
+      soldBy: (json['sold_by'] as String?)?.trim().toLowerCase() == 'weight'
+          ? 'weight'
+          : 'unit',
+      weightUnit: (json['weight_unit'] as String?)?.trim().isNotEmpty == true
+          ? (json['weight_unit'] as String).trim()
+          : 'kg',
+      pluCode: _codeText(json['plu_code']),
+      minWeight: parseJsonDoubleOrNull(json['min_weight']),
+      maxWeight: parseJsonDoubleOrNull(json['max_weight']),
       orderTypeSurcharges:
           json['order_type_surcharges'] as Map<String, dynamic>?,
       translations: parseMenuTranslations(json['translations']),
@@ -652,6 +677,9 @@ class CartLine {
     this.selectedModifiers = const [],
     this.quantity = 1,
     this.notes,
+    this.weightKg,
+    this.scannedBarcode,
+    this.unitRate,
   });
 
   final MenuItem menuItem;
@@ -660,7 +688,21 @@ class CartLine {
   final int quantity;
   final String? notes;
 
+  /// Actual kilograms for a weighed line. One line is one weighing.
+  final double? weightKg;
+  final String? scannedBarcode;
+
+  /// Per-kg rate. Falls back to the menu price.
+  final double? unitRate;
+
+  bool get isWeighed => menuItem.soldByWeight || weightKg != null;
+
+  double get ratePerKg => unitRate ?? menuItem.price;
+
   double get unitPrice {
+    if (isWeighed && weightKg != null) {
+      return WeighedBarcode.lineTotal(ratePerKg, weightKg!);
+    }
     var total = menuItem.baseUnitPrice(variant);
     for (final mod in selectedModifiers) {
       total += mod.priceAdjustment;
@@ -668,7 +710,7 @@ class CartLine {
     return total;
   }
 
-  double get lineTotal => unitPrice * quantity;
+  double get lineTotal => isWeighed ? unitPrice : unitPrice * quantity;
 
   String get displayName => displayNameFor('en');
 
@@ -680,7 +722,11 @@ class CartLine {
   Map<String, dynamic> toOrderJson() => {
     'menu_item_id': menuItem.id,
     if (variant != null) 'variant_id': variant!.id,
-    'quantity': quantity,
+    'quantity': isWeighed ? 1 : quantity,
+    if (isWeighed && weightKg != null) 'weight': WeighedBarcode.roundKg(weightKg!),
+    if (isWeighed && weightKg != null) 'unit_rate': ratePerKg,
+    if (scannedBarcode != null && scannedBarcode!.isNotEmpty)
+      'scanned_barcode': scannedBarcode,
     if (notes != null && notes!.isNotEmpty) 'notes': notes,
     if (selectedModifiers.isNotEmpty)
       'modifiers': selectedModifiers
@@ -688,13 +734,23 @@ class CartLine {
           .toList(),
   };
 
-  CartLine copyWith({int? quantity, String? notes, bool clearNotes = false}) =>
+  CartLine copyWith({
+    int? quantity,
+    String? notes,
+    bool clearNotes = false,
+    double? weightKg,
+    double? unitRate,
+    bool clearScannedBarcode = false,
+  }) =>
       CartLine(
         menuItem: menuItem,
         variant: variant,
         selectedModifiers: selectedModifiers,
         quantity: quantity ?? this.quantity,
         notes: clearNotes ? null : (notes ?? this.notes),
+        weightKg: weightKg ?? this.weightKg,
+        scannedBarcode: clearScannedBarcode ? null : scannedBarcode,
+        unitRate: unitRate ?? this.unitRate,
       );
 }
 
@@ -740,6 +796,7 @@ class PosRestaurantInfo {
     required this.orderTypeSurchargeSettings,
     this.ordering = const PosOrderingSettings(),
     this.tips = const TipSettings(),
+    this.weighing = const WeighingSettings(),
   });
 
   final int id;
@@ -755,6 +812,7 @@ class PosRestaurantInfo {
   final Map<String, dynamic> orderTypeSurchargeSettings;
   final PosOrderingSettings ordering;
   final TipSettings tips;
+  final WeighingSettings weighing;
 
   factory PosRestaurantInfo.fromJson(Map<String, dynamic> json) {
     final taxId = (json['tax_id'] as String?)?.trim();
@@ -781,6 +839,11 @@ class PosRestaurantInfo {
         json['ordering'] as Map<String, dynamic>?,
       ),
       tips: TipSettings.fromJson(json['tips'] as Map<String, dynamic>?),
+      weighing: WeighingSettings.fromJson(
+        json['weighing'] is Map
+            ? Map<String, dynamic>.from(json['weighing'] as Map)
+            : null,
+      ),
     );
   }
 }

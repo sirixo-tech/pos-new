@@ -61,9 +61,13 @@ class OfflineKotBuilder {
       final line = Map<String, dynamic>.from(raw);
       final name = (line['name'] as String?)?.trim();
       if (name == null || name.isEmpty) continue;
+      final weight = line['weight'];
       final qty = (line['quantity'] as num?)?.toInt() ?? 1;
+      final qtyLabel = weight is num
+          ? '${weight.toStringAsFixed(3)} kg'
+          : '${qty}x';
       builder.applyBlockStyle('bold');
-      builder.text('${qty}x $name');
+      builder.text('$qtyLabel $name');
       builder.clearBlockStyle('bold');
       final mods = line['modifiers'];
       if (mods is List) {

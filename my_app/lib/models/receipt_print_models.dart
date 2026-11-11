@@ -50,6 +50,8 @@ class OfflinePrintItem {
     this.kitchenName,
     this.kitchenCounterName,
     this.notes,
+    this.weightKg,
+    this.unitRate,
   });
 
   final String name;
@@ -57,6 +59,8 @@ class OfflinePrintItem {
   final int quantity;
   final double unitPrice;
   final double total;
+  final double? weightKg;
+  final double? unitRate;
   final List<OfflinePrintModifier> modifiers;
   final int? kitchenId;
   final String? kitchenName;

@@ -12,11 +12,13 @@ import '../providers/pos_controller.dart';
 import '../providers/pos_register_preferences.dart';
 import '../theme/pos_theme.dart';
 import '../utils/format.dart';
+import '../utils/weighed_barcode.dart';
 import '../utils/json_parse.dart';
 import '../utils/pos_layout.dart';
 import '../utils/tax_calculator.dart';
 import 'discount_dialog.dart';
 import 'pos_item_type_badge.dart';
+import 'weighed_item_sheet.dart';
 import 'pos_overlay.dart';
 import 'pos_table_tile.dart';
 import 'pos_ui.dart';
@@ -2471,6 +2473,15 @@ class _CartLineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    void openWeight() {
+      showWeighedItemSheet(
+        context,
+        pos: context.read<PosController>(),
+        item: line.menuItem,
+        existing: line,
+      );
+    }
+
     final soft = posAccentSoft(accent);
     final modifiers = line.selectedModifiers.map((m) => m.name).join(', ');
     final lang = Localizations.localeOf(context).languageCode;
@@ -2513,6 +2524,13 @@ class _CartLineRow extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (line.weightKg != null) ...[
+                    _WeightLabel(
+                      WeighedBarcode.formatKg(line.weightKg!),
+                      onTap: openWeight,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -2560,7 +2578,9 @@ class _CartLineRow extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      '${line.unitPrice.toStringAsFixed(2)} × ${line.quantity}',
+                      line.weightKg != null
+                          ? '${line.weightKg!.toStringAsFixed(3)} kg @ ${line.ratePerKg.toStringAsFixed(2)}/kg'
+                          : '${line.unitPrice.toStringAsFixed(2)} × ${line.quantity}',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -2568,15 +2588,16 @@ class _CartLineRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  SizedBox(
-                    width: 126,
-                    child: _QtyStepper(
-                      quantity: line.quantity,
-                      accent: accent,
-                      onDecrement: onDecrement,
-                      onIncrement: onIncrement,
+                  if (line.weightKg == null)
+                    SizedBox(
+                      width: 126,
+                      child: _QtyStepper(
+                        quantity: line.quantity,
+                        accent: accent,
+                        onDecrement: onDecrement,
+                        onIncrement: onIncrement,
+                      ),
                     ),
-                  ),
                   IconButton(
                     tooltip: 'Item notes',
                     onPressed: onToggleExpanded,
@@ -2589,6 +2610,14 @@ class _CartLineRow extends StatelessWidget {
                   ),
                 ],
               ),
+              if (line.isWeighed && line.weightKg != null) ...[
+                const SizedBox(height: 4),
+                _WeighedLineButton(
+                  line: line,
+                  currency: currency,
+                  onTap: openWeight,
+                ),
+              ],
               if (expanded)
                 _CartLineNoteField(
                   initialValue: line.notes ?? '',
@@ -2648,7 +2677,7 @@ class _CartLineRow extends StatelessWidget {
                     SizedBox(
                       width: 22,
                       child: Text(
-                        '${line.quantity}',
+                        line.weightKg != null ? '' : '${line.quantity}',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
                           fontWeight: FontWeight.w700,
@@ -2726,6 +2755,13 @@ class _CartLineRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
+                    if (line.weightKg != null) ...[
+                      _WeightLabel(
+                        WeighedBarcode.formatKg(line.weightKg!),
+                        onTap: openWeight,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -2751,6 +2787,15 @@ class _CartLineRow extends StatelessWidget {
                 ),
               ),
             ),
+            if (line.isWeighed && line.weightKg != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 12, 12),
+                child: _WeighedLineButton(
+                  line: line,
+                  currency: currency,
+                  onTap: openWeight,
+                ),
+              ),
             if (expanded)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 12, 12),
@@ -2768,47 +2813,49 @@ class _CartLineRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                     ],
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final stacked = constraints.maxWidth < 300;
-                        final quantity = _LabeledField(
-                          label: context.posText('cartLineQty', 'Quantity'),
-                          child: _QtyStepper(
-                            quantity: line.quantity,
-                            accent: accent,
-                            onDecrement: onDecrement,
-                            onIncrement: onIncrement,
-                          ),
-                        );
-                        final price = _LabeledField(
-                          label: context.posText(
-                            'cartLineUnitPrice',
-                            'Unit price',
-                          ),
-                          child: _UnitPriceBox(
-                            value: formatMoney(line.lineTotal, currency),
-                          ),
-                        );
-                        if (stacked) {
-                          return Column(
+                    if (!line.isWeighed) ...[
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final stacked = constraints.maxWidth < 300;
+                          final quantity = _LabeledField(
+                            label: context.posText('cartLineQty', 'Quantity'),
+                            child: _QtyStepper(
+                              quantity: line.quantity,
+                              accent: accent,
+                              onDecrement: onDecrement,
+                              onIncrement: onIncrement,
+                            ),
+                          );
+                          final price = _LabeledField(
+                            label: context.posText(
+                              'cartLineUnitPrice',
+                              'Unit price',
+                            ),
+                            child: _UnitPriceBox(
+                              value: formatMoney(line.lineTotal, currency),
+                            ),
+                          );
+                          if (stacked) {
+                            return Column(
+                              children: [
+                                quantity,
+                                const SizedBox(height: 10),
+                                price,
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              quantity,
-                              const SizedBox(height: 10),
-                              price,
+                              Expanded(child: quantity),
+                              const SizedBox(width: 12),
+                              Expanded(child: price),
                             ],
                           );
-                        }
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: quantity),
-                            const SizedBox(width: 12),
-                            Expanded(child: price),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     _CartLineNoteField(
                       initialValue: line.notes ?? '',
                       onChanged: onNotesChanged,
@@ -2817,6 +2864,94 @@ class _CartLineRow extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeightLabel extends StatelessWidget {
+  const _WeightLabel(this.kilograms, {this.onTap});
+
+  final String kilograms;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        child: Text(
+          '$kilograms kg',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xFFFF6500),
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeighedLineButton extends StatelessWidget {
+  const _WeighedLineButton({
+    required this.line,
+    required this.currency,
+    required this.onTap,
+  });
+
+  final CartLine line;
+  final String currency;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final kg = line.weightKg;
+    return Material(
+      color: PosTheme.surfaceMuted,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: PosTheme.border),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _LabeledField(
+                  label: 'Weight',
+                  child: Text(
+                    kg == null ? '' : '${WeighedBarcode.formatKg(kg)} kg',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: PosTheme.ink,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _LabeledField(
+                  label: 'Rate per kg',
+                  child: Text(
+                    formatMoney(line.ratePerKg, currency),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: PosTheme.ink,
+                    ),
+                  ),
+                ),
+              ),
+              Icon(Icons.edit_outlined, size: 16, color: PosTheme.inkMuted),
+            ],
+          ),
         ),
       ),
     );

@@ -20,6 +20,18 @@ List<T> _asObjectList<T>(
       .toList();
 }
 
+String? _optionalCode(Object? value) {
+  if (value == null) return null;
+  final text = value.toString().trim();
+  return text.isEmpty ? null : text;
+}
+
+double? _optionalDouble(Object? value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value.trim());
+  return null;
+}
+
 class PosAdminCapabilities {
   const PosAdminCapabilities({
     this.permissions = const [],
@@ -263,6 +275,10 @@ class AdminMenuItem {
     this.itemType,
     this.timeSlotIds = const [],
     this.modifierIds = const [],
+    this.soldBy = 'unit',
+    this.pluCode,
+    this.minWeight,
+    this.maxWeight,
   });
 
   final int id;
@@ -274,10 +290,15 @@ class AdminMenuItem {
   final String? itemType;
   final List<int> timeSlotIds;
   final List<int> modifierIds;
+  final String soldBy;
+  final String? pluCode;
+  final double? minWeight;
+  final double? maxWeight;
 
   factory AdminMenuItem.fromJson(Map<String, dynamic> json) {
     final modifiers = _asObjectList(json['modifiers'], AdminMenuModifier.fromJson);
     final modifierIds = _asIntList(json['modifier_ids']);
+    final soldBy = (json['sold_by'] as String?)?.trim().toLowerCase();
     return AdminMenuItem(
       id: json['id'] as int,
       name: json['name'] as String,
@@ -290,6 +311,10 @@ class AdminMenuItem {
       modifierIds: modifierIds.isNotEmpty
           ? modifierIds
           : modifiers.map((m) => m.id).toList(),
+      soldBy: soldBy == 'weight' ? 'weight' : 'unit',
+      pluCode: _optionalCode(json['plu_code']),
+      minWeight: _optionalDouble(json['min_weight']),
+      maxWeight: _optionalDouble(json['max_weight']),
     );
   }
 
@@ -313,6 +338,10 @@ class AdminMenuItem {
         itemType: itemType ?? this.itemType,
         timeSlotIds: timeSlotIds ?? this.timeSlotIds,
         modifierIds: modifierIds ?? this.modifierIds,
+        soldBy: soldBy,
+        pluCode: pluCode,
+        minWeight: minWeight,
+        maxWeight: maxWeight,
       );
 }
 

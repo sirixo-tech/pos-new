@@ -37,6 +37,7 @@ class MainActivity : FlutterActivity() {
     private val iminPrinter by iminPrinterDelegate
     private var bluetoothPermResult: MethodChannel.Result? = null
     private var usbAttachReceiver: BroadcastReceiver? = null
+    private val scaleSerial = ScaleSerialHandler(this)
     private var usbAttachSink: EventChannel.EventSink? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -264,6 +265,12 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
+            "pos_main/scale",
+        ).setMethodCallHandler { call, result ->
+            if (!scaleSerial.handle(call, result)) result.notImplemented()
+        }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
             "pos_main/usb_devices",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -350,6 +357,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        scaleSerial.close()
         unregisterUsbAttachReceiver()
         stopIminScannerListener()
         usbDisplays?.destroy()

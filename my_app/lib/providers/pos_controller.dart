@@ -29,6 +29,7 @@ import '../services/pos_work_mode_storage.dart';
 import '../services/printing/print_job_coordinator.dart';
 import 'pos_register_preferences.dart';
 import '../utils/json_parse.dart';
+import '../utils/weighed_barcode.dart';
 import '../utils/marketplace_platform_ui.dart';
 import '../utils/offline_payments.dart';
 import '../utils/order_charges_calculator.dart';
@@ -421,6 +422,69 @@ class PosController extends ChangeNotifier {
   }
 
   MenuItem? menuItemForBarcode(String code) => matchBarcode(code)?.item;
+
+  /// Scans a scale label onto the ticket.
+  ///
+  /// [handled] is false when [code] is not a weighed label for this restaurant.
+  ({bool handled, String? error}) takeWeighedLabel(String code) {
+    final settings = bootstrap?.restaurant.weighing ?? const WeighingSettings();
+    final decoded = WeighedBarcode.decode(code, settings);
+    if (decoded == null) return (handled: false, error: null);
+    MenuItem? item;
+    for (final candidate in flatItems) {
+      final plu = candidate.pluCode;
+      if (candidate.soldByWeight &&
+          plu != null &&
+          WeighedBarcode.samePlu(plu, decoded.plu)) {
+        item = candidate;
+        break;
+      }
+    }
+    if (item == null) {
+      return (handled: true, error: 'Invalid label. No weighed item for this PLU.');
+    }
+    final barcode = decoded.barcode;
+    if (cart.any((line) => line.scannedBarcode == barcode)) {
+      return (handled: true, error: 'This label is already on the ticket.');
+    }
+    final double? weight;
+    if (decoded.weightKg != null) {
+      weight = decoded.weightKg;
+    } else if (decoded.priceTotal != null && item.price > 0) {
+      weight = WeighedBarcode.roundKg(decoded.priceTotal! / item.price);
+    } else {
+      weight = null;
+    }
+    if (weight == null) return (handled: true, error: 'Invalid label.');
+    final range = weighedWeightError(item, weight);
+    if (range != null) return (handled: true, error: range);
+    addToCart(
+      CartLine(
+        menuItem: item,
+        quantity: 1,
+        weightKg: weight,
+        scannedBarcode: barcode,
+        unitRate: item.price,
+      ),
+    );
+    return (handled: true, error: null);
+  }
+
+  String? weighedWeightError(MenuItem item, double weightKg) {
+    final weight = WeighedBarcode.roundKg(weightKg);
+    if (weight < 0.001 || weight > 99.999) {
+      return 'Weight must be between 0.001 and 99.999 kg.';
+    }
+    final min = item.minWeight;
+    final max = item.maxWeight;
+    if (min != null && weight < min) {
+      return 'Weight is below the minimum of ${WeighedBarcode.formatKg(min)} kg.';
+    }
+    if (max != null && weight > max) {
+      return 'Weight is above the maximum of ${WeighedBarcode.formatKg(max)} kg.';
+    }
+    return null;
+  }
 
   MenuBarcodeMatch? matchBarcode(String code) {
     final needle = code.trim().toLowerCase().replaceAll(
@@ -944,6 +1008,8 @@ class PosController extends ChangeNotifier {
       case 'order_types':
       case 'sync':
         return canUseRegister;
+      case 'weighing':
+        return staffAdminCapabilities.canManageSettings == true;
       case 'status':
       case 'shortcuts':
       case 'lock':
@@ -2879,6 +2945,32 @@ class PosController extends ChangeNotifier {
   }
 
   void addToCart(CartLine line) {
+    if (line.isWeighed) {
+      final barcode = line.scannedBarcode?.trim();
+      if (barcode != null &&
+          barcode.isNotEmpty &&
+          cart.any((existing) => existing.scannedBarcode == barcode)) {
+        return;
+      }
+      cart.add(
+        CartLine(
+          menuItem: line.menuItem,
+          variant: line.variant,
+          selectedModifiers: line.selectedModifiers,
+          quantity: 1,
+          notes: line.notes,
+          weightKg: line.weightKg,
+          scannedBarcode: barcode,
+          unitRate: line.unitRate ?? line.menuItem.price,
+        ),
+      );
+      _revealCartLine(cart.length - 1);
+      PosCartSound.instance.playAddToCart();
+      _markCartChanged();
+      _scheduleDisplaySync();
+      notifyListeners();
+      return;
+    }
     final existing = cart.indexWhere(
       (c) =>
           c.menuItem.id == line.menuItem.id &&
@@ -2910,6 +3002,7 @@ class PosController extends ChangeNotifier {
   }
 
   void updateCartQty(CartLine line, int quantity) {
+    if (line.isWeighed && quantity > 1) return;
     if (quantity <= 0) {
       cart.remove(line);
     } else {
@@ -2921,6 +3014,35 @@ class PosController extends ChangeNotifier {
     _markCartChanged();
     _scheduleDisplaySync();
     notifyListeners();
+  }
+
+  /// Changes the kilograms on a weighed line.
+  ///
+  /// The rate stays the item's per-kg price. A scanned label stops controlling
+  /// the line once the weight changes, so checkout uses the typed weight.
+  String? updateWeighedCartLine(
+    CartLine line, {
+    required double weightKg,
+  }) {
+    if (!line.isWeighed) return null;
+    final weight = WeighedBarcode.roundKg(weightKg);
+    final range = weighedWeightError(line.menuItem, weight);
+    if (range != null) return range;
+    final index = cart.indexOf(line);
+    if (index < 0) return null;
+    final previousWeight = line.weightKg == null
+        ? null
+        : WeighedBarcode.roundKg(line.weightKg!);
+    if (previousWeight == weight) return null;
+    cart[index] = line.copyWith(
+      quantity: 1,
+      weightKg: weight,
+      clearScannedBarcode: line.scannedBarcode != null,
+    );
+    _markCartChanged();
+    _scheduleDisplaySync();
+    notifyListeners();
+    return null;
   }
 
   void updateCartLineNotes(CartLine line, String notes) {
@@ -2941,7 +3063,7 @@ class PosController extends ChangeNotifier {
   }
 
   CartLine? simpleCartLineFor(MenuItem item) {
-    if (item.hasOptions) {
+    if (item.hasOptions || item.soldByWeight) {
       return null;
     }
     return simpleCartLineByMenuItemId[item.id];
@@ -2962,6 +3084,7 @@ class PosController extends ChangeNotifier {
   }
 
   void incrementSimpleCartLine(CartLine line) {
+    if (line.isWeighed) return;
     final index = cart.indexOf(line);
     updateCartQty(line, line.quantity + 1);
     if (index >= 0) _revealCartLine(index);
@@ -3512,12 +3635,20 @@ class PosController extends ChangeNotifier {
       variant = MenuVariant(id: variantId, name: 'Variant', price: unitPrice);
     }
 
+    final weight = parseJsonDoubleOrNull(row['weight']);
+    final unitRate = parseJsonDoubleOrNull(row['unit_rate']);
+    final scanned = row['scanned_barcode']?.toString().trim();
+    final weighed = weight != null || menuItem.soldByWeight;
+
     return CartLine(
       menuItem: menuItem,
       variant: variant,
       selectedModifiers: selectedMods,
-      quantity: quantity < 1 ? 1 : quantity,
+      quantity: weighed ? 1 : (quantity < 1 ? 1 : quantity),
       notes: (notes != null && notes.isNotEmpty) ? notes : null,
+      weightKg: weight,
+      scannedBarcode: scanned != null && scanned.isNotEmpty ? scanned : null,
+      unitRate: unitRate,
     );
   }
 
@@ -4459,6 +4590,7 @@ class PosController extends ChangeNotifier {
           .toList(),
     },
     'tips': {'enabled': r.tips.enabled, 'presets': r.tips.presets},
+    'weighing': r.weighing.toJson(),
   };
 
   Map<String, dynamic> _categoryToJson(MenuCategory c) => {
@@ -4477,6 +4609,11 @@ class PosController extends ChangeNotifier {
     'item_type': item.itemType,
     'barcode': item.barcode,
     if (item.sku != null) 'sku': item.sku,
+    'sold_by': item.soldBy,
+    'weight_unit': item.weightUnit,
+    if (item.pluCode != null) 'plu_code': item.pluCode,
+    if (item.minWeight != null) 'min_weight': item.minWeight,
+    if (item.maxWeight != null) 'max_weight': item.maxWeight,
     'is_available': item.isAvailable,
     'is_orderable': item.isOrderable,
     'order_type_surcharges': item.orderTypeSurcharges,
@@ -4626,8 +4763,10 @@ class PosController extends ChangeNotifier {
       'items': cart
           .map(
             (line) => {
-              'name': line.displayName,
-              'quantity': line.quantity,
+              'name': line.weightKg == null
+                  ? line.displayName
+                  : '${line.displayName} (${WeighedBarcode.formatKg(line.weightKg!)} kg)',
+              'quantity': line.isWeighed ? 1 : line.quantity,
               'price': line.unitPrice,
               'modifiers': line.selectedModifiers
                   .map(

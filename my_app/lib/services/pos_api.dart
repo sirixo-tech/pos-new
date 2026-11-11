@@ -14,6 +14,7 @@ import '../models/billing_models.dart';
 import '../models/kitchen_models.dart';
 import '../models/pos_models.dart';
 import '../utils/json_parse.dart';
+import '../utils/weighed_barcode.dart';
 import '../utils/menu_import_file_types.dart';
 import '../utils/kitchen_board.dart';
 import '../utils/platform_info.dart';
@@ -1532,6 +1533,34 @@ class PosApi {
     return data;
   }
 
+  /// Logs a scale label and returns the barcode plus print fields.
+  Future<Map<String, dynamic>> createWeightLabel(
+    PosSession session, {
+    required int menuItemId,
+    required double weight,
+    String? posTerminalCode,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('${session.apiBaseUrl}/weight-labels'),
+      headers: _jsonHeaders(
+        token: session.token,
+        restaurantId: session.restaurantId,
+        branchId: session.branchId,
+      ),
+      body: jsonEncode({
+        'menu_item_id': menuItemId,
+        'weight': weight,
+        if (posTerminalCode != null && posTerminalCode.isNotEmpty)
+          'pos_terminal_code': posTerminalCode,
+      }),
+    );
+    final json = await _decode(response);
+    final data = json['data'] as Map<String, dynamic>? ?? json;
+    final label = data['label'];
+    if (label is Map) return Map<String, dynamic>.from(label);
+    return data;
+  }
+
   Future<PlacedPosOrder> parkOrder(
     PosSession session, {
     required List<Map<String, dynamic>> items,
@@ -2158,6 +2187,34 @@ class PosApi {
       headers: _adminHeaders(session),
     ).timeout(const Duration(seconds: 30));
     return _unwrapData(await _decode(response));
+  }
+
+  Future<Map<String, dynamic>> fetchAdminSettings(PosSession session) async {
+    final response = await _client.get(
+      Uri.parse('${session.v1BaseUrl}/admin/settings'),
+      headers: _adminHeaders(session),
+    );
+    final json = await _decode(response);
+    final data = _unwrapData(json);
+    final settings = data['settings'];
+    if (settings is Map) return Map<String, dynamic>.from(settings);
+    return data;
+  }
+
+  /// Saves weighing inside the ordering settings tab. [current] is the
+  /// settings document from [fetchAdminSettings]; other ordering fields are kept.
+  Future<void> updateWeighingSettings(
+    PosSession session, {
+    required Map<String, dynamic> current,
+    required WeighingSettings weighing,
+  }) async {
+    await _client.patch(
+      Uri.parse('${session.v1BaseUrl}/admin/settings'),
+      headers: _adminHeaders(session),
+      body: jsonEncode(
+        orderingSettingsUpdate(current: current, weighing: weighing),
+      ),
+    ).then(_decode);
   }
 
   Future<PosOpeningHoursPayload> fetchOpeningHours(PosSession session) async {

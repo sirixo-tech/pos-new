@@ -11,6 +11,7 @@ add_executable(${BINARY_NAME} WIN32
   "menu_speech.cpp"
   "touch_keyboard.cpp"
   "windows_printer.cpp"
+  "windows_scale.cpp"
   "scanner_status.cpp"
   "main.cpp"
   "utils.cpp"

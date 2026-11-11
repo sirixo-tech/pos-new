@@ -608,6 +608,13 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
         'name': result.name,
         'price': result.price,
         'description': result.description.isEmpty ? null : result.description,
+        'sold_by': result.soldBy,
+        'weight_unit': 'kg',
+        if (result.soldBy == 'weight') ...{
+          'plu_code': result.pluCode ?? '',
+          'min_weight': result.minWeight,
+          'max_weight': result.maxWeight,
+        },
         if (canSlots) 'time_slot_ids': result.timeSlotIds,
         if (canMods) 'modifier_ids': result.modifierIds,
       }, imageFile: result.imageFile);
@@ -628,6 +635,13 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
         'name': result.name,
         'price': result.price,
         'description': result.description.isEmpty ? null : result.description,
+        'sold_by': result.soldBy,
+        'weight_unit': 'kg',
+        if (result.soldBy == 'weight') ...{
+          'plu_code': result.pluCode ?? '',
+          'min_weight': result.minWeight,
+          'max_weight': result.maxWeight,
+        },
         if (canSlots) 'time_slot_ids': result.timeSlotIds,
         if (canMods) 'modifier_ids': result.modifierIds,
       }, imageFile: result.imageFile);

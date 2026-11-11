@@ -248,6 +248,18 @@ class EscPosBuilder {
     }
   }
 
+  /// EAN-13. GS k function 67, human-readable digits printed below the bars.
+  void ean13(String code) {
+    final digits = code.replaceAll(RegExp(r'\D'), '');
+    if (digits.length != 12 && digits.length != 13) return;
+    _bytes.addAll([0x1D, 0x48, 0x02]);
+    _bytes.addAll([0x1D, 0x68, 80]);
+    _bytes.addAll([0x1D, 0x77, 0x02]);
+    _bytes.addAll([0x1D, 0x6B, 67, digits.length]);
+    _bytes.addAll(digits.codeUnits);
+    _bytes.add(0x0A);
+  }
+
   /// ESC/POS QR code (model 2, error correction M).
   void qrCode(String data, {int moduleSize = 4}) {
     final payload = utf8.encode(data);

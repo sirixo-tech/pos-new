@@ -733,6 +733,15 @@ class PosReceiptPrinter {
     return PrinterPaperSensor.unknown;
   }
 
+  /// Sends raw ESC/POS to the saved printer. Used for scale stickers.
+  static Future<void> printEscPos(List<int> bytes) async {
+    final config = await UsbPrinterStorage.load();
+    if (config == null) {
+      throw StateError(thermalPrinterMissingMessage());
+    }
+    await _dispatchPrintBytes(config: config, bytes: bytes);
+  }
+
   /// Short ESC/POS slip — no order API required.
   static Future<PrinterHealth> printTestPage({
     String? restaurantName,

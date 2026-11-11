@@ -42,6 +42,7 @@ import 'services/printing/pos_channel_print_policy.dart';
 import 'services/printing/print_job_coordinator.dart';
 import 'services/printing/print_object_executor.dart';
 import 'services/printing/printer_status_service.dart';
+import 'services/scale/scale_link.dart';
 import 'services/scanner_connection_service.dart';
 import 'services/window_close/window_close_guard.dart';
 import 'payments/payment_session_manager.dart';
@@ -143,6 +144,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
     _scannerStatus.start();
     unawaited(PosCartSound.instance.warmUp());
     unawaited(CustomerVoiceService.instance.loadSettings());
+    unawaited(ScaleLink.instance.load());
     _windowCloseGuard = WindowCloseGuard(onCloseRequest: _confirmWindowClose);
     unawaited(_windowCloseGuard.install());
   }
@@ -170,6 +172,7 @@ class _ServeAiPosAppState extends State<ServeAiPosApp>
     _themeController.dispose();
     _idleLockController.dispose();
     _windowCloseGuard.dispose();
+    unawaited(ScaleLink.instance.disconnect());
     super.dispose();
   }
 

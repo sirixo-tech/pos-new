@@ -71,6 +71,8 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   windows_printer_ = std::make_unique<WindowsPrinter>(
       flutter_controller_->engine()->messenger());
+  windows_scale_ = std::make_unique<WindowsScale>(
+      flutter_controller_->engine()->messenger());
   touch_keyboard_ = std::make_unique<TouchKeyboard>(
       flutter_controller_->engine()->messenger(), GetHandle());
   scanner_status_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
@@ -104,6 +106,7 @@ bool FlutterWindow::OnCreate() {
 
 void FlutterWindow::OnDestroy() {
   windows_printer_.reset();
+  windows_scale_.reset();
   touch_keyboard_.reset();
   scanner_status_.reset();
   menu_speech_.reset();

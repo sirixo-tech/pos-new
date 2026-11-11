@@ -19,9 +19,13 @@ Map<String, dynamic> buildOfflineOrderPayload({
           (line) => {
             'menu_item_id': line.menuItem.id,
             'name': line.displayName,
-            'quantity': line.quantity,
+            'quantity': line.isWeighed ? 1 : line.quantity,
             'unit_price': line.unitPrice,
             'line_total': line.lineTotal,
+            if (line.weightKg != null) 'weight': line.weightKg,
+            if (line.unitRate != null) 'unit_rate': line.unitRate,
+            if (line.scannedBarcode != null)
+              'scanned_barcode': line.scannedBarcode,
             if (line.notes != null && line.notes!.isNotEmpty) 'notes': line.notes,
             if (line.selectedModifiers.isNotEmpty)
               'modifiers': line.selectedModifiers
@@ -57,7 +61,11 @@ List<Map<String, dynamic>> cartRowsForHeldResume(List<CartLine> cart) {
           'menu_item_name': line.menuItem.name,
           if (line.variant != null) 'variant_id': line.variant!.id,
           'unit_price': line.unitPrice,
-          'quantity': line.quantity,
+          'quantity': line.isWeighed ? 1 : line.quantity,
+          if (line.weightKg != null) 'weight': line.weightKg,
+          if (line.unitRate != null) 'unit_rate': line.unitRate,
+          if (line.scannedBarcode != null)
+            'scanned_barcode': line.scannedBarcode,
           if (line.notes != null && line.notes!.isNotEmpty) 'notes': line.notes,
           if (line.selectedModifiers.isNotEmpty)
             'modifiers': line.selectedModifiers

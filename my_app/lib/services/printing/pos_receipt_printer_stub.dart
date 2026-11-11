@@ -50,6 +50,10 @@ class PosReceiptPrinter {
         lastCheckedAt: DateTime.now(),
       );
 
+  static Future<void> printEscPos(List<int> bytes) async {
+    throw UnsupportedError(unsupportedMessage);
+  }
+
   static Future<PrinterHealth> printTestPage({
     String? restaurantName,
     String? branchName,
