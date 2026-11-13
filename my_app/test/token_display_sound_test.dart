@@ -11,11 +11,11 @@ void main() {
     expect(tokenReadyPhrase('4', 'hi-IN'), 'टोकन नंबर 4 तैयार है');
   });
 
-  test('token display sounds default on when nothing is saved', () async {
+  test('ready voice defaults on and new-token chime defaults off', () async {
     SharedPreferences.setMockInitialValues({});
     final voice = CustomerVoiceService.instance;
     await voice.loadSettings();
-    expect(voice.newTokenSoundEnabled, isTrue);
+    expect(voice.newTokenSoundEnabled, isFalse);
     expect(voice.readyVoiceEnabled, isTrue);
     expect(voice.readyRepeats, 1);
     expect(voice.languageCode, 'en-IN');

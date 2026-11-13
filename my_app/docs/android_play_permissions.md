@@ -140,3 +140,24 @@ Upload `build/app/outputs/bundle/release/app-release-4.9.0-4044.aab`
 Replace older draft bundles and inspect retained bundles in active Play tracks if
 Console continues to flag an APK-install permission. The dataSync foreground-service
 declaration remains necessary.
+
+## Boot launch update — 5.5.0+68059
+
+RECEIVE_BOOT_COMPLETED receives restart events. SYSTEM_ALERT_WINDOW is now
+requested as user-approved special access for unattended boot launch on Android
+10+, including KDS and token displays on Android TV / Google TV. The app does not
+create overlay windows. This access permits its boot receiver to open the Activity.
+Users can disable auto-start in either workspace. Auto-start on boot > Allow boot
+launch access opens the system settings. Returning refreshes actual permission
+status; ON alone does not imply access is granted. No foreground service,
+full-screen notification, accessibility service or alarm is introduced.
+LEANBACK_LAUNCHER and a banner expose the app in the TV launcher; touchscreen and
+leanback hardware are optional so the same package still supports phones/POS.
+
+Boot launch preserves the saved branch workspace and existing login. Session
+expiry or sign-out still requires authentication. Force-stop prevents boot delivery
+until the user opens the app again. Remote power-off can enter standby instead
+of reboot. Some TV firmware needs manufacturer auto-start controls or managed-device
+provisioning when display-over-other-apps access is unavailable.
+
+Reference: https://developer.android.com/guide/components/activities/secure-bal

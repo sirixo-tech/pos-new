@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/pos_l10n.dart';
 import '../../services/customer_display/customer_voice_service.dart';
-import '../../services/pos_auto_start.dart';
 import '../../services/pos_cart_sound.dart';
 import '../../theme/pos_theme.dart';
 import '../../widgets/pos_ui.dart';
@@ -129,7 +128,11 @@ class _TokenDisplaySoundDialogState extends State<_TokenDisplaySoundDialog> {
                     label: 'Repeat',
                     enabled: voice.readyVoiceEnabled,
                     value: '${voice.readyRepeats}',
-                    options: const {'1': 'Once', '2': 'Twice', '3': 'Three times'},
+                    options: const {
+                      '1': 'Once',
+                      '2': 'Twice',
+                      '3': 'Three times',
+                    },
                     onChanged: (value) async {
                       await voice.setReadyRepeats(int.parse(value));
                       if (mounted) setState(() {});
@@ -198,28 +201,6 @@ class _TokenDisplaySoundDialogState extends State<_TokenDisplaySoundDialog> {
                       icon: const Icon(Icons.play_arrow_rounded),
                       label: const Text('Preview “Token number 4 ready”'),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  _sectionTitle('Device startup'),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Automatically open the app when the TV or display device is powered on or restarted.',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      height: 1.35,
-                      color: PosTheme.inkMuted,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _switchTile(
-                    soft: soft,
-                    title: 'Auto-start on boot',
-                    value: PosAutoStart.isEnabled,
-                    onChanged: (value) async {
-                      await PosAutoStart.setEnabled(value);
-                      if (mounted) setState(() {});
-                    },
                   ),
                 ],
               )
@@ -392,7 +373,10 @@ class _ToneTile extends StatelessWidget {
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2, color: accent),
             )
-          : Icon(Icons.play_arrow_rounded, color: enabled ? accent : PosTheme.inkFaint),
+          : Icon(
+              Icons.play_arrow_rounded,
+              color: enabled ? accent : PosTheme.inkFaint,
+            ),
       onTap: enabled ? onTap : null,
     );
   }

@@ -27,6 +27,23 @@ class PosAutoStart {
   /// Whether auto-start has completed its initial preference load.
   static bool get isInitialized => _initialized;
 
+  static bool get isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  /// Read real OS access; a saved ON preference alone cannot launch at boot.
+  static Future<bool> hasBootLaunchAccess() async {
+    if (!isAndroid) return true;
+    final status = await _channel.invokeMapMethod<String, dynamic>('getStatus');
+    return status?['permissionGranted'] == true;
+  }
+
+  static Future<bool> openPermissionSettings() async =>
+      isAndroid &&
+      await _channel.invokeMethod<bool>('openPermissionSettings') == true;
+
+  static Future<bool> openAppSettings() async =>
+      isAndroid && await _channel.invokeMethod<bool>('openAppSettings') == true;
+
   /// Initializes the auto-start setting.
   /// If no setting exists yet, sets it to `true` (ON by default).
   static Future<void> initialize() async {
@@ -48,15 +65,13 @@ class PosAutoStart {
 
   /// Sets whether the app should launch automatically on boot.
   static Future<bool> setEnabled(bool enabled) async {
+    await _syncNative(enabled);
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setBool(prefsKey, enabled)) {
+      throw StateError('Unable to save auto-start setting');
+    }
     _enabled = enabled;
     notifier.value = enabled;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(prefsKey, enabled);
-    } catch (e) {
-      debugPrint('[PosAutoStart] Failed to save preference: $e');
-    }
-    await _syncNative(enabled);
     return _enabled;
   }
 
@@ -69,12 +84,18 @@ class PosAutoStart {
 
     // 1. Android native broadcast receiver & component setting
     try {
-      if (Platform.isAndroid) {
-        await _channel.invokeMethod<bool>('setEnabled', {'enabled': enabled});
+      if (isAndroid) {
+        final saved = await _channel.invokeMethod<bool>('setEnabled', {
+          'enabled': enabled,
+        });
+        if (saved != true) {
+          throw StateError('Android could not save auto-start');
+        }
         return;
       }
     } catch (e) {
       debugPrint('[PosAutoStart] Android sync failed: $e');
+      rethrow;
     }
 
     // 2. Windows registry run key

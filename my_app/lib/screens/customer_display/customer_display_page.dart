@@ -12,6 +12,7 @@ import '../../services/customer_display/customer_voice_service.dart';
 import '../../services/pos_display_mode.dart';
 import 'token_display_sound_dialog.dart';
 import '../../widgets/pos_ui.dart';
+import '../../widgets/pos_auto_start_picker.dart';
 
 extension _CustomerDisplayTr on BuildContext {
   String tr(String value) => value;
@@ -58,12 +59,9 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
       }
     });
     unawaited(PosDisplayMode.setEnabled(true));
-    _clockTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (mounted) setState(() => _now = DateTime.now());
-      },
-    );
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
   }
 
   void _onControllerTick() {
@@ -207,11 +205,11 @@ class _CustomerDisplayPageState extends State<CustomerDisplayPage> {
           isSaving: state.isSavingSetup,
           onSave: () async {
             await _controller.saveSetup(
-                  restaurantSlug: slugController.text,
-                  branchId: int.tryParse(branchController.text.trim()) ?? 0,
-                  terminalCode: state.terminalCode,
-                  syncToken: state.syncToken,
-                );
+              restaurantSlug: slugController.text,
+              branchId: int.tryParse(branchController.text.trim()) ?? 0,
+              terminalCode: state.terminalCode,
+              syncToken: state.syncToken,
+            );
             if (context.mounted) {
               Navigator.of(context).pop();
             }
@@ -1050,8 +1048,11 @@ class _TopBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
               child: Image.asset(
                 PosAppInfo.emblemAsset,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.storefront_rounded, color: Colors.white, size: 20),
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.storefront_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
           ),
@@ -1094,17 +1095,18 @@ class _TopBar extends StatelessWidget {
           SizedBox(width: compact ? 6 : 10),
           _KitchenDisplayButton(onPressed: onKitchenDisplay, compact: compact),
           if (!compact) ...[
-          const SizedBox(width: 10),
-          _HoverControls(
-            visible: controlsVisible,
-            fullscreen: fullscreen,
-            voiceEnabled: isVoiceEnabled,
-            onSoundSettings: onSoundSettings,
-            onSetup: onSetup,
-            onFullscreen: onFullscreen,
-            onLogout: onLogout,
-          ),
-          ] else ...[
+            const SizedBox(width: 10),
+            _HoverControls(
+              visible: controlsVisible,
+              fullscreen: fullscreen,
+              voiceEnabled: isVoiceEnabled,
+              onSoundSettings: onSoundSettings,
+              onSetup: onSetup,
+              onFullscreen: onFullscreen,
+              onLogout: onLogout,
+            ),
+          ],
+          ...[
             const SizedBox(width: 6),
             _CompactDisplayMenu(
               fullscreen: fullscreen,
@@ -1162,11 +1164,7 @@ class _ClockCard extends StatelessWidget {
           ),
           if (!compact) ...[
             const SizedBox(width: 8),
-            Container(
-              width: 1,
-              height: 14,
-              color: _DisplayColors.border,
-            ),
+            Container(width: 1, height: 14, color: _DisplayColors.border),
             const SizedBox(width: 8),
             Text(
               date,
@@ -1269,7 +1267,7 @@ class _HoverControls extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _HoverIconButton(
-                tooltip: 'Sound & startup settings',
+                tooltip: 'Sound settings',
                 icon: voiceEnabled
                     ? Icons.volume_up_rounded
                     : Icons.volume_off_rounded,
@@ -1320,9 +1318,14 @@ class _CompactDisplayMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
       tooltip: 'Display options',
+      style: const ButtonStyle(
+        foregroundColor: WidgetStatePropertyAll(Colors.white),
+      ),
       color: const Color(0xFF17171B),
       onSelected: (value) {
         switch (value) {
+          case 'auto_start':
+            showPosAutoStartPicker(context);
           case 'voice':
             onSoundSettings();
           case 'full':
@@ -1334,17 +1337,36 @@ class _CompactDisplayMenu extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem(
+        const PopupMenuItem(
+          value: 'auto_start',
+          child: Text(
+            'Auto-start on boot',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+        const PopupMenuItem(
           value: 'voice',
-          child: const Text('Sound & startup settings'),
+          child: Text('Sound settings', style: TextStyle(color: Colors.white)),
         ),
         PopupMenuItem(
           value: 'full',
-          child: Text(fullscreen ? 'Exit fullscreen' : 'Fullscreen'),
+          child: Text(
+            fullscreen ? 'Exit fullscreen' : 'Fullscreen',
+            style: const TextStyle(color: Colors.white),
+          ),
         ),
         if (onSetup != null)
-          const PopupMenuItem(value: 'setup', child: Text('Display setup')),
-        const PopupMenuItem(value: 'exit', child: Text('Exit token display')),
+          const PopupMenuItem(
+            value: 'setup',
+            child: Text('Display setup', style: TextStyle(color: Colors.white)),
+          ),
+        const PopupMenuItem(
+          value: 'exit',
+          child: Text(
+            'Exit token display',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
       ],
       child: Container(
         width: 42,
@@ -1355,7 +1377,11 @@ class _CompactDisplayMenu extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: _DisplayColors.border),
         ),
-        child: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 20),
+        child: const Icon(
+          Icons.more_vert_rounded,
+          color: Colors.white,
+          size: 20,
+        ),
       ),
     );
   }
@@ -1625,7 +1651,11 @@ class _TokenColumnPanel extends StatelessWidget {
                     ],
                   ),
                 ),
-                _CountBadge(count: orders.length, color: color, compact: compact),
+                _CountBadge(
+                  count: orders.length,
+                  color: color,
+                  compact: compact,
+                ),
               ],
             ),
           ),
@@ -1652,8 +1682,10 @@ class _TokenColumnPanel extends StatelessWidget {
                       final totalGaps = (targetRows - 1) * spacing;
                       final usableHeight =
                           constraints.maxHeight - totalPad - totalGaps;
-                      final rowHeight =
-                          (usableHeight / targetRows).clamp(40.0, 240.0);
+                      final rowHeight = (usableHeight / targetRows).clamp(
+                        40.0,
+                        240.0,
+                      );
 
                       final crossAxisCount = ready
                           ? (constraints.maxWidth / 150).floor().clamp(2, 3)
@@ -1713,10 +1745,7 @@ class _AnimatedTokenWrapper extends StatelessWidget {
       builder: (context, value, child) {
         return Transform.scale(
           scale: value,
-          child: Opacity(
-            opacity: value.clamp(0.0, 1.0),
-            child: child,
-          ),
+          child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
         );
       },
       child: child,

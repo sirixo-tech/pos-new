@@ -11,8 +11,7 @@ class BootReceiver : BroadcastReceiver() {
         Log.d(TAG, "BootReceiver received action: $action")
         if (action != Intent.ACTION_BOOT_COMPLETED &&
             action != "android.intent.action.QUICKBOOT_POWERON" &&
-            action != "com.htc.intent.action.QUICKBOOT_POWERON" &&
-            action != "android.intent.action.REBOOT"
+            action != "com.htc.intent.action.QUICKBOOT_POWERON"
         ) {
             return
         }
@@ -34,6 +33,11 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
 
+        if (!AutoStartSettings.canLaunchAtBoot(context)) {
+            Log.w(TAG, "Boot launch needs Display over other apps access or device-owner provisioning. Open auto-start settings in the app.")
+            return
+        }
+
         Log.d(TAG, "Device boot/restart complete. Launching POS app automatically...")
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: run {
             Intent(context, MainActivity::class.java)
@@ -45,12 +49,21 @@ class BootReceiver : BroadcastReceiver() {
             putExtra("launched_from_boot", true)
         }
 
-        try {
-            context.startActivity(launchIntent)
-            Log.d(TAG, "POS app launch intent sent successfully.")
-        } catch (e: Throwable) {
-            Log.e(TAG, "Failed to start activity from BootReceiver: ${e.message}", e)
-        }
+        // Allow the TV launcher to finish booting before bringing the saved
+        // workspace forward. Keep the receiver alive until the launch completes.
+        val pending = goAsync()
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            try {
+                if (AutoStartSettings.isEnabled(context) && AutoStartSettings.canLaunchAtBoot(context)) {
+                    context.startActivity(launchIntent)
+                    Log.d(TAG, "POS app launch intent sent successfully.")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start activity from BootReceiver", e)
+            } finally {
+                pending.finish()
+            }
+        }, 2500)
     }
 
     companion object {

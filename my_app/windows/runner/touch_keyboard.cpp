@@ -1,5 +1,6 @@
 #include "touch_keyboard.h"
 
+#include <flutter/standard_method_codec.h>
 #include <shellapi.h>
 
 namespace {

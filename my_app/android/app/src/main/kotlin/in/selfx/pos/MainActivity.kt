@@ -37,7 +37,10 @@ class MainActivity : FlutterActivity() {
     private val iminPrinter by iminPrinterDelegate
     private var bluetoothPermResult: MethodChannel.Result? = null
     private var usbAttachReceiver: BroadcastReceiver? = null
-    private val scaleSerial = ScaleSerialHandler(this)
+    // Android attaches the Activity context after construction. The scale handler
+    // requests USB_SERVICE, so create it only when its channel is first used.
+    private val scaleSerialDelegate = lazy { ScaleSerialHandler(this) }
+    private val scaleSerial by scaleSerialDelegate
     private var usbAttachSink: EventChannel.EventSink? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -225,42 +228,7 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             "pos_main/auto_start",
         ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "isSupported" -> result.success(true)
-                "isEnabled" -> {
-                    val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-                    val enabled = if (prefs.contains("flutter.pos_auto_start_enabled")) {
-                        prefs.getBoolean("flutter.pos_auto_start_enabled", true)
-                    } else {
-                        true
-                    }
-                    result.success(enabled)
-                }
-                "setEnabled" -> {
-                    val enabled = call.argument<Boolean>("enabled") ?: true
-                    try {
-                        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-                        prefs.edit().putBoolean("flutter.pos_auto_start_enabled", enabled).apply()
-
-                        val component = ComponentName(this, BootReceiver::class.java)
-                        val state = if (enabled) {
-                            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                        } else {
-                            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                        }
-                        packageManager.setComponentEnabledSetting(
-                            component,
-                            state,
-                            PackageManager.DONT_KILL_APP
-                        )
-                        result.success(true)
-                    } catch (e: Throwable) {
-                        Log.e("MainActivity", "Failed to update BootReceiver component setting: ${e.message}", e)
-                        result.success(false)
-                    }
-                }
-                else -> result.notImplemented()
-            }
+            AutoStartSettings(this).handle(call, result)
         }
 
         MethodChannel(
@@ -357,7 +325,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
-        scaleSerial.close()
+        if (scaleSerialDelegate.isInitialized()) scaleSerial.close()
         unregisterUsbAttachReceiver()
         stopIminScannerListener()
         usbDisplays?.destroy()

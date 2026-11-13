@@ -12,6 +12,8 @@ if ($pubspec -notmatch '(?m)^version:\s*(\d+\.\d+\.\d+)\+(\d+)\s*$') {
 }
 $appVersion = $Matches[1]
 $appBuild = $Matches[2]
+$parts = $appVersion.Split('.')
+$windowsVersion = '{0}.{1}.{2}.{3}' -f $parts[0], $parts[1], ([int]$parts[2] + [math]::Floor([long]$appBuild / 65536)), ([long]$appBuild % 65536)
 
 if (-not $IsccPath) {
     $compiler = Get-Command ISCC.exe -ErrorAction SilentlyContinue
@@ -42,10 +44,10 @@ try {
     }
     $versionInfo = (Get-Item -LiteralPath (Join-Path $releaseDir 'selfx_pos.exe')).VersionInfo
     $builtVersion = '{0}.{1}.{2}.{3}' -f $versionInfo.FileMajorPart, $versionInfo.FileMinorPart, $versionInfo.FileBuildPart, $versionInfo.FilePrivatePart
-    if ($builtVersion -ne "$appVersion.$appBuild") {
-        throw "Release version $builtVersion does not match $appVersion.$appBuild. Run without -SkipBuild."
+    if ($builtVersion -ne $windowsVersion) {
+        throw "Release version $builtVersion does not match $windowsVersion. Run without -SkipBuild."
     }
-    & $IsccPath "/DAppVersion=$appVersion" "/DAppBuild=$appBuild" 'windows\installer\selfx-pos.iss'
+    & $IsccPath "/DAppVersion=$appVersion" "/DAppBuild=$appBuild" "/DWindowsVersion=$windowsVersion" 'windows\installer\selfx-pos.iss'
     if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed' }
     $installer = Join-Path $appRoot "build\installer\SELFX-POS-$appVersion+$appBuild-windows-setup.exe"
     $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()

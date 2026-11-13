@@ -31,6 +31,11 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_MAJOR=${FLUTT
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_MINOR=${FLUTTER_VERSION_MINOR}")
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_PATCH=${FLUTTER_VERSION_PATCH}")
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_BUILD=${FLUTTER_VERSION_BUILD}")
+# Resource compiler version fields are 16-bit and do not support division.
+math(EXPR SELFX_WINDOWS_PATCH "${FLUTTER_VERSION_PATCH} + ${FLUTTER_VERSION_BUILD} / 65536")
+math(EXPR SELFX_WINDOWS_BUILD "${FLUTTER_VERSION_BUILD} % 65536")
+target_compile_definitions(${BINARY_NAME} PRIVATE "SELFX_WINDOWS_PATCH=${SELFX_WINDOWS_PATCH}")
+target_compile_definitions(${BINARY_NAME} PRIVATE "SELFX_WINDOWS_BUILD=${SELFX_WINDOWS_BUILD}")
 
 # Disable Windows macros that collide with C++ standard library functions.
 target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")

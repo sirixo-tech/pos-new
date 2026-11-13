@@ -64,7 +64,6 @@ class _KitchenShellState extends State<KitchenShell> {
     );
   }
 
-
   Future<void> _switchMode(PosWorkMode mode) async {
     final pos = context.read<PosController>();
     await pos.switchWorkMode(mode);
@@ -217,7 +216,8 @@ class _KitchenShellState extends State<KitchenShell> {
                           'kitchenSoundSettings',
                           'Sound settings',
                         ),
-                        onPressed: () => showKitchenSoundSettingsDialog(context),
+                        onPressed: () =>
+                            showKitchenSoundSettingsDialog(context),
                         icon: const Icon(Icons.volume_up_rounded),
                       ),
                       IconButton(
@@ -265,7 +265,10 @@ class _KitchenShellState extends State<KitchenShell> {
                         elevation: 14,
                         shadowColor: Colors.black.withValues(alpha: 0.16),
                         color: PosTheme.surface,
-                        constraints: const BoxConstraints(minWidth: 280, maxWidth: 320),
+                        constraints: const BoxConstraints(
+                          minWidth: 280,
+                          maxWidth: 320,
+                        ),
                         padding: EdgeInsets.zero,
                         icon: Container(
                           width: 36,
@@ -342,7 +345,10 @@ class _KitchenShellState extends State<KitchenShell> {
                               _buildMenuItem(
                                 value: 'fullscreen',
                                 icon: Icons.fullscreen_rounded,
-                                title: context.posText('kitchenFullscreen', 'Fullscreen'),
+                                title: context.posText(
+                                  'kitchenFullscreen',
+                                  'Fullscreen',
+                                ),
                               ),
                               const PopupMenuDivider(height: 1),
                             ],
@@ -352,7 +358,10 @@ class _KitchenShellState extends State<KitchenShell> {
                                 value: 'register',
                                 icon: Icons.point_of_sale_rounded,
                                 iconColor: const Color(0xFF2563EB),
-                                title: context.posText('kitchenSwitchRegister', 'Register POS'),
+                                title: context.posText(
+                                  'kitchenSwitchRegister',
+                                  'Register POS',
+                                ),
                                 subtitle: 'Billing, orders & register',
                               ),
                             if (pos.canUseCaptain)
@@ -360,14 +369,20 @@ class _KitchenShellState extends State<KitchenShell> {
                                 value: 'waiter',
                                 icon: Icons.room_service_rounded,
                                 iconColor: const Color(0xFFEA580C),
-                                title: context.posText('kitchenSwitchWaiter', 'Waiter / Captain'),
+                                title: context.posText(
+                                  'kitchenSwitchWaiter',
+                                  'Waiter / Captain',
+                                ),
                                 subtitle: 'Table orders & captain',
                               ),
                             _buildMenuItem(
                               value: 'token_display',
                               icon: Icons.tv_rounded,
                               iconColor: const Color(0xFF7C3AED),
-                              title: context.posText('kitchenTokenDisplay', 'Token display'),
+                              title: context.posText(
+                                'kitchenTokenDisplay',
+                                'Token display',
+                              ),
                               subtitle: 'Customer token board',
                             ),
                             const PopupMenuDivider(height: 1),
@@ -389,29 +404,52 @@ class _KitchenShellState extends State<KitchenShell> {
                               value: 'sounds',
                               icon: Icons.notifications_active_outlined,
                               iconColor: const Color(0xFF0D9488),
-                              title: context.posText('kitchenSoundSettings', 'Sound settings'),
+                              title: context.posText(
+                                'kitchenSoundSettings',
+                                'Sound settings',
+                              ),
                               subtitle: 'New ticket chimes & volume',
                             ),
                             _buildMenuItem(
                               value: 'printer_settings',
-                              icon: printingOn ? Icons.print_outlined : Icons.eco_rounded,
-                              iconColor: printingOn ? const Color(0xFF0284C7) : const Color(0xFF059669),
-                              title: context.posText('kitchenPrinterSettings', 'Printer & tickets'),
-                              subtitle: printingOn ? 'Printing active' : 'Paperless Mode',
+                              icon: printingOn
+                                  ? Icons.print_outlined
+                                  : Icons.eco_rounded,
+                              iconColor: printingOn
+                                  ? const Color(0xFF0284C7)
+                                  : const Color(0xFF059669),
+                              title: context.posText(
+                                'kitchenPrinterSettings',
+                                'Printer & tickets',
+                              ),
+                              subtitle: printingOn
+                                  ? 'Printing active'
+                                  : 'Paperless Mode',
                               trailing: _menuPill(
                                 text: printingOn ? 'ACTIVE' : 'PAPERLESS',
-                                color: printingOn ? const Color(0xFF0284C7) : const Color(0xFF059669),
-                                bg: printingOn ? const Color(0xFFE0F2FE) : const Color(0xFFD1FAE5),
+                                color: printingOn
+                                    ? const Color(0xFF0284C7)
+                                    : const Color(0xFF059669),
+                                bg: printingOn
+                                    ? const Color(0xFFE0F2FE)
+                                    : const Color(0xFFD1FAE5),
                               ),
                             ),
                             _buildMenuItem(
                               value: 'kot_reset',
                               icon: Icons.cleaning_services_outlined,
                               iconColor: const Color(0xFFD97706),
-                              title: context.posText('kitchenKotFlush', 'KOT flush'),
-                              subtitle: KotResetTimeSettings.label(kitchen.kotResetTime),
+                              title: context.posText(
+                                'kitchenKotFlush',
+                                'KOT flush',
+                              ),
+                              subtitle: KotResetTimeSettings.label(
+                                kitchen.kotResetTime,
+                              ),
                               trailing: _menuPill(
-                                text: KotResetTimeSettings.label(kitchen.kotResetTime),
+                                text: KotResetTimeSettings.label(
+                                  kitchen.kotResetTime,
+                                ),
                                 color: const Color(0xFFD97706),
                                 bg: const Color(0xFFFEF3C7),
                               ),
@@ -421,13 +459,24 @@ class _KitchenShellState extends State<KitchenShell> {
                             _buildMenuItem(
                               value: 'auto_start',
                               icon: Icons.power_settings_new_rounded,
-                              iconColor: autoStartOn ? const Color(0xFF16A34A) : PosTheme.inkMuted,
-                              title: context.posText('posAutoStartLabel', 'Auto-start on boot'),
-                              subtitle: autoStartOn ? 'Launches on power on' : 'Disabled',
+                              iconColor: autoStartOn
+                                  ? const Color(0xFF16A34A)
+                                  : PosTheme.inkMuted,
+                              title: context.posText(
+                                'posAutoStartLabel',
+                                'Auto-start on boot',
+                              ),
+                              subtitle: autoStartOn
+                                  ? 'Enabled - check device boot access'
+                                  : 'Disabled',
                               trailing: _menuPill(
                                 text: autoStartOn ? 'ON' : 'OFF',
-                                color: autoStartOn ? const Color(0xFF16A34A) : PosTheme.inkMuted,
-                                bg: autoStartOn ? const Color(0xFFDCFCE7) : PosTheme.surfaceMuted,
+                                color: autoStartOn
+                                    ? const Color(0xFF16A34A)
+                                    : PosTheme.inkMuted,
+                                bg: autoStartOn
+                                    ? const Color(0xFFDCFCE7)
+                                    : PosTheme.surfaceMuted,
                               ),
                             ),
                             _buildMenuItem(
@@ -529,8 +578,8 @@ class _KitchenShellState extends State<KitchenShell> {
     final bg = destructive
         ? errorColor.withValues(alpha: 0.1)
         : (iconColor != null
-            ? iconColor.withValues(alpha: 0.12)
-            : posAccentSoft(accent).bg);
+              ? iconColor.withValues(alpha: 0.12)
+              : posAccentSoft(accent).bg);
 
     return PopupMenuItem<String>(
       value: value,
