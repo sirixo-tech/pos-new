@@ -310,6 +310,7 @@ class _WeighingStationState extends State<_WeighingStation> {
     return Dialog(
       backgroundColor: PosTheme.surface,
       surfaceTintColor: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
@@ -321,47 +322,74 @@ class _WeighingStationState extends State<_WeighingStation> {
           maxHeight: MediaQuery.sizeOf(context).height * 0.9,
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 18, 22, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Weighing station',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                            color: PosTheme.ink,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          'Select an item, place it on the scale, and print a barcode label to scan at billing.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.35,
-                            color: PosTheme.inkMuted,
-                          ),
-                        ),
-                      ],
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(18, 16, 8, 16),
+                decoration: BoxDecoration(
+                  gradient: PosTheme.modalHeaderGradient(seed: accent),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.scale_outlined,
+                        color: PosTheme.modalHeaderIconColor(),
+                        size: 22,
+                      ),
                     ),
-                  ),
-                  _IconPlate(
-                    tooltip: 'Close',
-                    icon: Icons.close_rounded,
-                    onPressed: _busy ? null : () => Navigator.pop(context),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Weighing station',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Select an item, place it on the scale, and print a barcode label to scan at billing.',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.82),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: _busy ? null : () => Navigator.pop(context),
+                      color: Colors.white,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 16, 22, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
               if (wide)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -416,6 +444,9 @@ class _WeighingStationState extends State<_WeighingStation> {
               ),
             ],
           ),
+        ),
+      ],
+    ),
         ),
       ),
     );

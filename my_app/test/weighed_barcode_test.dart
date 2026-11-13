@@ -92,6 +92,7 @@ void main() {
     expect(body['order_type_charges'], {'dine_in': 10});
     expect(body['service_charge'], {'enabled': true, 'rate': 5, 'label': 'Service'});
     expect(body.containsKey('enable_order_delivery'), isFalse);
+    expect(body['weighing'], containsPair('barcode_format', 'ean13'));
     expect(body['weighing'], containsPair('prefix', '21'));
     expect(body['weighing'], containsPair('enabled', 1));
 
@@ -111,7 +112,7 @@ void main() {
     expect(nested.containsKey('receipt'), isFalse);
     expect(nested.containsKey('enable_order_pickup'), isFalse);
     expect(nested['service_charge'], {'enabled': true, 'rate': 5});
-    expect(const WeighingSettings(prefix: '20').barcodeFormat, '20PPPPPVVVVVC');
+    expect(const WeighingSettings(prefix: '20').barcodeFormatPreview, '20PPPPPVVVVVC');
   });
 
   test('parses Essae and plain scale frames', () {
@@ -129,5 +130,57 @@ void main() {
       ScaleFrame.parse('0.750', assumeGrams: true)!.kilograms,
       0.001,
     );
+  });
+
+  test('custom labels decode the printed 425 g crab barcode', () {
+    const custom = WeighingSettings(
+      enabled: true,
+      barcodeFormat: 'custom',
+      prefix: '1',
+      pluDigits: 5,
+      valueDigits: 5,
+    );
+    final decoded = WeighedBarcode.decode('10002400425', custom);
+    expect(decoded, isNotNull);
+    expect(decoded!.plu, '24');
+    expect(decoded.weightKg, 0.425);
+    expect(
+      WeighedBarcode.encode(
+        settings: custom,
+        plu: '24',
+        weightKg: 0.425,
+      ),
+      '10002400425',
+    );
+    expect(custom.barcodeFormatPreview, '1PPPPPVVVVV');
+
+    final fromServer = WeighingSettings.fromJson({
+      'enabled': 1,
+      'barcode_format': 'custom',
+      'prefix': '10',
+      'plu_digits': 4,
+      'value_digits': 5,
+      'payload': 'weight',
+    });
+    final sameLabel = WeighedBarcode.decode('10002400425', fromServer);
+    expect(sameLabel!.plu, '24');
+    expect(sameLabel.weightKg, 0.425);
+  });
+
+  test('saving weighing keeps unknown weighing keys from the server', () {
+    final body = orderingSettingsUpdate(
+      current: {
+        'weighing': {'scale_note': 'counter 2', 'enabled': true},
+      },
+      weighing: const WeighingSettings(
+        enabled: true,
+        barcodeFormat: 'custom',
+        prefix: '1',
+        pluDigits: 5,
+      ),
+    );
+    expect(body['weighing']['scale_note'], 'counter 2');
+    expect(body['weighing']['barcode_format'], 'custom');
+    expect(body['weighing']['plu_digits'], 5);
   });
 }

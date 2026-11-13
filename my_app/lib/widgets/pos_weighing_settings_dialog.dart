@@ -29,6 +29,7 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
   final _width = TextEditingController();
   final _height = TextEditingController();
   bool _saving = false;
+  bool _dirty = false;
   String? _error;
 
   @override
@@ -37,6 +38,20 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
     final current = context.read<PosController>().bootstrap?.restaurant.weighing ??
         const WeighingSettings();
     _apply(current);
+    _reloadFromServer();
+  }
+
+  Future<void> _reloadFromServer() async {
+    final pos = context.read<PosController>();
+    try {
+      await pos.refreshBootstrap();
+    } catch (_) {}
+    if (!mounted || _dirty) return;
+    setState(() {
+      _apply(
+        pos.bootstrap?.restaurant.weighing ?? const WeighingSettings(),
+      );
+    });
   }
 
   void _apply(WeighingSettings settings) {
@@ -117,7 +132,8 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final draft = _read();
-    final pluDigits = (7 - draft.prefix.length).clamp(1, 6);
+    final pluDigits = draft.pluLength;
+    final valueDigits = draft.valueLength;
 
     return PosDialogShell(
       title: 'Weighing scale & labels',
@@ -154,10 +170,92 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
               value: draft.enabled,
               onChanged: _saving
                   ? null
-                  : (value) => setState(() => _draft = draft.copyWith(enabled: value)),
+                  : (value) {
+                      _dirty = true;
+                      setState(() => _draft = draft.copyWith(enabled: value));
+                    },
             ),
             if (draft.enabled) ...[
               const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                key: ValueKey('format-${draft.barcodeFormat}'),
+                initialValue: draft.isCustom ? 'custom' : 'ean13',
+                decoration: const InputDecoration(
+                  labelText: 'Barcode format',
+                  helperText:
+                      'EAN-13 is 13 digits with a check digit. Custom is prefix, PLU, and value only.',
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'ean13',
+                    child: Text('EAN-13 (13 digits with check digit)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'custom',
+                    child: Text('Custom (no check digit)'),
+                  ),
+                ],
+                onChanged: _saving
+                    ? null
+                    : (value) {
+                        if (value == null) return;
+                        _dirty = true;
+                        setState(
+                          () => _draft = draft.copyWith(barcodeFormat: value),
+                        );
+                      },
+              ),
+              if (draft.isCustom) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        key: ValueKey('plu-${draft.pluDigits}'),
+                        initialValue: draft.pluDigits.clamp(1, 6),
+                        decoration: const InputDecoration(labelText: 'PLU digits'),
+                        items: [
+                          for (var digit = 1; digit <= 6; digit++)
+                            DropdownMenuItem(value: digit, child: Text('$digit')),
+                        ],
+                        onChanged: _saving
+                            ? null
+                            : (value) {
+                                if (value == null) return;
+                                _dirty = true;
+                                setState(
+                                  () => _draft = draft.copyWith(pluDigits: value),
+                                );
+                              },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        key: ValueKey('value-${draft.valueDigits}'),
+                        initialValue: draft.valueDigits.clamp(4, 6),
+                        decoration: const InputDecoration(
+                          labelText: 'Value digits',
+                        ),
+                        items: [
+                          for (var digit = 4; digit <= 6; digit++)
+                            DropdownMenuItem(value: digit, child: Text('$digit')),
+                        ],
+                        onChanged: _saving
+                            ? null
+                            : (value) {
+                                if (value == null) return;
+                                _dirty = true;
+                                setState(
+                                  () => _draft = draft.copyWith(valueDigits: value),
+                                );
+                              },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
               TextField(
                 controller: _prefix,
                 enabled: !_saving,
@@ -167,18 +265,23 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
                 decoration: InputDecoration(
                   labelText: 'Barcode prefix',
                   counterText: '',
-                  helperText:
-                      '1–2 digits that mark scale labels (usually 20–29). Leaves $pluDigits digits for the PLU code.',
+                  helperText: draft.isCustom
+                      ? '1–2 digits at the start of every scale label.'
+                      : '1–2 digits that mark scale labels (usually 20–29). Leaves $pluDigits digits for the PLU code.',
                 ),
-                onChanged: (_) => setState(() => _error = null),
+                onChanged: (_) {
+                  _dirty = true;
+                  setState(() => _error = null);
+                },
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                key: ValueKey('payload-${draft.payload}'),
                 initialValue: draft.payload,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Barcode carries',
                   helperText:
-                      'Weight lets the POS recalculate the price from the current rate. Price is limited to 5 digits.',
+                      'Weight lets the POS recalculate the price from the current rate. The value is limited to $valueDigits digits.',
                 ),
                 items: const [
                   DropdownMenuItem(
@@ -191,12 +294,14 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
                     ? null
                     : (value) {
                         if (value == null) return;
+                        _dirty = true;
                         setState(() => _draft = draft.copyWith(payload: value));
                       },
               ),
               if (draft.payload == 'price') ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
+                  key: ValueKey('decimals-${draft.priceDecimals}'),
                   initialValue: draft.priceDecimals.clamp(0, 2),
                   decoration: const InputDecoration(labelText: 'Price decimals'),
                   items: const [
@@ -208,6 +313,7 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
                       ? null
                       : (value) {
                           if (value == null) return;
+                          _dirty = true;
                           setState(
                             () => _draft = draft.copyWith(priceDecimals: value),
                           );
@@ -226,7 +332,7 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
               ),
               const SizedBox(height: 4),
               Text(
-                draft.barcodeFormat,
+                draft.barcodeFormatPreview,
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   fontWeight: FontWeight.w800,
@@ -234,7 +340,9 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
                 ),
               ),
               Text(
-                'Prefix + PLU (P) + 5-digit value (V) + check digit (C) = 13 digits.',
+                draft.isCustom
+                    ? 'Prefix + PLU (P) + value (V) = ${draft.barcodeLength} digits. No check digit.'
+                    : 'Prefix + PLU (P) + $valueDigits-digit value (V) + check digit (C) = 13 digits.',
                 style: TextStyle(fontSize: 12, color: PosTheme.inkMuted),
               ),
               const SizedBox(height: 12),
@@ -248,7 +356,10 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Label width (mm)',
                       ),
-                      onChanged: (_) => setState(() => _error = null),
+                      onChanged: (_) {
+                        _dirty = true;
+                        setState(() => _error = null);
+                      },
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -260,7 +371,10 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Label height (mm)',
                       ),
-                      onChanged: (_) => setState(() => _error = null),
+                      onChanged: (_) {
+                        _dirty = true;
+                        setState(() => _error = null);
+                      },
                     ),
                   ),
                 ],
@@ -272,9 +386,12 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
                 value: draft.labelShowRestaurant,
                 onChanged: _saving
                     ? null
-                    : (value) => setState(
-                        () => _draft = draft.copyWith(labelShowRestaurant: value),
-                      ),
+                    : (value) {
+                        _dirty = true;
+                        setState(
+                          () => _draft = draft.copyWith(labelShowRestaurant: value),
+                        );
+                      },
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -283,9 +400,12 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
                 value: draft.labelShowDate,
                 onChanged: _saving
                     ? null
-                    : (value) => setState(
-                        () => _draft = draft.copyWith(labelShowDate: value),
-                      ),
+                    : (value) {
+                        _dirty = true;
+                        setState(
+                          () => _draft = draft.copyWith(labelShowDate: value),
+                        );
+                      },
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -297,9 +417,12 @@ class _WeighingSettingsDialogState extends State<_WeighingSettingsDialog> {
                 value: draft.autoPrintOnStable,
                 onChanged: _saving
                     ? null
-                    : (value) => setState(
-                        () => _draft = draft.copyWith(autoPrintOnStable: value),
-                      ),
+                    : (value) {
+                        _dirty = true;
+                        setState(
+                          () => _draft = draft.copyWith(autoPrintOnStable: value),
+                        );
+                      },
               ),
             ],
             if (_error != null) ...[

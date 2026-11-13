@@ -2,7 +2,10 @@
 class WeighingSettings {
   const WeighingSettings({
     this.enabled = false,
+    this.barcodeFormat = 'ean13',
     this.prefix = '20',
+    this.pluDigits = 5,
+    this.valueDigits = 5,
     this.payload = 'weight',
     this.priceDecimals = 2,
     this.labelWidthMm = 50,
@@ -13,7 +16,16 @@ class WeighingSettings {
   });
 
   final bool enabled;
+
+  /// `ean13` or `custom`. Custom labels have no check digit.
+  final String barcodeFormat;
   final String prefix;
+
+  /// Used when [barcodeFormat] is `custom`. EAN-13 derives the PLU width from the prefix.
+  final int pluDigits;
+
+  /// Used when [barcodeFormat] is `custom`. EAN-13 always carries 5 value digits.
+  final int valueDigits;
   final String payload;
   final int priceDecimals;
   final int labelWidthMm;
@@ -22,29 +34,56 @@ class WeighingSettings {
   final bool labelShowDate;
   final bool autoPrintOnStable;
 
+  bool get isCustom => barcodeFormat == 'custom';
+
+  int get pluLength {
+    if (isCustom) return pluDigits.clamp(1, 6);
+    final digits = prefix.replaceAll(RegExp(r'\D'), '');
+    return (7 - digits.length).clamp(1, 6);
+  }
+
+  int get valueLength => isCustom ? valueDigits.clamp(4, 6) : 5;
+
+  int get barcodeLength {
+    final digits = prefix.replaceAll(RegExp(r'\D'), '');
+    if (isCustom) return digits.length + pluLength + valueLength;
+    return 13;
+  }
+
   factory WeighingSettings.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const WeighingSettings();
     final prefix = (json['prefix'] as String?)?.trim();
     final payload = (json['payload'] as String?)?.trim().toLowerCase();
+    final format = (json['barcode_format'] as String?)?.trim().toLowerCase();
     final decimals = json['price_decimals'];
     final width = json['label_width_mm'];
     final height = json['label_height_mm'];
     return WeighingSettings(
-      enabled: json['enabled'] == true,
+      enabled: _weighingFlag(json['enabled']),
+      barcodeFormat: format == 'custom' ? 'custom' : 'ean13',
       prefix: prefix != null && prefix.isNotEmpty ? prefix : '20',
+      pluDigits: _boundedInt(json['plu_digits'], 1, 6, 5),
+      valueDigits: _boundedInt(json['value_digits'], 4, 6, 5),
       payload: payload == 'price' ? 'price' : 'weight',
-      priceDecimals: decimals is num ? decimals.toInt() : 2,
+      priceDecimals: decimals is num ? decimals.toInt().clamp(0, 2) : 2,
       labelWidthMm: width is num ? width.toInt() : 50,
       labelHeightMm: height is num ? height.toInt() : 38,
-      labelShowRestaurant: json['label_show_restaurant'] != false,
-      labelShowDate: json['label_show_date'] != false,
-      autoPrintOnStable: json['auto_print_on_stable'] == true,
+      labelShowRestaurant: json.containsKey('label_show_restaurant')
+          ? _weighingFlag(json['label_show_restaurant'])
+          : true,
+      labelShowDate: json.containsKey('label_show_date')
+          ? _weighingFlag(json['label_show_date'])
+          : true,
+      autoPrintOnStable: _weighingFlag(json['auto_print_on_stable']),
     );
   }
 
   WeighingSettings copyWith({
     bool? enabled,
+    String? barcodeFormat,
     String? prefix,
+    int? pluDigits,
+    int? valueDigits,
     String? payload,
     int? priceDecimals,
     int? labelWidthMm,
@@ -55,7 +94,10 @@ class WeighingSettings {
   }) {
     return WeighingSettings(
       enabled: enabled ?? this.enabled,
+      barcodeFormat: barcodeFormat ?? this.barcodeFormat,
       prefix: prefix ?? this.prefix,
+      pluDigits: pluDigits ?? this.pluDigits,
+      valueDigits: valueDigits ?? this.valueDigits,
       payload: payload ?? this.payload,
       priceDecimals: priceDecimals ?? this.priceDecimals,
       labelWidthMm: labelWidthMm ?? this.labelWidthMm,
@@ -68,7 +110,10 @@ class WeighingSettings {
 
   Map<String, dynamic> toJson() => {
     'enabled': enabled,
+    'barcode_format': isCustom ? 'custom' : 'ean13',
     'prefix': prefix,
+    'plu_digits': pluDigits.clamp(1, 6),
+    'value_digits': valueDigits.clamp(4, 6),
     'payload': payload == 'price' ? 'price' : 'weight',
     'price_decimals': priceDecimals.clamp(0, 2),
     'label_width_mm': labelWidthMm.clamp(30, 110),
@@ -78,12 +123,22 @@ class WeighingSettings {
     'auto_print_on_stable': autoPrintOnStable,
   };
 
-  /// `20PPPPPWWWWWC` style preview. PLU width is `7 - prefix length`.
-  String get barcodeFormat {
+  /// Prefix + PLU (P) + value (V) + check digit (C) when the format is EAN-13.
+  String get barcodeFormatPreview {
     final digits = prefix.replaceAll(RegExp(r'\D'), '');
-    final plu = (7 - digits.length).clamp(1, 6);
-    return '$digits${'P' * plu}VVVVVC';
+    return '$digits${'P' * pluLength}${'V' * valueLength}${isCustom ? '' : 'C'}';
   }
+}
+
+bool _weighingFlag(Object? value) =>
+    value == true || value == 1 || value == '1';
+
+int _boundedInt(Object? value, int min, int max, int fallback) {
+  final parsed = value is num
+      ? value.toInt()
+      : int.tryParse('${value ?? ''}');
+  if (parsed == null) return fallback;
+  return parsed.clamp(min, max);
 }
 
 int _settingsFlag(Object? value) => value == true || value == 1 ? 1 : 0;
@@ -157,9 +212,14 @@ Map<String, dynamic> orderingSettingsUpdate({
     if (!source.containsKey(key)) continue;
     body[key] = source[key];
   }
+  final previous = _stringKeyMap(source['weighing']) ?? const <String, dynamic>{};
   body['weighing'] = {
+    ...previous,
     'enabled': _settingsFlag(weighing.enabled),
+    'barcode_format': weighing.isCustom ? 'custom' : 'ean13',
     'prefix': weighing.prefix,
+    'plu_digits': weighing.pluDigits.clamp(1, 6),
+    'value_digits': weighing.valueDigits.clamp(4, 6),
     'payload': weighing.payload == 'price' ? 'price' : 'weight',
     'price_decimals': weighing.priceDecimals.clamp(0, 2),
     'label_width_mm': weighing.labelWidthMm.clamp(30, 110),
@@ -195,7 +255,7 @@ class WeighedCode {
 class WeighedBarcode {
   WeighedBarcode._();
 
-  static int pluLength(String prefix) => 13 - 1 - 5 - prefix.length;
+  static int pluLength(WeighingSettings settings) => settings.pluLength;
 
   static int checkDigit(String body12) {
     var sum = 0;
@@ -219,12 +279,13 @@ class WeighedBarcode {
     required double weightKg,
     double? lineTotal,
   }) {
-    final prefix = settings.prefix;
-    final length = pluLength(prefix);
-    if (prefix.isEmpty || length < 1) return null;
+    final prefix = settings.prefix.replaceAll(RegExp(r'\D'), '');
+    final pluWidth = settings.pluLength;
+    final valueWidth = settings.valueLength;
+    if (prefix.isEmpty || pluWidth < 1) return null;
     final pluDigits = plu.replaceAll(RegExp(r'\D'), '');
-    if (pluDigits.isEmpty || pluDigits.length > length) return null;
-    final paddedPlu = pluDigits.padLeft(length, '0');
+    if (pluDigits.isEmpty || pluDigits.length > pluWidth) return null;
+    final paddedPlu = pluDigits.padLeft(pluWidth, '0');
     final int rawValue;
     if (settings.payload == 'price') {
       final total = lineTotal ?? 0;
@@ -232,23 +293,36 @@ class WeighedBarcode {
     } else {
       rawValue = (roundKg(weightKg) * 1000).round();
     }
-    if (rawValue < 0 || rawValue > 99999) return null;
-    final body = '$prefix$paddedPlu${rawValue.toString().padLeft(5, '0')}';
+    final maxValue = _pow10(valueWidth) - 1;
+    if (rawValue < 0 || rawValue > maxValue) return null;
+    final body =
+        '$prefix$paddedPlu${rawValue.toString().padLeft(valueWidth, '0')}';
+    if (settings.isCustom) {
+      return body.length == settings.barcodeLength ? body : null;
+    }
     if (body.length != 12) return null;
     return '$body${checkDigit(body)}';
   }
 
   static WeighedCode? decode(String raw, WeighingSettings settings) {
-    final code = raw.trim();
-    if (!settings.enabled || !validEan13(code)) return null;
-    final prefix = settings.prefix;
-    if (!code.startsWith(prefix)) return null;
-    final length = pluLength(prefix);
-    if (length < 1) return null;
-    final pluRaw = code.substring(prefix.length, prefix.length + length);
-    final valueRaw = code.substring(prefix.length + length, prefix.length + length + 5);
-    if (valueRaw.length != 5) return null;
-    final value = int.parse(valueRaw);
+    final code = raw.trim().replaceAll(RegExp(r'\s'), '');
+    if (!settings.enabled) return null;
+    final prefix = settings.prefix.replaceAll(RegExp(r'\D'), '');
+    final matchesShape = settings.isCustom
+        ? RegExp('^\\d{${settings.barcodeLength}}\$').hasMatch(code)
+        : validEan13(code);
+    if (!matchesShape || prefix.isEmpty || !code.startsWith(prefix)) {
+      return null;
+    }
+    final pluWidth = settings.pluLength;
+    final valueWidth = settings.valueLength;
+    final pluEnd = prefix.length + pluWidth;
+    final valueEnd = pluEnd + valueWidth;
+    if (valueEnd > code.length) return null;
+    final pluRaw = code.substring(prefix.length, pluEnd);
+    final valueRaw = code.substring(pluEnd, valueEnd);
+    final value = int.tryParse(valueRaw);
+    if (value == null) return null;
     final plu = stripPlu(pluRaw);
     if (settings.payload == 'price') {
       return WeighedCode(
